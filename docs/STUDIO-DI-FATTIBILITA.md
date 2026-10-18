@@ -1,10 +1,10 @@
 # Dyadrr: studio di fattibilità
 
-Stato: bozza 0.7, ottobre 2026.
+Stato: bozza 0.8, ottobre 2026.
 
 Questo documento raccoglie le decisioni prese, quelle ancora aperte e i risultati delle prime verifiche sperimentali (§18). È il punto di partenza del repo.
 
-La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). Le modifiche principali sono elencate in §20.
+La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). Le modifiche principali sono elencate in §20.
 
 ---
 
@@ -339,6 +339,19 @@ Le situazioni di inizio e di fine si combinano liberamente.
 - **Partenza brusca.** Con S < 0 l'italiano può partire a metà di un suono, perché senza ricodifica non ci sono dissolvenze. Si avvisa solo se il livello audio nel punto di taglio supera una soglia.
 - **Buco lungo senza italiano.** Se all'inizio o alla fine manca l'italiano per più di una soglia in minuti (per esempio 10, da tarare insieme alla copertura minima di §9.3, che altrimenti rifiuta prima che l'avviso possa scattare), il report avvisa con `LONG_GAP_WITHOUT_ITALIAN`. Vicino ai due confini del materiale in comune deve comunque esserci un punto coerente (regola di §9.3: almeno uno nel primo e nell'ultimo 10%).
 
+**Il metodo (0.8).**
+- **Estremi.** Il film va dal primo timestamp del video di riferimento alla fine del suo ultimo fotogramma. L'italiano va dal primo timestamp alla fine dell'ultimo pacchetto delle tracce audio italiane prese (§8; con `--italian` in sospeso, di tutte), spostate di S. La fine è quella letta in coda (§4.8), altrimenti quella dei tag statistici.
+- **Caso.** All'inizio l'italiano comincia dopo l'inizio del film (il riferimento ha più intro: quel tratto resta senza italiano), prima (il donatore ha più intro: si taglia all'inizio del film), oppure insieme. Alla fine lo stesso con la fine del film: se l'italiano finisce dopo, la differenza è l'eccesso in coda.
+- **Intro e code diverse:** c'è italiano fuori dal materiale in comune, dentro il film. Il materiale in comune comincia più di 1 s dopo il punto in cui comincerebbe l'italiano, o finisce più di 1 s prima del punto in cui finirebbe (al più la fine del film).
+  - 1 s è la precisione dei confini: la ricerca si ferma con l'intervallo sotto 1 s (§4.6), quindi un tratto misurato oltre 1 s c'è davvero. Un tratto più corto non conta. Un'intro diversa può invece sfuggire se il confine cade dentro di lei, fino a una finestra breve (2 s, §4.6).
+  - Un tratto muto all'inizio o alla fine resta fuori dal materiale in comune (§4.6) e conta come diverso: dal silenzio non si può sapere.
+- **Tagli.** All'inizio sull'inizio del film, oppure sul confine iniziale con `--edge-mismatch drop`. Alla fine sulla fine del video con `--tail trim`, oppure sul confine finale con `--edge-mismatch drop`. Lo stesso taglio vale per tutte le tracce italiane, audio e PGS (§6.1).
+- **Eccesso in coda sotto 1 s:** non conta. Si lascia, senza scelta né avviso: è l'ultimo pacchetto audio oltre l'ultimo fotogramma.
+- **`--tail` con code diverse.** Con `--edge-mismatch drop` non serve: il taglio cade sul confine, prima della fine del video. Con `keep` l'italiano resta sulla coda diversa fino alla fine del video, e oltre lo decide `--tail`.
+- **Partenza brusca.** Per ogni traccia italiana tagliata all'inizio si misura il livello nei 250 ms dopo il taglio: il più alto tra il canale centrale (se la traccia lo ha) e L+R, letti come in §4.3 e con la sua energia. Oltre −40 dBFS (`abruptStartDbfs`, **provvisorio**, §9.2) scatta `ABRUPT_START`. Si legge una volta per ogni punto di taglio possibile (inizio del film e confine iniziale), con tutte le tracce che vi verrebbero tagliate: così l'effetto di `--edge-mismatch` è noto anche prima della scelta.
+- **Buco lungo senza italiano:** dall'inizio del film all'inizio dell'italiano, o dalla fine dell'italiano alla fine del film, oltre 10 minuti (`longGapWithoutItalianMs`, **provvisorio**). Un avviso per estremo.
+- **Costanti del metodo:** la precisione di 1 s e il tratto di 250 ms, in `src/plan.ts` (§9.2).
+
 ---
 
 ## 6. Costruzione del file finale
@@ -423,13 +436,19 @@ Prima si costruisce un file che contiene **solo** l'audio e i PGS italiani del d
   Una traccia italiana si considera forced se vale almeno una di queste condizioni:
   - ha il flag;
   - il nome contiene "forced" o "forzati";
-  - ha molti meno blocchi della traccia italiana più grande (per esempio meno del 10–20%, da tarare). I blocchi si contano dai tag statistici (`NUMBER_OF_FRAMES`); contare i sottotitoli veri vorrebbe dire leggere tutto il file, decine di GB. Nel report il numero di sottotitoli è una stima, salvo quelli persi ai tagli.
+  - ha molti meno blocchi della traccia italiana più grande: meno del 15% (`forcedSubsFraction`, **provvisorio**, §9.2; lo studio 0.7 diceva "per esempio il 10–20%, da tarare"). I blocchi si contano dai tag statistici (`NUMBER_OF_FRAMES`); contare i sottotitoli veri vorrebbe dire leggere tutto il file, decine di GB. Nel report il numero di sottotitoli è una stima, salvo quelli persi ai tagli.
 
   Il report indica come è stata classificata e perché.
 - **PGS italiani già nel riferimento:** si tengono dopo quelli del donatore e mai predefiniti, oppure si scartano. È una scelta dell'utente (`--reference-italian-subs`, §10.1). In entrambi i casi scatta l'avviso `REFERENCE_HAS_ITALIAN_SUBS`.
 - **Sottotitoli italiani non PGS** nel donatore: si scartano con l'avviso `ITALIAN_SUBS_NOT_PGS`.
 - **Avviso sui forced mancanti:** `NO_FORCED_ITALIAN_SUBS` scatta solo se il riferimento ha un forced in un'altra lingua (indizio di scritte straniere a schermo) e il donatore non ha un forced italiano. Altrimenti scatterebbe su quasi tutti i film.
 - **Caso noto:** alcuni dischi italiani (tipicamente Disney e Pixar) hanno le scritte in italiano direttamente nel video. Su quei dischi possono mancare i forced per quelle scritte, che sul video inglese restano in inglese.
+
+**Il metodo (0.8).**
+- **Quali tracce:** tutti i PGS italiani del donatore. Gli altri sottotitoli italiani del donatore si scartano con `ITALIAN_SUBS_NOT_PGS`, un avviso per traccia; quelli non italiani non si prendono.
+- **Forced:** il flag, poi il nome ("forced", "forzati"), poi i blocchi, confrontati con la traccia più grande **della stessa lingua**. Senza tag statistici il terzo criterio si salta. Lo stesso vale per i sottotitoli del riferimento: `NO_FORCED_ITALIAN_SUBS` guarda i suoi forced non italiani.
+- **`SDR_SUBS_ON_HDR`:** si prende almeno un PGS italiano, il video del donatore è SDR e quello del riferimento no.
+- **PGS italiani del riferimento:** le tracce del riferimento in italiano e in PGS. `REFERENCE_HAS_ITALIAN_SUBS` scatta anche con `--reference-italian-subs` in sospeso.
 
 ---
 
@@ -445,6 +464,7 @@ Queste regole valgono in entrambi i casi:
 - **Traccia predefinita (principale):** quella italiana già marcata come predefinita nel donatore; altrimenti la prima traccia audio italiana che non sembri un commento o un'audiodescrizione (sotto); altrimenti la prima traccia audio italiana.
 - **Commenti e audiodescrizione:** si riconoscono dai flag commento o non vedenti, o da parole nel nome (commento, audiodescrizione, non vedenti, AD). Questi indizi servono solo a **non** rendere predefinita una traccia, mai a scartarla in silenzio. Nei rip da Blu-ray i flag mancano quasi sempre.
 - La stessa logica vale per i PGS italiani di commento.
+- **Nel piano (0.8):** ogni traccia audio italiana ha un ruolo stimato (principale, commento o audiodescrizione, altra) con il motivo, e risulta presa o scartata. Con una sola traccia italiana `--italian` non serve. `ITALIAN_TRACKS_SKIPPED` scatta una volta per ogni traccia scartata.
 
 ---
 
@@ -481,8 +501,8 @@ I valori **provvisori** sono fissati prima della taratura sulle coppie reali (§
 | Punti di conferma (§4.5) | 30, fino a 60 | 10–100 e 10–200, interi; il massimo non sotto i punti previsti, né sotto i punti coerenti richiesti da §9.3 |
 | Margine dell'intervallo di ricerca, ±(S_max + margine) (§4.4) | 60 s | 1–120 s |
 | Copertura dei punti coerenti (§9.3) | almeno 20 punti coerenti, buco massimo 15 min, un punto nel primo e nell'ultimo 10%, copertura 90% | 10–60 punti (intero), 1–30 min, 2–25%, 50–100% |
-| Soglie degli avvisi | `MANY_INCONCLUSIVE` 10%; `MEASURE_MIX_DIFFERS` per una somiglianza sotto θ_ncc + 0,1 (fascia **provvisoria**); `LONG_GAP_WITHOUT_ITALIAN` 10 min; `ABRUPT_START` da tarare | 1–50%; fascia 0–0,5; le altre con il modulo del piano |
-| Altre soglie | margine di bitrate 20% (§3.2), forced sotto il 10–20% dei sottotitoli della traccia più grande (§7) | bitrate 5–100%; forced con il modulo del piano |
+| Soglie degli avvisi | `MANY_INCONCLUSIVE` 10%; `MEASURE_MIX_DIFFERS` per una somiglianza sotto θ_ncc + 0,1 (fascia **provvisoria**); `LONG_GAP_WITHOUT_ITALIAN` 10 min, **provvisorio**; `ABRUPT_START` sopra −40 dBFS dopo il taglio, **provvisorio** (§5) | 1–50%; fascia 0–0,5; 1–30 min; da −70 a −10 dBFS |
+| Altre soglie | margine di bitrate 20% (§3.2), forced sotto il 15% dei blocchi della traccia più grande della stessa lingua, **provvisorio** (§7) | bitrate 5–100%; forced 1–50% (una traccia con metà dei blocchi non è "solo forzati") |
 | Spostamento massimo S_max | 180 s | 1–300 s |
 | Framerate uguale | differenza relativa sotto 1e-4 (non uguaglianza esatta: 23,976 si può scrivere in modi diversi) | da 1e-6 a 5e-4: sempre sotto 1e-3, la differenza tra 24 e 23,976 |
 | Tolleranza del controllo di integrità (§4.8) | 1 s, **provvisoria** | 50 ms – 5 s |
@@ -491,6 +511,8 @@ I valori **provvisori** sono fissati prima della taratura sulle coppie reali (§
 I parametri dei moduli non ancora scritti entrano nel file insieme ai moduli che li usano. Il pre-roll e le soglie della lettura delle finestre non sono parametri di taratura ma costanti del metodo (§4.3).
 
 Anche le costanti della correlazione sono costanti del metodo: ricerca vicina ±1 s, rifinitura ±2 ms, banda della correlazione sbiancata, posizioni delle ancore, spostamento sul contenuto (60 s, a passi di 250 ms), finestre brevi (2 s), precisione (1 s) e numero massimo di prove dei confini, ricerche oltre i confini (3 per lato), punti del trasferimento (5), parità tra coppie (0,02) e rapporti della diagnosi di velocità (§4.2, §4.4–4.7). Dicono dove e come cercare, non quando una coppia è idonea; stanno in `src/measure.ts` e si cambiano con una PR che aggiorna questi paragrafi. Lunghezza delle finestre, zona di esclusione, numero di punti e margine di ricerca stanno invece in `calibration.json`: cambiano quanto è severo il giudizio, e vanno tarati con le soglie.
+
+Costanti del metodo sono anche quelle del piano (§5): la precisione sotto la quale intro e code diverse ed eccesso in coda non contano (1 s, quella dei confini) e il tratto su cui si misura il livello dopo un taglio (250 ms). Stanno in `src/plan.ts`.
 
 ### 9.3 Copertura dei punti coerenti
 
@@ -618,6 +640,8 @@ Alcuni comportamenti non hanno una risposta giusta per tutti: li decide chi usa 
 - Una scelta indicata ma non necessaria si ignora, e il report lo dice.
 - Un valore non valido, da opzione o da variabile d'ambiente, è `BAD_ARGUMENTS`.
 - Con `--expect`, il piano confrontato è quello che corrisponde alle scelte fatte.
+- **L'effetto di ogni valore** (0.8): l'intervallo in cui l'italiano è presente, le tracce audio italiane prese, i PGS italiani del riferimento tenuti e gli avvisi che scatterebbero. Quello che dipende da un'altra scelta in sospeso resta in sospeso.
+- **`--tail` e `--edge-mismatch`** (0.8): con code diverse e `--edge-mismatch drop`, `--tail` non serve, perché il taglio cade sul confine, prima della fine del video (§5).
 - Con `--edge-mismatch drop` il taglio cade sul confine del materiale in comune, che è noto con circa 1 s di precisione (§4.6). Con `keep` scattano `INTRO_MISMATCH` o `OUTRO_MISMATCH`.
 
 **In Wayfinderr (fase 2)** le stesse quattro scelte diventano impostazioni della GUI, ognuna con un valore fisso oppure "chiedi ogni volta". Wayfinderr passa sempre a Dyadrr le scelte come opzioni, anche quelle preimpostate, così il report registra il valore usato. Con "chiedi ogni volta" la GUI mostra le scelte in sospeso del report di analyze insieme alla conferma del merge.
@@ -815,7 +839,8 @@ Prima di scrivere codice si verificano su file di prova i meccanismi da cui dipe
 - Le code si tagliano con `--split` su intermedi senza video, mai su file con FLAC.
 - **Lo spostamento atteso si legge dai timestamp dei file prodotti, non dal valore richiesto.** Un `--split` su un file con video taglia sul fotogramma chiave successivo: nelle prove, 7,500 s richiesti sono diventati 8,008 s.
 - Si verificano segno di S, piano di inizio e fine, flag, capitoli e sottotitoli persi, al millisecondo.
-- *Stato (Dyadrr 0.5.0):* misura provata su MKV di 120 s generati al volo, in AC3: spostamenti con `--sync` di entrambi i segni (S esatto al decimo di ms, letto dai timestamp dei file prodotti), code tagliate con `--split` su intermedi senza video, intro diverse, silenzi all'inizio e alla fine, `OFFSET_TOO_LARGE`, deriva, velocità 1,001, contenuto ripetitivo, centrale contro L+R su un remix e scelta della coppia. Piano, flag, capitoli e sottotitoli arrivano con i rispettivi moduli.
+- *Stato (Dyadrr 0.5.0):* misura provata su MKV di 120 s generati al volo, in AC3: spostamenti con `--sync` di entrambi i segni (S esatto al decimo di ms, letto dai timestamp dei file prodotti), code tagliate con `--split` su intermedi senza video, intro diverse, silenzi all'inizio e alla fine, `OFFSET_TOO_LARGE`, deriva, velocità 1,001, contenuto ripetitivo, centrale contro L+R su un remix e scelta della coppia.
+- *Stato (Dyadrr 0.6.0):* piano di inizio e fine provato sugli stessi file: `--sync` di entrambi i segni, intro diversa con `--edge-mismatch` e `ABRUPT_START`, riferimento con la coda tagliata e `--tail`. Flag, capitoli e sottotitoli persi arrivano con la costruzione.
 
 **1b. Test sintetici con un taglio a metà film**
 - Si tolgono e si ricuciono parti di una copia, sempre senza ricodifica.
@@ -837,7 +862,7 @@ Prima di scrivere codice si verificano su file di prova i meccanismi da cui dipe
 - `DRIFT`, `TOO_FEW_CHECKPOINTS`, `AMBIGUOUS_MATCH` e gli avvisi si provano con serie di punti sintetiche.
 - `NO_SPACE` con un disco piccolo, `VERIFY_FAILED` con un errore iniettato apposta.
 - Una tabella collega **ogni codice** al test che lo produce.
-- *Stato (Dyadrr 0.2.0):* funzione di decisione e tabella dei codici fatte (`docs/CODICI.md`, sezione Test). `NO_SPACE`, `VERIFY_FAILED` e gli avvisi del piano arrivano con i rispettivi moduli.
+- *Stato (Dyadrr 0.2.0):* funzione di decisione e tabella dei codici fatte (`docs/CODICI.md`, sezione Test). Dalla 0.6.0 anche il piano, funzione pura, con le sue serie sintetiche: casi di inizio e fine, scelte con il loro effetto, tracce prese, forced e avvisi del piano. `NO_SPACE`, `VERIFY_FAILED` e `SUBTITLES_DROPPED_AT_CUT` arrivano con i rispettivi moduli.
 
 **2. Casi da rifiutare con file reali**
 - Theatrical contro extended, framerate diversi, due film diversi.
@@ -954,7 +979,7 @@ Le decisioni 1, 2, 8, 9 e 10 sono chiuse nella 0.3. La numerazione resta quella 
 9. ~~**PGS italiani già presenti nel riferimento**~~ → **scelta dell'utente** (`--reference-italian-subs`, §10.1).
 10. ~~**Audio italiano fuori dal materiale in comune**~~ → **scelta dell'utente** (`--edge-mismatch`, §10.1).
 11. **Voce di menu "Merge" in Wayfinderr:** nascosta quando il merge è spento, oppure sempre visibile come Rips?
-12. **Soglie definitive,** dopo la taratura sulle coppie reali. Fino ad allora θ_ncc, θ_rapporto, E_min, la fascia di `MEASURE_MIX_DIFFERS` e la tolleranza del controllo di integrità hanno valori provvisori (§9.2).
+12. **Soglie definitive,** dopo la taratura sulle coppie reali. Fino ad allora hanno valori provvisori θ_ncc, θ_rapporto, E_min, la fascia di `MEASURE_MIX_DIFFERS`, la lunghezza delle finestre dei punti di conferma, la tolleranza del controllo di integrità e le soglie del piano: buco lungo senza italiano, partenza brusca, forced (§9.2).
 
 ---
 
@@ -1077,3 +1102,10 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
   - **Trasferimento:** 5 punti, traccia italiana principale, L+R o (L − R)/2 (§4.2, §4.7).
   - **Taratura:** `anchorWindowMs`, `checkpointWindowMs` (provvisorio), `exclusionZoneMs`, `checkpointCount`, `maxCheckpointCount`, `searchMarginMs`, con i limiti; le altre costanti della correlazione sono costanti del metodo (§9.2).
   - **Lettura delle finestre:** `-noaccurate_seek`, per i file con uno `start_time` oltre il pre-roll (§4.3, §18).
+- **0.8:** piano di inizio e fine.
+  - **Casi e tagli:** estremi del film e dell'italiano, caso all'inizio e alla fine, intro e code diverse oltre la precisione dei confini (1 s), punti di taglio, eccesso in coda sotto 1 s che non conta (§5).
+  - **Scelte:** effetto di ogni valore; `--tail` non serve con code diverse e `--edge-mismatch drop` (§10.1).
+  - **Partenza brusca:** livello nei 250 ms dopo il taglio, il più alto tra centrale e L+R, letto in ogni punto di taglio possibile (§5).
+  - **Sottotitoli:** PGS presi, forced riconosciuti per lingua anche nel riferimento, condizioni di `SDR_SUBS_ON_HDR` e `REFERENCE_HAS_ITALIAN_SUBS` (§7).
+  - **Tracce audio:** ruolo stimato con il motivo, `ITALIAN_TRACKS_SKIPPED` per traccia (§8).
+  - **Taratura:** `longGapWithoutItalianMs` (10 min), `abruptStartDbfs` (−40 dBFS), `forcedSubsFraction` (15%), tutti provvisori, con i limiti; precisione e tratto del livello sono costanti del metodo (§9.2, decisione 12).

@@ -13,6 +13,7 @@ import {
   transferMix,
   type PairAnalysis,
 } from '../src/measure.js';
+import { planPair } from '../src/plan.js';
 import { realShift, runAsync, settle, tempDir } from './helpers/mkv.js';
 
 // Misura su MKV veri, generati al volo (studio §15, 1a e 1b). Il "film" sono
@@ -174,7 +175,14 @@ before(async () => {
     ]),
   ]);
 
-  await Promise.all([synced('donor-plus', 1537), synced('donor-minus', -263), synced('donor-far', 6500)]);
+  await Promise.all([
+    synced('donor-plus', 1537),
+    synced('donor-minus', -263),
+    synced('donor-far', 6500),
+    // Il riferimento finisce a 100 s (sul primo fotogramma chiave dopo): il donatore ha 20 s di coda in più.
+    runAsync('mkvmerge', ['-q', '-o', p('ref-tail.mkv'), '--split', 'parts:00:00:00-00:01:40', p('reference.mkv')])
+      .then(() => settle(p('ref-tail.mkv'))),
+  ]);
   await runAsync('mkvmerge', ['-q', '-o', p('donor-audio.mka'), '-D', p('donor.mkv')]);
   await Promise.all([
     split('donor-tail', '00:00:00-00:01:40'),
@@ -395,4 +403,81 @@ test('controlli strutturali falliti: non si legge l\'audio', async () => {
   const a = await analyzePair([await read('reference'), await read('ref-remix')], null, cal);
   assert.deepEqual(reasons(a), ['NO_ITALIAN_AUDIO']);
   assert.equal(a.measurement, null);
+  assert.equal(a.plan, null);
+});
+
+// ---------------------------------------------------------------- piano
+
+const planWarnings = (a: PairAnalysis) => a.plan!.warnings.map((w) => w.code);
+
+/** Il piano della coppia già misurata, con le scelte date. */
+async function replan(a: PairAnalysis, reference: string, donor: string, choices: Record<string, string>) {
+  const given = Object.fromEntries(Object.entries(choices).map(([k, v]) => [k, { value: v, origin: 'option' as const }]));
+  return planPair(await read(reference), await read(donor), a.report.offset!.offsetMs, a.measurement!.boundaries!, given, cal);
+}
+
+test('piano su file veri: con --sync l\'italiano comincia dove comincia il film, o S dopo', async () => {
+  // --sync sposta tutto il donatore: l'italiano comincia con il film, e non c'è niente da tagliare.
+  const plus = await analyze('reference', 'donor-plus');
+  const plan = plus.plan!;
+  assert.equal(plan.offsetMs, -1537);
+  assert.equal(plan.film.startMs, 0);
+  assert.equal(plan.start.case, 'aligned');
+  assert.equal(plan.start.cutMs, null);
+  assert.equal(plan.end.excess, 'none');
+  assert.ok(plan.end.amountMs < 100, String(plan.end.amountMs));
+  assert.deepEqual(plan.pending, []);
+  assert.deepEqual(planWarnings(plus), []);
+  assert.deepEqual(plan.audio.map((t) => [t.id, t.role, t.taken, t.startMs]), [[1, 'main', true, 0]]);
+
+  // Il riferimento ha 263 ms in più all'inizio: l'italiano parte lì, senza taglio.
+  const minus = await analyze('reference', 'donor-minus');
+  assert.equal(minus.plan!.start.case, 'reference-longer');
+  assert.ok(minus.plan!.start.amountMs >= 263 && minus.plan!.start.amountMs < 300, String(minus.plan!.start.amountMs));
+  assert.equal(minus.plan!.start.cutMs, null);
+  assert.equal(minus.plan!.start.gapMs, minus.plan!.start.amountMs);
+  assert.deepEqual(planWarnings(minus), []);
+});
+
+test('INTRO_MISMATCH: su file veri l\'italiano di un\'intro diversa si tiene o si scarta (--edge-mismatch)', async () => {
+  // Un'intro di 8 s al posto dei primi 5 s: S = −3 s, il donatore ha più intro.
+  const a = await analyze('reference', 'donor-intro');
+  const plan = a.plan!;
+  const boundary = a.measurement!.boundaries!.startMs;
+  assert.equal(plan.start.case, 'donor-longer');
+  assert.ok(Math.abs(plan.start.amountMs - 3000) < 40, String(plan.start.amountMs));
+  assert.deepEqual(plan.pending, ['edgeMismatch']);
+  assert.equal(plan.start.mismatchMs, boundary);
+  assert.equal(plan.italian.startMs, null);
+
+  // keep: l'italiano dall'inizio del film, sopra l'intro diversa. Si taglia
+  // a 0 mentre l'intro del donatore suona già: ABRUPT_START.
+  const keep = await replan(a, 'reference', 'donor-intro', { edgeMismatch: 'keep' });
+  assert.deepEqual(keep.warnings.map((w) => w.code), ['INTRO_MISMATCH', 'ABRUPT_START']);
+  assert.equal(keep.italian.startMs, 0);
+  assert.equal(keep.start.cutMs, 0);
+  assert.ok(keep.start.cutLevelDbfs! > -30, String(keep.start.cutLevelDbfs));
+  // drop: l'italiano dal confine del materiale in comune.
+  const drop = await replan(a, 'reference', 'donor-intro', { edgeMismatch: 'drop' });
+  assert.equal(drop.italian.startMs, boundary);
+  assert.equal(drop.start.cutMs, boundary);
+  assert.ok(!drop.warnings.some((w) => w.code === 'INTRO_MISMATCH'));
+});
+
+test('TAIL_EXCESS_KEPT: su file veri il donatore ha 20 s di coda in più; --tail trim taglia alla fine del video', async () => {
+  const a = await analyze('ref-tail', 'donor');
+  assert.equal(a.report.decision, 'eligible', JSON.stringify(a.report.reasons));
+  const plan = a.plan!;
+  assert.ok(plan.film.endMs > 100_000 && plan.film.endMs < 101_100, String(plan.film.endMs));
+  assert.deepEqual(plan.pending, ['tail']);
+  assert.equal(plan.end.case, 'donor-longer');
+  assert.ok(Math.abs(plan.end.excessMs - (SECONDS * 1000 - plan.film.endMs)) < 100, String(plan.end.excessMs));
+
+  const keep = await replan(a, 'ref-tail', 'donor', { tail: 'keep' });
+  assert.deepEqual(keep.warnings.map((w) => w.code), ['TAIL_EXCESS_KEPT']);
+  assert.equal(keep.end.excess, 'kept');
+  const trim = await replan(a, 'ref-tail', 'donor', { tail: 'trim' });
+  assert.deepEqual(trim.warnings, []);
+  assert.equal(trim.end.excess, 'trimmed');
+  assert.equal(trim.italian.endMs, plan.film.endMs);
 });

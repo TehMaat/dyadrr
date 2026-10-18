@@ -66,17 +66,17 @@ Non cambiano la decisione: finiscono nel report.
 | `MEASURE_MIX_DIFFERS` | La somiglianza della coppia di misura è in una fascia bassa ma sufficiente |
 | `ITALIAN_TRANSFER_OFFSET` | L'italiano è sfasato rispetto alla lingua di misura dentro il donatore |
 | `ITALIAN_UNVERIFIED` | L'allineamento dell'italiano con la lingua di misura non si è potuto verificare |
-| `ITALIAN_TRACKS_SKIPPED` | Tracce italiane scartate con `--italian main` |
-| `REFERENCE_HAS_ITALIAN_SUBS` | Il riferimento ha già PGS italiani |
-| `ITALIAN_SUBS_NOT_PGS` | Sottotitoli italiani non PGS scartati |
+| `ITALIAN_TRACKS_SKIPPED` | Una traccia audio italiana scartata con `--italian main`: un avviso per traccia |
+| `REFERENCE_HAS_ITALIAN_SUBS` | Il riferimento ha già PGS italiani, tenuti o scartati (`--reference-italian-subs`) |
+| `ITALIAN_SUBS_NOT_PGS` | Una traccia di sottotitoli italiani non PGS del donatore, scartata |
 | `NO_FORCED_ITALIAN_SUBS` | Il riferimento ha forced in un'altra lingua e il donatore non ha forced italiani |
-| `SDR_SUBS_ON_HDR` | PGS da un disco SDR sopra un video HDR |
+| `SDR_SUBS_ON_HDR` | PGS italiani da un donatore SDR sopra un video di riferimento HDR |
 | `SUBTITLES_DROPPED_AT_CUT` | Sottotitoli persi ai tagli |
-| `INTRO_MISMATCH` | Intro diverse, audio italiano tenuto (`--edge-mismatch keep`) |
-| `OUTRO_MISMATCH` | Code diverse, audio italiano tenuto (`--edge-mismatch keep`) |
-| `LONG_GAP_WITHOUT_ITALIAN` | Buco senza italiano oltre la soglia |
-| `TAIL_EXCESS_KEPT` | Eccesso in coda lasciato (`--tail keep`) |
-| `ABRUPT_START` | Taglio iniziale con audio sopra soglia |
+| `INTRO_MISMATCH` | Intro diverse (oltre 1 s di italiano prima del materiale in comune), audio italiano tenuto (`--edge-mismatch keep`) |
+| `OUTRO_MISMATCH` | Code diverse (oltre 1 s di italiano dopo il materiale in comune), audio italiano tenuto (`--edge-mismatch keep`) |
+| `LONG_GAP_WITHOUT_ITALIAN` | All'inizio o alla fine del film manca l'italiano per più di 10 minuti ([`longGapWithoutItalianMs`](TARATURA.md)) |
+| `TAIL_EXCESS_KEPT` | Italiano oltre la fine del video di riferimento lasciato (`--tail keep`) |
+| `ABRUPT_START` | Taglio iniziale con l'italiano sopra −40 dBFS nei 250 ms dopo il taglio ([`abruptStartDbfs`](TARATURA.md)) |
 | `MANY_INCONCLUSIVE` | Più del 10% di punti non conclusivi |
 | `MKVMERGE_WARNING` | Avvisi di mkvmerge (codice 1) |
 
@@ -100,7 +100,9 @@ errore.
 
 Ogni codice e il test che lo produce (studio §15, test 1e): i test della
 decisione con serie sintetiche, quelli della misura (`test/measure.test.ts`)
-con MKV veri generati al volo (studio §15, 1a e 1b). I codici dei
+con MKV veri generati al volo (studio §15, 1a e 1b), quelli del piano
+(`test/plan.test.ts`) con ingressi sintetici e, dove si può, anche con i MKV
+della misura. I codici dei
 moduli non ancora scritti indicano il modulo previsto
 ([ARCHITETTURA.md](ARCHITETTURA.md#moduli-previsti)). Il test
 `test/docs.test.ts` controlla che ogni codice sia elencato e che ogni test
@@ -127,7 +129,7 @@ citato esista e usi quel codice.
 | `INPUT_TRUNCATED` | `test/decision.test.ts` › INPUT_TRUNCATED: un ingresso troncato è un errore, non un rifiuto<br>`test/inputs.test.ts` › INPUT_TRUNCATED: un file troncato a metà, e una traccia più corta dei suoi tag |
 | `INPUT_BUSY` | `test/inputs.test.ts` › INPUT_BUSY: file modificato negli ultimi secondi, o con una data nel futuro<br>`test/audio.test.ts` › INPUT_BUSY: il file è cambiato da quando è stato letto |
 | `INPUT_CHANGED` | previsto: report e riga di comando (`--expect`) |
-| `CHOICE_REQUIRED` | `test/choices.test.ts` › merge senza terminale: una scelta in sospeso è CHOICE_REQUIRED |
+| `CHOICE_REQUIRED` | `test/choices.test.ts` › merge senza terminale: una scelta in sospeso è CHOICE_REQUIRED<br>`test/plan.test.ts` › INTRO_MISMATCH: intro diverse, l'italiano dell'intro si tiene o si scarta con --edge-mismatch |
 | `OUTPUT_EXISTS` | previsto: report e riga di comando |
 | `OUTPUT_NOT_WRITABLE` | previsto: report e riga di comando |
 | `NO_SPACE` | previsto: costruzione (test con un disco piccolo) |
@@ -135,23 +137,23 @@ citato esista e usi quel codice.
 | `TOOL_TOO_OLD` | `test/tools.test.ts` › TOOL_TOO_OLD: mkvmerge più vecchio di v57<br>`test/tools.test.ts` › TOOL_TOO_OLD: ffmpeg più vecchio di 6.1 |
 | `MERGE_FAILED` | previsto: costruzione |
 | `VERIFY_FAILED` | previsto: verifiche dopo il merge (con un errore iniettato) |
-| `INTERNAL` | `test/decision.test.ts` › INTERNAL: mancano le misure di una fase che serve |
+| `INTERNAL` | `test/decision.test.ts` › INTERNAL: mancano le misure di una fase che serve<br>`test/plan.test.ts` › INTERNAL: il piano di un donatore senza audio italiano |
 | `CANCELLED` | previsto: report e riga di comando |
 | `VIDEO_QUALITY_UNCERTAIN` | `test/decision.test.ts` › VIDEO_QUALITY_UNCERTAIN: stessa risoluzione, HDR e codec, bitrate del donatore oltre il margine |
 | `ORIGINAL_LANGUAGE_NOT_COMMON` | `test/decision.test.ts` › ORIGINAL_LANGUAGE_NOT_COMMON: la lingua originale non è in entrambi i file |
 | `MEASURE_MIX_DIFFERS` | `test/decision.test.ts` › MEASURE_MIX_DIFFERS: somiglianza nella fascia bassa ma sufficiente |
 | `ITALIAN_TRANSFER_OFFSET` | `test/decision.test.ts` › ITALIAN_TRANSFER_OFFSET: nel donatore l'italiano è sfasato rispetto alla lingua di misura |
 | `ITALIAN_UNVERIFIED` | `test/decision.test.ts` › ITALIAN_UNVERIFIED: l'italiano non correla con la lingua di misura |
-| `ITALIAN_TRACKS_SKIPPED` | previsto: piano |
-| `REFERENCE_HAS_ITALIAN_SUBS` | previsto: piano |
-| `ITALIAN_SUBS_NOT_PGS` | previsto: piano |
-| `NO_FORCED_ITALIAN_SUBS` | previsto: piano |
-| `SDR_SUBS_ON_HDR` | previsto: piano |
-| `SUBTITLES_DROPPED_AT_CUT` | previsto: piano e costruzione |
-| `INTRO_MISMATCH` | previsto: piano |
-| `OUTRO_MISMATCH` | previsto: piano |
-| `LONG_GAP_WITHOUT_ITALIAN` | previsto: piano |
-| `TAIL_EXCESS_KEPT` | previsto: piano |
-| `ABRUPT_START` | previsto: piano |
+| `ITALIAN_TRACKS_SKIPPED` | `test/plan.test.ts` › ITALIAN_TRACKS_SKIPPED: con --italian main si prende solo la traccia principale |
+| `REFERENCE_HAS_ITALIAN_SUBS` | `test/plan.test.ts` › REFERENCE_HAS_ITALIAN_SUBS: PGS italiani già nel riferimento, tenuti o scartati |
+| `ITALIAN_SUBS_NOT_PGS` | `test/plan.test.ts` › ITALIAN_SUBS_NOT_PGS: i sottotitoli italiani non PGS del donatore si scartano |
+| `NO_FORCED_ITALIAN_SUBS` | `test/plan.test.ts` › NO_FORCED_ITALIAN_SUBS: il riferimento ha un forced in un'altra lingua e il donatore nessun forced italiano |
+| `SDR_SUBS_ON_HDR` | `test/plan.test.ts` › SDR_SUBS_ON_HDR: PGS italiani da un disco SDR sopra un video HDR |
+| `SUBTITLES_DROPPED_AT_CUT` | previsto: costruzione |
+| `INTRO_MISMATCH` | `test/plan.test.ts` › INTRO_MISMATCH: intro diverse, l'italiano dell'intro si tiene o si scarta con --edge-mismatch<br>`test/measure.test.ts` › INTRO_MISMATCH: su file veri l'italiano di un'intro diversa si tiene o si scarta (--edge-mismatch) |
+| `OUTRO_MISMATCH` | `test/plan.test.ts` › OUTRO_MISMATCH: code diverse, l'italiano dopo il materiale in comune si tiene o si scarta<br>`test/plan.test.ts` › --tail non serve con code diverse e --edge-mismatch drop: il taglio cade già sul confine |
+| `LONG_GAP_WITHOUT_ITALIAN` | `test/plan.test.ts` › LONG_GAP_WITHOUT_ITALIAN: un buco senza italiano oltre la soglia, all'inizio o alla fine |
+| `TAIL_EXCESS_KEPT` | `test/plan.test.ts` › TAIL_EXCESS_KEPT: il donatore ha più coda, l'eccesso si lascia o si toglie con --tail<br>`test/measure.test.ts` › TAIL_EXCESS_KEPT: su file veri il donatore ha 20 s di coda in più; --tail trim taglia alla fine del video |
+| `ABRUPT_START` | `test/plan.test.ts` › ABRUPT_START: taglio iniziale con l'italiano sopra soglia; senza il livello del taglio è INTERNAL<br>`test/measure.test.ts` › INTRO_MISMATCH: su file veri l'italiano di un'intro diversa si tiene o si scarta (--edge-mismatch) |
 | `MANY_INCONCLUSIVE` | `test/decision.test.ts` › MANY_INCONCLUSIVE: più del 10% di punti non conclusivi, copertura comunque sufficiente<br>`test/measure.test.ts` › MANY_INCONCLUSIVE: silenzi lunghi danno punti non conclusivi, e punti aggiunti nei tratti scoperti |
 | `MKVMERGE_WARNING` | previsto: costruzione |

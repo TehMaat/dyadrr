@@ -50,6 +50,16 @@ export const CALIBRATION_LIMITS = {
   minCoverage: { min: 0.5, max: 1 },
   /** Frazione di punti non conclusivi oltre la quale scatta `MANY_INCONCLUSIVE`. */
   manyInconclusiveFraction: { min: 0.01, max: 0.5 },
+  /** Un tratto del film senza italiano, all'inizio o alla fine, più lungo di così dà `LONG_GAP_WITHOUT_ITALIAN`, in ms (§5). */
+  longGapWithoutItalianMs: { min: 60_000, max: 1_800_000 },
+  /** Livello dell'italiano subito dopo il taglio iniziale oltre il quale scatta `ABRUPT_START`, in dBFS (§5). */
+  abruptStartDbfs: { min: -70, max: -10 },
+  /**
+   * Una traccia di sottotitoli con meno blocchi di questa frazione di quelli
+   * della traccia più grande nella stessa lingua è forced (§7). Il massimo
+   * resta sotto la metà: una traccia con metà dei blocchi non è "solo forzati".
+   */
+  forcedSubsFraction: { min: 0.01, max: 0.5 },
   /** Margine di bitrate per `VIDEO_QUALITY_UNCERTAIN` (§3.2). */
   bitrateMargin: { min: 0.05, max: 1 },
   /**

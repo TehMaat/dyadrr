@@ -1,4 +1,5 @@
 import type { Calibration } from './calibration.js';
+import type { GivenChoices } from './choices.js';
 import { DyadrrError } from './codes.js';
 import {
   ANALYSIS_RATE,
@@ -26,6 +27,7 @@ import {
 } from './decision.js';
 import { isCommentaryOrDescription, mainItalianTrack, type InputFile, type InputTrack } from './inputs.js';
 import { trackLanguage } from './languages.js';
+import { planPair, type Plan } from './plan.js';
 import { DEFAULT_TOOLS, type ToolPaths } from './tools.js';
 
 // Misura (studio §4.2, §4.4–4.7): dalle finestre audio dei due file alle misure
@@ -658,21 +660,43 @@ export interface PairAnalysis {
   report: DecisionReport;
   /** `null` se un controllo strutturale ha già deciso: niente da misurare. */
   measurement: Measurement | null;
+  /** Piano di inizio e fine (`plan.ts`), solo per una coppia idonea. */
+  plan: Plan | null;
+}
+
+export interface AnalyzeOptions extends MeasureOptions {
+  /** Scelte indicate da opzione o variabile d'ambiente; quelle che mancano restano in sospeso. */
+  choices?: GivenChoices;
 }
 
 /**
- * Analisi di una coppia: controlli strutturali, misura se servono, decisione.
- * Senza i controlli strutturali passati non si legge l'audio: un ingresso
- * troncato o un donatore con il video migliore non costano gigabyte di lettura.
+ * Analisi di una coppia: controlli strutturali, misura se servono, decisione
+ * e, per una coppia idonea, il piano. Senza i controlli strutturali passati
+ * non si legge l'audio: un ingresso troncato o un donatore con il video
+ * migliore non costano gigabyte di lettura.
  */
 export async function analyzePair(
   files: readonly [InputFile, InputFile],
   originalLanguage: string | null,
   cal: Calibration,
-  options: MeasureOptions = {},
+  options: AnalyzeOptions = {},
 ): Promise<PairAnalysis> {
   const structure = checkStructure({ files, originalLanguage }, cal);
-  if (structure.decision !== 'eligible') return { report: structure, measurement: null };
-  const measurement = await measurePair(files, structure.roles!, structure.measureLanguage!.language, cal, options);
-  return { report: decide({ files, originalLanguage, ...decisionMeasures(measurement) }, cal), measurement };
+  if (structure.decision !== 'eligible') return { report: structure, measurement: null, plan: null };
+  const roles = structure.roles!;
+  const measurement = await measurePair(files, roles, structure.measureLanguage!.language, cal, options);
+  const report = decide({ files, originalLanguage, ...decisionMeasures(measurement) }, cal);
+  if (report.decision !== 'eligible') return { report, measurement, plan: null };
+  // Il piano parte dallo S definitivo, intero, e dai confini del materiale in comune.
+  if (!report.offset || !measurement.boundaries) throw new DyadrrError('INTERNAL', 'eligible pair without offset or boundaries');
+  const plan = await planPair(
+    files[roles.reference],
+    files[roles.donor],
+    report.offset.offsetMs,
+    measurement.boundaries,
+    options.choices ?? {},
+    cal,
+    options,
+  );
+  return { report, measurement, plan };
 }

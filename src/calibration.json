@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "values": {
     "toleranceMs": 10,
     "maxOffsetMs": 180000,
@@ -18,10 +18,13 @@
     "edgeFraction": 0.1,
     "minCoverage": 0.9,
     "manyInconclusiveFraction": 0.1,
+    "longGapWithoutItalianMs": 600000,
+    "abruptStartDbfs": -40,
+    "forcedSubsFraction": 0.15,
     "bitrateMargin": 0.2,
     "fpsRelativeTolerance": 0.0001,
     "integrityToleranceMs": 1000,
     "inputBusyMs": 30000
   },
-  "provisional": ["nccMin", "peakRatioMin", "measureMixDiffersBand", "checkpointWindowMs", "silenceDbfs", "integrityToleranceMs"]
+  "provisional": ["nccMin", "peakRatioMin", "measureMixDiffersBand", "checkpointWindowMs", "silenceDbfs", "integrityToleranceMs", "longGapWithoutItalianMs", "abruptStartDbfs", "forcedSubsFraction"]
 }
