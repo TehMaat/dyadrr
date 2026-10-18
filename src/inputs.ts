@@ -42,6 +42,10 @@ export interface InputTrack extends TrackLanguageFields {
   language: string | null;
   languageIetf: string | null;
   channels: number | null;
+  /** Disposizione dei canali secondo ffprobe (per esempio "5.1(side)", "stereo"). */
+  channelLayout: string | null;
+  /** Indice del flusso per ffmpeg e ffprobe; `null` se non si è potuto accoppiare. */
+  streamIndex: number | null;
   name: string | null;
   default: boolean;
   forced: boolean;
@@ -132,6 +136,7 @@ interface FfprobeStream {
   width?: number;
   height?: number;
   channels?: number;
+  channel_layout?: string;
   avg_frame_rate?: string;
   r_frame_rate?: string;
   color_transfer?: string;
@@ -354,6 +359,8 @@ export async function readInput(file: string, options: ReadInputOptions): Promis
       language: str(p.language),
       languageIetf: str(p.language_ietf),
       channels: num(p.audio_channels) ?? num(s?.channels),
+      channelLayout: str(s?.channel_layout),
+      streamIndex: s?.index ?? null,
       name: str(p.track_name),
       default: p.default_track === true,
       forced: p.forced_track === true,

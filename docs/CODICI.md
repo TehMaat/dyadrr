@@ -35,16 +35,16 @@ mai portare a caricare un file senza italiano.
 | Codice | Uscita | Significato |
 |---|---|---|
 | `BAD_ARGUMENTS` | 30 | Parametri o variabili d'ambiente non validi, oppure un valore di taratura fuori dai limiti |
-| `INPUT_UNREADABLE` | 30 | File mancante, illeggibile o non MKV |
+| `INPUT_UNREADABLE` | 30 | File mancante, illeggibile o non MKV, oppure una finestra audio che decodifica meno del 90% dei campioni attesi (per esempio oltre il punto in cui il file è troncato) |
 | `INPUT_TRUNCATED` | 30 | File troncato: la coda non arriva alla durata dichiarata, o una traccia finisce prima dei suoi tag statistici |
-| `INPUT_BUSY` | 30 | File ancora in scrittura: modificato da meno di 30 s ([`inputBusyMs`](TARATURA.md)), con una data nel futuro, o cambiato durante la lettura. Riprovabile |
+| `INPUT_BUSY` | 30 | File ancora in scrittura: modificato da meno di 30 s ([`inputBusyMs`](TARATURA.md)), con una data nel futuro, o cambiato durante la lettura o tra la lettura degli ingressi e quella dell'audio. Riprovabile |
 | `INPUT_CHANGED` | 30 | Gli ingressi o il piano non coincidono con l'analisi confermata (`--expect`) |
 | `CHOICE_REQUIRED` | 30 | Manca una scelta necessaria per questa coppia, e Dyadrr non può chiederla ([CLI.md](CLI.md#scelte)) |
 | `OUTPUT_EXISTS` | 30 | Il file finale esiste già o coincide con un ingresso |
 | `OUTPUT_NOT_WRITABLE` | 30 | Cartella di uscita non scrivibile |
 | `NO_SPACE` | 30 | Spazio insufficiente. Riprovabile, non è un rifiuto |
 | `TOOL_MISSING` | 30 | mkvmerge, ffprobe o ffmpeg mancanti, o non si possono lanciare |
-| `TOOL_TOO_OLD` | 30 | mkvmerge più vecchio di v57 (per ffmpeg la versione minima non è ancora fissata) |
+| `TOOL_TOO_OLD` | 30 | mkvmerge più vecchio di v57, oppure ffmpeg più vecchio di 6.1 o di cui non si riesce a leggere la versione |
 | `MERGE_FAILED` | 40 | mkvmerge fallito (codice 2, crash, errore di I/O) |
 | `VERIFY_FAILED` | 40 | Una verifica dopo il merge non torna |
 | `INTERNAL` | 40 | Errore imprevisto |
@@ -121,16 +121,16 @@ citato esista e usi quel codice.
 | `TOO_FEW_CHECKPOINTS` | `test/decision.test.ts` › TOO_FEW_CHECKPOINTS: meno di 20 punti coerenti<br>`test/decision.test.ts` › TOO_FEW_CHECKPOINTS: un buco oltre 15 minuti tra punti coerenti<br>`test/decision.test.ts` › TOO_FEW_CHECKPOINTS: nessun punto coerente nell'ultimo 10% del materiale in comune |
 | `LOW_COVERAGE` | `test/decision.test.ts` › LOW_COVERAGE: il materiale in comune copre troppo poco del video di riferimento |
 | `BAD_ARGUMENTS` | `test/choices.test.ts` › valori non validi sono BAD_ARGUMENTS, da opzione o da variabile<br>`test/calibration.test.ts` › BAD_ARGUMENTS: un valore di taratura fuori dai limiti, mancante o sconosciuto |
-| `INPUT_UNREADABLE` | `test/inputs.test.ts` › INPUT_UNREADABLE: file mancante, non MKV o senza video |
+| `INPUT_UNREADABLE` | `test/inputs.test.ts` › INPUT_UNREADABLE: file mancante, non MKV o senza video<br>`test/audio.test.ts` › INPUT_UNREADABLE: finestra oltre la fine di un file troncato, o a cavallo del troncamento |
 | `INPUT_TRUNCATED` | `test/decision.test.ts` › INPUT_TRUNCATED: un ingresso troncato è un errore, non un rifiuto<br>`test/inputs.test.ts` › INPUT_TRUNCATED: un file troncato a metà, e una traccia più corta dei suoi tag |
-| `INPUT_BUSY` | `test/inputs.test.ts` › INPUT_BUSY: file modificato negli ultimi secondi, o con una data nel futuro |
+| `INPUT_BUSY` | `test/inputs.test.ts` › INPUT_BUSY: file modificato negli ultimi secondi, o con una data nel futuro<br>`test/audio.test.ts` › INPUT_BUSY: il file è cambiato da quando è stato letto |
 | `INPUT_CHANGED` | previsto: report e riga di comando (`--expect`) |
 | `CHOICE_REQUIRED` | `test/choices.test.ts` › merge senza terminale: una scelta in sospeso è CHOICE_REQUIRED |
 | `OUTPUT_EXISTS` | previsto: report e riga di comando |
 | `OUTPUT_NOT_WRITABLE` | previsto: report e riga di comando |
 | `NO_SPACE` | previsto: costruzione (test con un disco piccolo) |
 | `TOOL_MISSING` | `test/tools.test.ts` › TOOL_MISSING: mkvmerge, ffprobe o ffmpeg mancanti |
-| `TOOL_TOO_OLD` | `test/tools.test.ts` › TOOL_TOO_OLD: mkvmerge più vecchio di v57 |
+| `TOOL_TOO_OLD` | `test/tools.test.ts` › TOOL_TOO_OLD: mkvmerge più vecchio di v57<br>`test/tools.test.ts` › TOOL_TOO_OLD: ffmpeg più vecchio di 6.1 |
 | `MERGE_FAILED` | previsto: costruzione |
 | `VERIFY_FAILED` | previsto: verifiche dopo il merge (con un errore iniettato) |
 | `INTERNAL` | `test/decision.test.ts` › INTERNAL: mancano le misure di una fase che serve |

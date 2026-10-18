@@ -1,10 +1,10 @@
 # Dyadrr: studio di fattibilità
 
-Stato: bozza 0.5, ottobre 2026.
+Stato: bozza 0.6, ottobre 2026.
 
 Questo documento raccoglie le decisioni prese, quelle ancora aperte e i risultati delle prime verifiche sperimentali (§18). È il punto di partenza del repo.
 
-La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). Le modifiche principali sono elencate in §20.
+La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). Le modifiche principali sono elencate in §20.
 
 ---
 
@@ -140,6 +140,8 @@ I ruoli li **decide Dyadrr**, senza opzione per imporli:
 **Il segnale**
 - 8 kHz, con un filtro passa-basso intorno a 3 kHz.
 - **Solo il canale centrale** se entrambe le tracce lo hanno: lì sta il dialogo, la parte più stabile tra un vecchio 5.1 e un remix Atmos. Altrimenti L+R, senza LFE.
+  - "Hanno il canale centrale" le tracce con più di un canale la cui disposizione (`channel_layout` di ffprobe) comprende FC: 3.0, 5.1, 7.1 e simili. Una traccia mono non conta: il suo unico canale è il mix completo, non il dialogo.
+  - L+R è la media di FL e FR. Una traccia mono dà il suo unico canale; una disposizione sconosciuta dà la media dei primi due canali.
 - Nella prova del remix sintetico (§18), il downmix mono completo ha perso la corrispondenza in tutte le finestre, mentre il canale centrale l'ha tenuta in tutte.
 - AC3 ed E-AC3 si decodificano **senza compressione dinamica** (DRC). Ogni decoder applica la sua, e falserebbe il confronto.
 - **Ricerca grossolana** con una correlazione "sbiancata" (GCC-PHAT), più robusta con la musica. **Rifinitura** con la correlazione normalizzata classica (NCC) e interpolazione parabolica.
@@ -166,6 +168,30 @@ I ruoli li **decide Dyadrr**, senza opzione per imporli:
 - Il report registra l'inizio reale di ogni finestra.
 
 Con questa regola, nelle prove l'errore di lettura delle finestre è sceso sotto il millisecondo per AC3, FLAC, TrueHD e DTS. Il ritardo costante dei codec è un'altra cosa (§4.9).
+
+**Il metodo, provato a mano (0.6).** Una lettura è un solo processo ffmpeg per finestra, con tutte le tracce che servono di quel file (§4.2):
+
+```
+ffmpeg -nostdin -v verbose -drc_scale 0 -copyts -seek_timestamp 1 -ss <T − 2 s> -i <file>
+  -filter_complex "[0:<flusso>]pan=mono|c0=FC,
+                   aresample=8000:cutoff=0.75:min_comp=0.002:min_hard_comp=0.002:max_soft_comp=0,
+                   atrim=start=<T>:end=<T + durata>,asetnsamples=n=8000:p=0,ashowinfo@s0[o0];
+                   [0:<altro flusso>]…[o1]"
+  -map [o0] -f f32le pipe:3  -map [o1] -f f32le pipe:4
+```
+
+- **Timestamp.** `-copyts` tiene i timestamp della traccia Matroska; `-seek_timestamp 1` fa cercare T sulla stessa linea del tempo, senza aggiungere lo `start_time`. `atrim` taglia sui timestamp decodificati, al campione. `ashowinfo` scrive su stderr il timestamp di ogni blocco in uscita, in unità di 1/8000 s: quello del primo blocco è l'**inizio reale** della finestra. Di solito è T; è più tardi se la traccia comincia dopo T o se la decodifica è partita dopo T. Non si dà mai per scontato.
+- **Ritardo del codec dichiarato (CodecDelay).** Se la traccia Matroska dichiara un ritardo del codec, ffmpeg lo sottrae dai timestamp, arrotondato al millisecondo, come prescrive Matroska: è la linea del tempo su cui un lettore suona la traccia. Gli AC3 ed E-AC3 scritti da ffmpeg dichiarano 5,33 ms, e una traccia che per mkvmerge comincia a 700 ms dà il primo campione a 695 ms. S non cambia: mkvmerge sposta i blocchi e lascia il ritardo dichiarato com'è. Sui rip di MakeMKV va controllato (§15, fase 0).
+- **Continuità.** Il PCM in uscita non ha timestamp: il campione n deve cadere davvero all'inizio reale + n/8000 s. Per questo `aresample` riempie di silenzio i buchi nei timestamp e toglie le sovrapposizioni, ma solo oltre 2 ms, senza mai stirare il segnale (`max_soft_comp=0`). Sotto i 2 ms non tocca nulla: i timestamp di Matroska sono al millisecondo, e con i codec il cui pacchetto non dura un numero intero di ms (TrueHD 0,83 ms, DTS 10,67 ms) l'arrotondamento da solo dà scarti fino a 1 ms. Con la soglia a 1 ms, nelle prove, `aresample` toglieva e aggiungeva campioni nel DTS e la somiglianza con l'originale scendeva da 0,975 a 0,88. Senza compensazione, un buco di 50 ms sposta di 50 ms tutto quello che segue.
+- **Passa-basso.** È il filtro del ricampionamento stesso: `cutoff=0.75` della metà di 8 kHz, cioè 3 kHz. Il filtro è a fase lineare e `aresample` ne compensa il ritardo nei timestamp: nelle prove l'errore su FLAC è 0,000 ms.
+- **Canali e DRC.** `pan` sceglie il centrale o fa la media di L e R (§4.2). `-drc_scale 0` toglie la compressione dinamica di AC3 ed E-AC3: il valore predefinito di ffmpeg è 1, cioè compressione piena. Sui file di prova non si può verificare, perché l'encoder AC3 di ffmpeg non scrive dati DRC.
+- **Più tracce.** Una catena di filtri per ogni segnale, ciascuna con la sua uscita su una pipe separata. Una traccia che serve sia con il centrale sia con L+R (perché fa coppia con tracce diverse) ha due catene, nella stessa lettura.
+- **Pre-roll: 2 s.** Si cerca 2 s prima di T, così il decoder ha tempo di arrivare a un punto di sincronizzazione (su TrueHD fino a circa 107 ms) e di stabilizzarsi. Nelle prove i timestamp erano giusti anche senza pre-roll; il pre-roll migliora i primi campioni (su AC3 la somiglianza con l'originale passa da 0,964 a 0,968) e dà margine ai dischi veri. Costa 2 s di lettura in più per finestra: il 7% su una finestra di 30 s. ffmpeg si ferma da solo quando tutte le uscite hanno finito la finestra.
+- **Energia:** media dei quadrati dei campioni, in dBFS (fondo scala 1,0; una finestra tutta a zero vale −∞). Serve a E_min (§4.5).
+- **Byte letti:** dalle statistiche di ffmpeg (`Statistics: … bytes read`, con `-v verbose`), per il report (§11.2, punto 4).
+- **Finestra troppo corta.** I campioni attesi sono la parte della finestra che cade dentro la traccia, secondo quello che il file dichiara: dal primo timestamp della traccia alla sua fine secondo i tag statistici, altrimenti alla fine dichiarata del file. Mai dalla fine letta in coda (§4.8), che è proprio quello che la finestra deve controllare: in un file troncato, poi, i tag statistici mancano, perché mkvmerge li scrive in fondo. Se la finestra decodifica **meno del 90%** dei campioni attesi, o nessun campione, è `INPUT_UNREADABLE` (§4.8). Il caso tipico è una finestra oltre il punto in cui un file è troncato. Una finestra che cade tutta fuori dalla traccia è una richiesta sbagliata di chi chiama (`INTERNAL`).
+- **Costanti del metodo, non parametri di taratura.** Pre-roll, soglia dei buchi (2 ms) e soglia della finestra troppo corta (90%) non decidono se una coppia è idonea: decidono se la lettura è corretta, e lo dimostrano i test con spostamenti noti (§15, 1d). Per questo stanno nel codice e non in `calibration.json`; si cambiano con una PR che aggiorna questo paragrafo.
+- **Versione di ffmpeg:** almeno 6.1 (§13).
 
 **Quanto si legge davvero dal disco.** In un MKV audio e video sono intrecciati, quindi per leggere N secondi di audio si leggono N secondi di **tutto** il file, video compreso. Per un UHD sono decine di MB al secondo, e l'analisi completa legge alcuni GB.
 
@@ -244,7 +270,7 @@ S viene misurato sulla lingua di misura e applicato alla traccia italiana. Funzi
 - **Tolleranza:** un solo parametro di taratura, per il file e per le tracce (`integrityToleranceMs`, 1 s, **provvisorio**, §9.2). Assorbe l'ultimo fotogramma o pacchetto senza durata esplicita; si controlla sui rip reali di MakeMKV (§15, fase 0).
 - **Quando non si può verificare:** senza durata dichiarata, o senza nessun cluster negli ultimi 256 MiB, il file risulta troncato. Meglio un errore da correggere che un merge su un file forse incompleto.
 - **Esito:** il report degli ingressi riporta durata dichiarata, fine più alta, fine attesa e fine letta di ogni traccia (§11.2); la decisione lo usa nel controllo `integrity` (§9.6).
-- **Finestra vuota:** una finestra che decodifica zero campioni, o troppo pochi, è un errore (`INPUT_UNREADABLE`) e non un punto non conclusivo.
+- **Finestra vuota:** una finestra che decodifica zero campioni, o troppo pochi (meno del 90% di quelli attesi, §4.3), è un errore (`INPUT_UNREADABLE`) e non un punto non conclusivo.
 
 ### 4.9 Precisione e accuratezza
 
@@ -428,7 +454,7 @@ I valori **provvisori** sono fissati prima della taratura sulle coppie reali (§
 | Tolleranza del controllo di integrità (§4.8) | 1 s, **provvisoria** | 50 ms – 5 s |
 | Finestra di `INPUT_BUSY` (§10) | 30 s, come Wayfinderr | 5 s – 10 min |
 
-I parametri dei moduli non ancora scritti entrano nel file insieme ai moduli che li usano.
+I parametri dei moduli non ancora scritti entrano nel file insieme ai moduli che li usano. Il pre-roll e le soglie della lettura delle finestre non sono parametri di taratura ma costanti del metodo (§4.3).
 
 ### 9.3 Copertura dei punti coerenti
 
@@ -704,7 +730,9 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
 ## 13. Requisiti tecnici
 
 - **Nessuna scheda grafica:** il video non viene mai decodificato né codificato.
-- **Programmi esterni:** mkvmerge almeno v57, ffmpeg e ffprobe. Dyadrr controlla la versione di mkvmerge prima di cominciare (`TOOL_TOO_OLD`) e si ferma se un programma manca (`TOOL_MISSING`); le versioni finiscono nel report (§11.2). La versione minima di ffmpeg si fissa con la lettura delle finestre audio (§4.3): fino ad allora basta che ci sia.
+- **Programmi esterni:** mkvmerge almeno v57, ffmpeg e ffprobe. Dyadrr controlla le versioni prima di cominciare (`TOOL_TOO_OLD`) e si ferma se un programma manca (`TOOL_MISSING`); le versioni finiscono nel report (§11.2).
+  - **ffmpeg almeno 6.1.** Il metodo di lettura delle finestre (§4.3) è provato su ffmpeg 6.1.1 (Ubuntu 24.04) e 7.0.2 (§18), e legge alcuni messaggi di ffmpeg (`ashowinfo`, statistiche di lettura) il cui formato è garantito solo sulle versioni provate. La versione si legge da `ffmpeg -version`; per le build da git ("N-…"), che non hanno un numero di versione, da libavformat (almeno 60.16, quella di ffmpeg 6.1).
+  - **ffprobe:** basta che ci sia; serve solo per i metadati.
 - **Processore:** carico leggero. Correlare alcuni minuti di audio a 8 kHz richiede secondi.
 - **Disco:** è il vero limite.
   - **Analisi:** legge alcuni GB, per i motivi di §4.3.
@@ -722,7 +750,7 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
   - il contratto (§11) resta identico in tutti i casi.
 - **Formato del pacchetto:** se in futuro il backend volesse importare la libreria direttamente, servono un punto d'ingresso compatibile CommonJS e nessun `await` al livello principale, perché il backend di Wayfinderr compila in CommonJS.
 - **Immagine Docker:**
-  - stessa base del backend (Node 22 su Alpine), con ffmpeg e mkvtoolnix ≥ v57 a versioni fissate;
+  - stessa base del backend (Node 22 su Alpine), con ffmpeg ≥ 6.1 e mkvtoolnix ≥ v57 a versioni fissate;
   - un piccolo init per i segnali;
   - amd64 e arm64, come le immagini di Wayfinderr.
 - **Windows:** con Docker Desktop le cartelle Windows montate sono lente per file di decine di GB, e lo sono sia l'analisi (alcuni GB) sia il merge. Se diventa un problema, si tengono i file di prova nel filesystem di WSL2.
@@ -764,6 +792,7 @@ Prima di scrivere codice si verificano su file di prova i meccanismi da cui dipe
 - Punti di conferma posti 0–100 ms dopo i fotogrammi chiave, su AC3, FLAC e TrueHD con punti di sincronizzazione rari.
 - Un file con `start_time` diverso da zero, una traccia che non parte da zero.
 - Richiesti **zero** rifiuti falsi.
+- *Stato (Dyadrr 0.4.0):* lettura delle finestre provata su MKV generati al volo: spostamenti noti con `--sync` di entrambi i segni (letti dai timestamp dei file prodotti), finestre 0–100 ms dopo i fotogrammi chiave su AC3, E-AC3, FLAC, TrueHD e DTS, `start_time` diverso da zero, traccia che parte dopo lo zero, centrale contro L+R, file troncato. Errore sotto il millisecondo in tutte le finestre, con ffmpeg 6.1.1 e 7.0.2. Resta da ripetere su rip reali di MakeMKV (fase 0).
 
 **1e. Logica di decisione senza file**
 - La decisione è una funzione pura: misure + soglie → report.
@@ -912,6 +941,8 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
 | Remix sintetico: stesso dialogo, musica ed effetti diversi | ❌ Il downmix mono completo perde la corrispondenza in tutte le finestre. ✅ La tengono in tutte il solo canale centrale e la correlazione sbiancata (GCC-PHAT) sul downmix (§4.2) |
 | HEVC HDR10 dopo il remux | ✅ Pacchetti identici, metadati di colore conservati. Dolby Vision è ancora da provare su un file vero |
 | Lettura dal disco | Per leggere N secondi di audio si leggono N secondi di tutto il file (circa 1,15 volte, con il pre-roll) |
+| Metodo di lettura della 0.6 (§4.3), ffmpeg 6.1.1 e 7.0.2: 63 finestre da 1 s per codec, 0–100 ms dopo 7 fotogrammi chiave, pre-roll 2 s | ✅ Dispersione dell'errore tra le finestre (il ritardo costante del codec è a parte, §4.9): AC3 ed E-AC3 0,001 ms (ritardo −0,34 ms: il CodecDelay di 5,33 ms che ffmpeg arrotonda a 5), FLAC 0,000 ms, TrueHD 0,66 ms, DTS 1,0 ms (ritardo −10,4 ms). Il resto è l'arrotondamento al ms dei timestamp di Matroska, ±0,5 ms. ❌ La lettura ingenua sugli stessi file: AC3 ed E-AC3 da −5,3 a +14,7 ms, FLAC da 0 a 89 ms, TrueHD 4,7 ms, DTS 9,7 ms. Con pre-roll da 0 a 3 s la dispersione resta sotto 1 ms |
+| Buco di 50 ms nei timestamp di una traccia FLAC | ❌ Senza compensazione tutto quello che segue è spostato di −50 ms. ✅ Con la compensazione di `aresample` oltre 2 ms l'errore è 0 (§4.3) |
 
 ---
 
@@ -989,3 +1020,8 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
   - **Integrità:** lettura della coda del file senza ffmpeg, fine dei pacchetti, durata dichiarata nelle due letture, tracce controllate (audio e video), casi non verificabili; nuovo parametro `integrityToleranceMs`, provvisorio (§4.8, §9.2, decisione 12).
   - **File in scrittura:** `INPUT_BUSY` anche in analyze, con la finestra `inputBusyMs` di 30 s, le date nel futuro e i cambiamenti durante la lettura (§10).
   - **Programmi esterni:** mkvmerge almeno v57 (`TOOL_TOO_OLD`), ffmpeg e ffprobe presenti (`TOOL_MISSING`); versione minima di ffmpeg rimandata alla lettura delle finestre (§13).
+- **0.6:** lettura delle finestre audio.
+  - **Metodo provato a mano:** comando ffmpeg, timestamp dei campioni da `ashowinfo`, buchi oltre 2 ms riempiti, passa-basso nel ricampionamento, più tracce nella stessa lettura, byte letti (§4.3, §18).
+  - **Canale centrale:** quando una traccia "lo ha", mono e disposizioni sconosciute (§4.2).
+  - **Costanti del metodo:** pre-roll 2 s, buchi oltre 2 ms, finestra troppo corta sotto il 90% dei campioni attesi (`INPUT_UNREADABLE`, §4.3, §4.8); non sono parametri di taratura (§9.2).
+  - **ffmpeg almeno 6.1** (`TOOL_TOO_OLD`, §13).
