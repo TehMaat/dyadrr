@@ -81,6 +81,8 @@ documenti che tocca**, nella stessa PR.
 | Qualsiasi PR | versione e [docs/CHANGELOG.md](docs/CHANGELOG.md) |
 | Comandi, opzioni, variabili d'ambiente, scelte | [docs/CLI.md](docs/CLI.md), e il [README](README.md) se è nell'uso rapido |
 | Codici di rifiuto, errore o avviso, codici di uscita | [docs/CODICI.md](docs/CODICI.md) |
+| Un codice che un test produce per la prima volta | la sezione **Test** di [docs/CODICI.md](docs/CODICI.md) |
+| Valori o limiti di taratura (`src/calibration.json`, `src/calibration.ts`) | [docs/TARATURA.md](docs/TARATURA.md); per i limiti e per i valori che smettono di essere provvisori anche lo studio (§9.2) |
 | File in `src/` aggiunti, rinominati o tolti | [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md) |
 | Una voce passa da "previsto" a implementata | la colonna o la riga **Stato** in [docs/CLI.md](docs/CLI.md) |
 | Una decisione di progetto o una regola del metodo | [docs/STUDIO-DI-FATTIBILITA.md](docs/STUDIO-DI-FATTIBILITA.md), con una voce nella cronologia (§20) |
@@ -94,8 +96,12 @@ scostarsene, si aggiorna prima lo studio.
 - [docs/CLI.md](docs/CLI.md) non riporta ogni scelta con la sua opzione, la
   sua variabile d'ambiente e i suoi valori, o cita una variabile `DYADRR_*`
   che non esiste;
+- la sezione **Test** di [docs/CODICI.md](docs/CODICI.md) non collega ogni
+  codice a un test che esiste e usa quel codice, o a un modulo previsto;
+- [docs/TARATURA.md](docs/TARATURA.md) non riporta ogni parametro di taratura
+  con il valore del file, i limiti del codice e lo stato (provvisorio o no);
 - [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md) non elenca esattamente i file
-  di `src/`;
+  `.ts` e `.json` di `src/`;
 - [docs/CHANGELOG.md](docs/CHANGELOG.md) non ha la sezione della versione di
   `package.json`.
 

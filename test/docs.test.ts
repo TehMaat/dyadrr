@@ -5,6 +5,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { ERROR_CODES, REFUSAL_CODES, WARNING_CODES, exitCodeFor } from '../src/codes.js';
 import { CHOICES, CHOICE_NAMES } from '../src/choices.js';
+import { CALIBRATION_LIMITS, CALIBRATION_NAMES, loadCalibration } from '../src/calibration.js';
 
 // I test girano da build/test/.
 const ROOT = resolve(__dirname, '..', '..');
@@ -73,11 +74,46 @@ test('CLI.md riporta ogni scelta con opzione, variabile d\'ambiente e valori', (
   }
 });
 
+test('CODICI.md collega ogni codice al test che lo produce', () => {
+  const all = [...REFUSAL_CODES, ...ERROR_CODES, ...WARNING_CODES, 'CANCELLED'];
+  const rows = codeRows(read('docs/CODICI.md'), 'Test');
+  assert.deepEqual([...rows.keys()].sort(), [...all].sort());
+
+  for (const [code, row] of rows) {
+    const cell = row[1] ?? '';
+    if (cell.startsWith('previsto: ')) continue;
+    for (const ref of cell.split('<br>')) {
+      const m = /^`(test\/[\w.-]+\.test\.ts)` › (.+)$/.exec(ref);
+      assert.ok(m?.[1] && m[2], `${code}: "${ref}" is neither a test nor "previsto: <modulo>"`);
+      const source = read(m[1]);
+      const start = source.indexOf(`test('${m[2].replace(/'/g, "\\'")}',`);
+      assert.notEqual(start, -1, `${code}: test "${m[2]}" not found in ${m[1]}`);
+      const next = source.indexOf('\ntest(', start + 1);
+      const body = source.slice(start, next === -1 ? undefined : next);
+      assert.ok(body.includes(`'${code}'`), `${code}: test "${m[2]}" does not use ${code}`);
+    }
+  }
+});
+
+test('TARATURA.md riporta ogni parametro con valore, limiti e stato', () => {
+  const cal = loadCalibration();
+  const rows = tableRows(read('docs/TARATURA.md'), 'Parametri');
+  for (const name of CALIBRATION_NAMES) {
+    const row = rows.find((r) => r[1] === `\`${name}\``);
+    assert.ok(row, `${name} missing from TARATURA.md`);
+    const { min, max } = CALIBRATION_LIMITS[name];
+    assert.equal(row[2], `\`${cal.values[name]}\``, `value of ${name}`);
+    assert.equal(row[3], `\`${min}\` – \`${max}\``, `limits of ${name}`);
+    assert.equal(row[4], cal.provisional.includes(name) ? 'sì' : 'no', `provisional flag of ${name}`);
+  }
+  assert.equal(rows.length - 1, CALIBRATION_NAMES.length, 'one row per parameter (plus the header)');
+});
+
 test('ARCHITETTURA.md elenca esattamente i file di src/', () => {
   const listFiles = (dir: string): string[] =>
     readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
       e.isDirectory() ? listFiles(join(dir, e.name)) : [relative(ROOT, join(dir, e.name))]);
-  const files = listFiles(join(ROOT, 'src')).filter((f) => f.endsWith('.ts')).sort();
+  const files = listFiles(join(ROOT, 'src')).filter((f) => /\.(ts|json)$/.test(f)).sort();
 
   const doc = read('docs/ARCHITETTURA.md');
   const documented = tableRows(doc, 'Moduli')

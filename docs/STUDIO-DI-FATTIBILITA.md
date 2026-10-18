@@ -1,10 +1,10 @@
 # Dyadrr: studio di fattibilità
 
-Stato: bozza 0.3, ottobre 2026.
+Stato: bozza 0.4, ottobre 2026.
 
 Questo documento raccoglie le decisioni prese, quelle ancora aperte e i risultati delle prime verifiche sperimentali (§18). È il punto di partenza del repo.
 
-La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. Le modifiche principali sono elencate in §20.
+La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). Le modifiche principali sono elencate in §20.
 
 ---
 
@@ -178,7 +178,7 @@ Per ridurli: il pezzo da cercare si prende sempre dal riferimento e la ricerca a
    - La differenza di durata non dice quanto vale S: un'intro in più da una parte e una coda in più dall'altra possono compensarsi.
    - La differenza di durata si usa solo come indizio e si riporta nel report.
 3. **Confidenza: due numeri.**
-   - **Somiglianza:** il valore NCC del picco, normalizzato tra −1 e 1. Deve superare una soglia θ_ncc. Se la supera solo di poco (fascia da tarare, da aggiungere a §9.2), si va avanti con l'avviso `MEASURE_MIX_DIFFERS`.
+   - **Somiglianza:** il valore NCC del picco, normalizzato tra −1 e 1. Deve superare una soglia θ_ncc. Se la supera solo di poco (fascia in §9.2, provvisoria), si va avanti con l'avviso `MEASURE_MIX_DIFFERS`.
    - **Unicità:** il rapporto tra il picco e il valore più alto **fuori da una zona di esclusione** intorno al picco (circa ±25 ms). Deve superare una soglia θ_rapporto. Senza zona di esclusione, il "secondo picco" sarebbe il campione accanto e il rapporto sarebbe sempre circa 1.
 4. **Esiti:**
    - somiglianza sotto soglia su tutte le ancore: `NO_MATCH`;
@@ -399,20 +399,24 @@ Le soglie decidono cosa conta come "contraddittorio". Se si potessero cambiare a
 
 ### 9.2 Parametri di taratura
 
-Hanno limiti fissi. Stanno in un file di configurazione versionato, deciso con la fase 1, e **non** si cambiano a ogni esecuzione. Un valore fuori dai limiti è un errore di utilizzo. Il report registra sempre i valori usati.
+Hanno limiti fissi. Stanno in un file di configurazione versionato (`src/calibration.json`), deciso con la fase 1, e **non** si cambiano a ogni esecuzione: non c'è né un'opzione né una variabile d'ambiente per farlo. I limiti stanno nel codice e non superano mai le regole di §9.1. Un valore fuori dai limiti è un errore di utilizzo (`BAD_ARGUMENTS`). Il report registra sempre la versione del file, i valori usati e quali sono provvisori. L'elenco completo, con le chiavi del file, è in `docs/TARATURA.md`.
 
-| Parametro | Valore iniziale |
-|---|---|
-| Tolleranza per punto | ±10 ms |
-| θ_ncc, θ_rapporto (ancore e punti) | da tarare |
-| E_min (soglia di "silenzio") | da tarare (per esempio −50 dBFS) |
-| Lunghezza della finestra, zona di esclusione | 30 s per le ancore, finestre di conferma da tarare; ±25 ms |
-| Punti di conferma | 30, fino a 60 |
-| Copertura dei punti coerenti (§9.3) | almeno 20 punti coerenti, buco massimo 15 min, un punto nel primo e nell'ultimo 10%, copertura 90% |
-| Soglie degli avvisi | `MANY_INCONCLUSIVE` 10%, `LONG_GAP_WITHOUT_ITALIAN` 10 min, `ABRUPT_START` e `MEASURE_MIX_DIFFERS` da tarare |
-| Altre soglie | margine di bitrate 20% (§3.2), forced sotto il 10–20% dei sottotitoli della traccia più grande (§7) |
-| Spostamento massimo S_max | 180 s |
-| Framerate uguale | differenza relativa sotto 1e-4 (non uguaglianza esatta: 23,976 si può scrivere in modi diversi) |
+I valori **provvisori** sono fissati prima della taratura sulle coppie reali (§15, fase 1, punto 3) e restano tali fino alla decisione 12 (§17).
+
+| Parametro | Valore iniziale | Limiti |
+|---|---|---|
+| Tolleranza per punto | ±10 ms | 1–30 ms |
+| θ_ncc, θ_rapporto (ancore e punti) | 0,5 e 1,5, **provvisori** | 0,2–0,99 e 1,05–10 |
+| E_min (soglia di "silenzio") | −50 dBFS, **provvisorio** | da −90 a −20 dBFS |
+| Lunghezza della finestra, zona di esclusione | 30 s per le ancore, finestre di conferma da tarare; ±25 ms | con il modulo di correlazione |
+| Punti di conferma | 30, fino a 60 | con il modulo di correlazione |
+| Copertura dei punti coerenti (§9.3) | almeno 20 punti coerenti, buco massimo 15 min, un punto nel primo e nell'ultimo 10%, copertura 90% | 10–60 punti (intero), 1–30 min, 2–25%, 50–100% |
+| Soglie degli avvisi | `MANY_INCONCLUSIVE` 10%; `MEASURE_MIX_DIFFERS` per una somiglianza sotto θ_ncc + 0,1 (fascia **provvisoria**); `LONG_GAP_WITHOUT_ITALIAN` 10 min; `ABRUPT_START` da tarare | 1–50%; fascia 0–0,5; le altre con il modulo del piano |
+| Altre soglie | margine di bitrate 20% (§3.2), forced sotto il 10–20% dei sottotitoli della traccia più grande (§7) | bitrate 5–100%; forced con il modulo del piano |
+| Spostamento massimo S_max | 180 s | 1–300 s |
+| Framerate uguale | differenza relativa sotto 1e-4 (non uguaglianza esatta: 23,976 si può scrivere in modi diversi) | da 1e-6 a 5e-4: sempre sotto 1e-3, la differenza tra 24 e 23,976 |
+
+I parametri dei moduli non ancora scritti entrano nel file insieme ai moduli che li usano.
 
 ### 9.3 Copertura dei punti coerenti
 
@@ -443,6 +447,47 @@ Prima della rinomina finale si controlla che:
 - il controllo di trasferimento (§4.7) sul file finale, tra italiano e lingua di misura del riferimento, dia uno spostamento circa zero. All'inizio è solo un avviso.
 
 Se una verifica bloccante fallisce, il file temporaneo viene eliminato ed esce l'errore `VERIFY_FAILED`.
+
+### 9.6 Regole della decisione
+
+La decisione è una **funzione pura**: riceve i fatti dei due file e le misure, più la taratura, e restituisce decisione, controlli, motivi e avvisi. Non legge file e non lancia programmi, così si prova con serie sintetiche (§15, 1e).
+
+**Ordine e arresto**
+- I controlli seguono §9.4: ruoli, lingua di misura, video, framerate, integrità; poi ancore (corrispondenza, spostamento massimo, accordo tra le ancore); poi deriva, contraddizioni, punti senza corrispondenza, confini, distribuzione dei punti, copertura; infine il controllo di trasferimento.
+- Il **primo controllo bloccante che fallisce ferma tutto**, anche nelle fasi di misura: il report ha un solo motivo e i controlli successivi risultano `skipped`. Le misure di una fase servono solo se le precedenti sono passate; se mancano quando servono è `INTERNAL`.
+- Il controllo di trasferimento non è bloccante: dà solo avvisi (§4.7).
+
+**Picchi**
+- Un picco è **sicuro** se la somiglianza (NCC) è almeno θ_ncc e l'unicità (rapporto) almeno θ_rapporto. È **somigliante ma non unico** se supera solo θ_ncc.
+
+**Ancore (§4.4)**
+- L'ancora accettata è la prima sicura nell'ordine di misura. **Ogni** altra ancora sicura deve dare lo stesso S entro la tolleranza, altrimenti `CHECKPOINT_CONTRADICTION`.
+- Senza ancore sicure: `AMBIGUOUS_MATCH` se almeno un'ancora è somigliante ma non unica; altrimenti `FPS_MISMATCH` o `PAL_SPEEDUP` se la diagnosi di velocità ha trovato un rapporto; altrimenti `NO_MATCH`.
+- Il rapporto della diagnosi si attribuisce al più vicino tra 1,001 (`FPS_MISMATCH`) e 25/24 o 25/23,976 (`PAL_SPEEDUP`), in un verso o nell'altro.
+- `OFFSET_TOO_LARGE` si controlla sull'ancora accettata, prima dell'accordo tra le ancore.
+- `MEASURE_MIX_DIFFERS` scatta se la somiglianza dell'ancora accettata è sotto θ_ncc + la fascia.
+
+**Punti di conferma (§4.5)**
+- Energia sotto E_min: **non conclusivo**, anche se c'è un picco.
+- Altrimenti si usa il picco sicuro della ricerca vicina a S o, se manca, quello della ricerca su tutto l'intervallo. Entro la tolleranza dallo S dell'ancora accettata: **coerente**; altrove: **contraddittorio**; nessun picco sicuro: **senza corrispondenza**.
+- **S definitivo** = mediana dei punti coerenti, arrotondata all'intero una sola volta, alla fine. La dispersione è la deviazione assoluta mediana.
+
+**Deriva**
+- Retta robusta di Theil–Sen sui punti con un picco sicuro (coerenti e contraddittori), se sono almeno 3. La deriva totale si misura sul tratto che va dal primo all'ultimo di questi punti.
+- `DRIFT` se la retta spiega **tutti** quei punti entro la tolleranza e la deriva totale supera la tolleranza. Se la retta non li spiega (un salto, rumore), la deriva non c'entra e decidono le contraddizioni. Così una tendenza lineare dà `DRIFT` anche quando molti punti risultano contraddittori rispetto all'ancora, e un salto non viene scambiato per una deriva.
+
+**Contraddizioni e confini**
+- Prima i punti contraddittori (`CHECKPOINT_CONTRADICTION`), poi quelli senza corrispondenza (`CHECKPOINT_UNMATCHED`): per entrambi la soglia è zero (§9.1).
+- **Forma:** i punti con un picco sicuro, in ordine di posizione, si dividono in tratti a spostamento costante (entro la tolleranza dal primo punto del tratto). Due tratti sono **un salto**; più tratti, tutti di almeno due punti, sono **più salti**; altrimenti è **rumore**. Ogni salto ha posizione, ampiezza in ms e in fotogrammi del riferimento.
+- Un picco sicuro prima del confine iniziale o oltre quello finale, a uno spostamento diverso da S oltre la tolleranza, vuol dire che il film continua a un altro spostamento: `CHECKPOINT_CONTRADICTION` (§4.6).
+
+**Video (§3.2)**
+- "Risoluzione più alta" vuol dire più pixel (larghezza × altezza). A parità di pixel conta il livello HDR.
+- L'avviso sul bitrate scatta solo se è il **donatore** ad avere il bitrate più alto oltre il margine; se un bitrate manca, il controllo lo riporta come criterio saltato.
+
+**Controllo di trasferimento (§4.7)**
+- Si usa la mediana dei picchi sicuri. Nessun picco sicuro: `ITALIAN_UNVERIFIED`. Mediana oltre la tolleranza: `ITALIAN_TRANSFER_OFFSET`, con il valore.
+- Per ora usa le stesse θ_ncc e θ_rapporto delle ancore. Se la fase 1 mostra che sui canali non centrali servono soglie diverse, diventeranno parametri propri.
 
 ---
 
@@ -709,6 +754,7 @@ Prima di scrivere codice si verificano su file di prova i meccanismi da cui dipe
 - `DRIFT`, `TOO_FEW_CHECKPOINTS`, `AMBIGUOUS_MATCH` e gli avvisi si provano con serie di punti sintetiche.
 - `NO_SPACE` con un disco piccolo, `VERIFY_FAILED` con un errore iniettato apposta.
 - Una tabella collega **ogni codice** al test che lo produce.
+- *Stato (Dyadrr 0.2.0):* funzione di decisione e tabella dei codici fatte (`docs/CODICI.md`, sezione Test). `NO_SPACE`, `VERIFY_FAILED` e gli avvisi del piano arrivano con i rispettivi moduli.
 
 **2. Casi da rifiutare con file reali**
 - Theatrical contro extended, framerate diversi, due film diversi.
@@ -824,7 +870,7 @@ Le decisioni 1, 2, 8, 9 e 10 sono chiuse nella 0.3. La numerazione resta quella 
 9. ~~**PGS italiani già presenti nel riferimento**~~ → **scelta dell'utente** (`--reference-italian-subs`, §10.1).
 10. ~~**Audio italiano fuori dal materiale in comune**~~ → **scelta dell'utente** (`--edge-mismatch`, §10.1).
 11. **Voce di menu "Merge" in Wayfinderr:** nascosta quando il merge è spento, oppure sempre visibile come Rips?
-12. **Soglie definitive,** dopo la taratura sulle coppie reali.
+12. **Soglie definitive,** dopo la taratura sulle coppie reali. Fino ad allora θ_ncc, θ_rapporto, E_min e la fascia di `MEASURE_MIX_DIFFERS` hanno valori provvisori (§9.2).
 
 ---
 
@@ -919,3 +965,6 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
   - **Scelte dell'utente:** coda, tracce italiane, PGS italiani del riferimento e audio fuori dal materiale in comune si decidono con un'opzione, una variabile d'ambiente o al momento del merge; in Wayfinderr diventano impostazioni della GUI (§10.1). Nuovo errore `CHOICE_REQUIRED`.
   - **Traccia principale** definita (§8).
   - **Licenza:** MIT (§14).
+- **0.4:** funzione di decisione.
+  - **Taratura:** limiti dei parametri e valori provvisori di θ_ncc, θ_rapporto, E_min e della fascia di `MEASURE_MIX_DIFFERS`; file versionato `src/calibration.json` (§9.2).
+  - **Regole della decisione:** ordine e arresto al primo controllo bloccante, picco sicuro, accordo tra le ancore, classificazione dei punti, deriva come retta che spiega tutti i punti, forma della contraddizione, confini, video, controllo di trasferimento (§9.6).

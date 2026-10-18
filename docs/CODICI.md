@@ -95,3 +95,61 @@ sopra 128): un crash di Node esce con 1 e non deve sembrare un rifiuto.
 
 Qualsiasi altro codice, o un report mancante o illeggibile, va trattato come
 errore.
+
+## Test
+
+Ogni codice e il test che lo produce (studio §15, test 1e). I codici dei
+moduli non ancora scritti indicano il modulo previsto
+([ARCHITETTURA.md](ARCHITETTURA.md#moduli-previsti)). Il test
+`test/docs.test.ts` controlla che ogni codice sia elencato e che ogni test
+citato esista e usi quel codice.
+
+| Codice | Test |
+|---|---|
+| `NO_ITALIAN_AUDIO` | `test/decision.test.ts` › NO_ITALIAN_AUDIO: nessuno dei due file ha audio italiano; i controlli seguenti sono saltati |
+| `BOTH_ITALIAN_AUDIO` | `test/decision.test.ts` › BOTH_ITALIAN_AUDIO: entrambi i file hanno audio italiano |
+| `NO_COMMON_LANGUAGE` | `test/decision.test.ts` › NO_COMMON_LANGUAGE: nessuna lingua di misura in comune |
+| `DONOR_BETTER_VIDEO` | `test/decision.test.ts` › DONOR_BETTER_VIDEO: risoluzione più alta, o HDR più alto a parità di risoluzione |
+| `FPS_MISMATCH` | `test/decision.test.ts` › FPS_MISMATCH: framerate diversi nei metadati; 23,976 scritto in modi diversi è uguale<br>`test/decision.test.ts` › FPS_MISMATCH: la diagnosi di velocità trova un rapporto 1,001 |
+| `PAL_SPEEDUP` | `test/decision.test.ts` › PAL_SPEEDUP: la diagnosi di velocità trova un rapporto PAL, in un verso o nell'altro |
+| `NO_MATCH` | `test/decision.test.ts` › NO_MATCH: nessuna ancora abbastanza somigliante |
+| `AMBIGUOUS_MATCH` | `test/decision.test.ts` › AMBIGUOUS_MATCH: ancore somiglianti ma non uniche |
+| `OFFSET_TOO_LARGE` | `test/decision.test.ts` › OFFSET_TOO_LARGE: picco sicuro oltre lo spostamento massimo |
+| `CHECKPOINT_CONTRADICTION` | `test/decision.test.ts` › CHECKPOINT_CONTRADICTION: due ancore sicure con spostamenti diversi<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: un salto di due fotogrammi a metà film<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: più salti, oppure rumore<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: il film continua a un altro spostamento oltre il confine |
+| `CHECKPOINT_UNMATCHED` | `test/decision.test.ts` › CHECKPOINT_UNMATCHED: un tratto con contenuto non trova corrispondenza da nessuna parte |
+| `DRIFT` | `test/decision.test.ts` › DRIFT: lo spostamento cresce nel tempo, e risulta deriva e non contraddizione |
+| `TOO_FEW_CHECKPOINTS` | `test/decision.test.ts` › TOO_FEW_CHECKPOINTS: meno di 20 punti coerenti<br>`test/decision.test.ts` › TOO_FEW_CHECKPOINTS: un buco oltre 15 minuti tra punti coerenti<br>`test/decision.test.ts` › TOO_FEW_CHECKPOINTS: nessun punto coerente nell'ultimo 10% del materiale in comune |
+| `LOW_COVERAGE` | `test/decision.test.ts` › LOW_COVERAGE: il materiale in comune copre troppo poco del video di riferimento |
+| `BAD_ARGUMENTS` | `test/choices.test.ts` › valori non validi sono BAD_ARGUMENTS, da opzione o da variabile<br>`test/calibration.test.ts` › BAD_ARGUMENTS: un valore di taratura fuori dai limiti, mancante o sconosciuto |
+| `INPUT_UNREADABLE` | previsto: ingressi e lettura delle finestre audio |
+| `INPUT_TRUNCATED` | `test/decision.test.ts` › INPUT_TRUNCATED: un ingresso troncato è un errore, non un rifiuto |
+| `INPUT_BUSY` | previsto: ingressi |
+| `INPUT_CHANGED` | previsto: report e riga di comando (`--expect`) |
+| `CHOICE_REQUIRED` | `test/choices.test.ts` › merge senza terminale: una scelta in sospeso è CHOICE_REQUIRED |
+| `OUTPUT_EXISTS` | previsto: report e riga di comando |
+| `OUTPUT_NOT_WRITABLE` | previsto: report e riga di comando |
+| `NO_SPACE` | previsto: costruzione (test con un disco piccolo) |
+| `TOOL_MISSING` | previsto: report e riga di comando |
+| `TOOL_TOO_OLD` | previsto: report e riga di comando |
+| `MERGE_FAILED` | previsto: costruzione |
+| `VERIFY_FAILED` | previsto: verifiche dopo il merge (con un errore iniettato) |
+| `INTERNAL` | `test/decision.test.ts` › INTERNAL: mancano le misure di una fase che serve |
+| `CANCELLED` | previsto: report e riga di comando |
+| `VIDEO_QUALITY_UNCERTAIN` | `test/decision.test.ts` › VIDEO_QUALITY_UNCERTAIN: stessa risoluzione, HDR e codec, bitrate del donatore oltre il margine |
+| `ORIGINAL_LANGUAGE_NOT_COMMON` | `test/decision.test.ts` › ORIGINAL_LANGUAGE_NOT_COMMON: la lingua originale non è in entrambi i file |
+| `MEASURE_MIX_DIFFERS` | `test/decision.test.ts` › MEASURE_MIX_DIFFERS: somiglianza nella fascia bassa ma sufficiente |
+| `ITALIAN_TRANSFER_OFFSET` | `test/decision.test.ts` › ITALIAN_TRANSFER_OFFSET: nel donatore l'italiano è sfasato rispetto alla lingua di misura |
+| `ITALIAN_UNVERIFIED` | `test/decision.test.ts` › ITALIAN_UNVERIFIED: l'italiano non correla con la lingua di misura |
+| `ITALIAN_TRACKS_SKIPPED` | previsto: piano |
+| `REFERENCE_HAS_ITALIAN_SUBS` | previsto: piano |
+| `ITALIAN_SUBS_NOT_PGS` | previsto: piano |
+| `NO_FORCED_ITALIAN_SUBS` | previsto: piano |
+| `SDR_SUBS_ON_HDR` | previsto: piano |
+| `SUBTITLES_DROPPED_AT_CUT` | previsto: piano e costruzione |
+| `INTRO_MISMATCH` | previsto: piano |
+| `OUTRO_MISMATCH` | previsto: piano |
+| `LONG_GAP_WITHOUT_ITALIAN` | previsto: piano |
+| `TAIL_EXCESS_KEPT` | previsto: piano |
+| `ABRUPT_START` | previsto: piano |
+| `MANY_INCONCLUSIVE` | `test/decision.test.ts` › MANY_INCONCLUSIVE: più del 10% di punti non conclusivi, copertura comunque sufficiente |
+| `MKVMERGE_WARNING` | previsto: costruzione |
