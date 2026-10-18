@@ -1,10 +1,10 @@
 # Dyadrr: studio di fattibilità
 
-Stato: bozza 0.2, ottobre 2026. Nessun codice del progetto è stato scritto.
+Stato: bozza 0.3, ottobre 2026.
 
 Questo documento raccoglie le decisioni prese, quelle ancora aperte e i risultati delle prime verifiche sperimentali (§18). È il punto di partenza del repo.
 
-La 0.2 corregge la 0.1 dopo una revisione indipendente. Le modifiche principali sono elencate in §20.
+La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. Le modifiche principali sono elencate in §20.
 
 ---
 
@@ -109,9 +109,13 @@ I ruoli li **decide Dyadrr**, senza opzione per imporli:
 - **Di norma è l'inglese**, presente in entrambi i file.
 - **Il problema:** P4 garantisce l'inglese **sul disco**, non nel rip. Per i film non in lingua inglese, i rip automatici di Wayfinderr tengono solo l'italiano e la lingua originale, e scartano l'inglese.
 - **La regola:** la lingua di misura è una lingua non italiana presente in entrambi i file, scelta in quest'ordine:
-  1. la lingua originale del film, se nota;
+  1. la lingua originale del film, se indicata con `--original-language`;
   2. l'inglese;
   3. qualsiasi altra lingua in comune.
+- **La lingua originale non si ricava dai file**: la indica chi lancia Dyadrr, con `--original-language <codice>` (§10). Si accettano codici ISO 639-2 e 639-1, senza distinguere maiuscole e minuscole (`eng`, `EN`, `jpn`, `fra`…). In fase 2 la passa Wayfinderr. Non ha una variabile d'ambiente, perché cambia da film a film.
+  - Se è l'italiano, si ignora per la scelta della lingua di misura: l'italiano non è mai lingua di misura.
+  - Se non è presente in entrambi i file, si passa all'inglese con l'avviso `ORIGINAL_LANGUAGE_NOT_COMMON`.
+  - Il report registra la lingua originale indicata, o la sua assenza, e la lingua di misura scelta.
 - Se non c'è nessuna lingua in comune il merge si rifiuta (`NO_COMMON_LANGUAGE`). Il messaggio suggerisce di rippare il disco italiano tenendo l'inglese o la lingua originale.
 
 ---
@@ -255,10 +259,10 @@ La durata di un MKV è quella della traccia più lunga, non quella della traccia
 |---|---|
 | Il riferimento ha un'intro in più (S > 0) | La traccia italiana parte a S: i primi S ms sono senza italiano |
 | Il donatore ha un'intro in più (S < 0) | Si scarta l'italiano che cade prima dell'inizio del film nel riferimento |
-| Intro **diverse** (loghi diversi) | Prima del materiale in comune, l'audio italiano della sua intro suona sopra un'intro diversa. Tenerlo o scartarlo è la decisione aperta 10 (§17) |
+| Intro **diverse** (loghi diversi) | Prima del materiale in comune, l'audio italiano della sua intro suona sopra un'intro diversa. Tenerlo o scartarlo è una scelta dell'utente (`--edge-mismatch`, §10.1) |
 | Il riferimento ha più coda | La traccia italiana finisce prima: coda senza italiano |
-| Il donatore ha più coda (spesso il cartello "edizione italiana") | L'eccesso si toglie o si lascia (decisione aperta 1) |
-| Code **diverse** | Come per le intro diverse (decisione aperta 10) |
+| Il donatore ha più coda (spesso il cartello "edizione italiana") | L'eccesso si toglie o si lascia: scelta dell'utente (`--tail`, §10.1) |
+| Code **diverse** | Come per le intro diverse (`--edge-mismatch`, §10.1) |
 
 Le situazioni di inizio e di fine si combinano liberamente.
 
@@ -288,7 +292,7 @@ Prima si costruisce un file che contiene **solo** l'audio e i PGS italiani del d
   Il risultato è che la decodifica con ffmpeg, se non riempie i piccoli buchi nei timestamp, suona **tutta** la traccia in anticipo, fino a circa 107 ms (nelle prove 50–67 ms). Lettori e transcoder basati su ffmpeg probabilmente fanno lo stesso: va provato in fase 1.
 
   **Regola:** sulle tracce italiane non ancora spostate si taglia con `--split parts:t-`, dove t è il primo punto di sincronizzazione dopo |S|. La parte tagliata riparte da zero, quindi poi si sposta di S + t, cioè della differenza t − |S| (tra 0 e circa 107 ms). Anche questo fa parte della costruzione dell'intermedio. Così si perdono al massimo circa 107 ms di italiano all'inizio, e nelle prove l'errore è tornato a zero.
-- **Taglio finale (se si toglie l'eccesso):** `--split parts:` sull'intermedio, alla fine del video di riferimento. Il taglio cade sul primo pacchetto dopo il punto scelto, quindi può superarlo al massimo di un pacchetto.
+- **Taglio finale (se si toglie l'eccesso, `--tail trim`):** `--split parts:` sull'intermedio, alla fine del video di riferimento. Il taglio cade sul primo pacchetto dopo il punto scelto, quindi può superarlo al massimo di un pacchetto.
   - Su un file che contiene anche il video il taglio **non funziona**: mkvmerge divide solo sui fotogrammi chiave del video.
   - **mkvmerge non sa dividere le tracce FLAC.** Per FLAC le alternative sono un remux con ffmpeg (`-c copy -copyts -to <fine>`, che non ricodifica) oppure lasciare sempre l'eccesso. Senza `-copyts` ffmpeg riporta la traccia a zero e perde lo spostamento già applicato (lo stesso problema di §4.3).
   - `--stop-after-video-ends` taglierebbe in un solo passaggio, ma taglia anche le code delle tracce del riferimento. Non si usa.
@@ -354,7 +358,7 @@ Prima si costruisce un file che contiene **solo** l'audio e i PGS italiani del d
   - ha molti meno blocchi della traccia italiana più grande (per esempio meno del 10–20%, da tarare). I blocchi si contano dai tag statistici (`NUMBER_OF_FRAMES`); contare i sottotitoli veri vorrebbe dire leggere tutto il file, decine di GB. Nel report il numero di sottotitoli è una stima, salvo quelli persi ai tagli.
 
   Il report indica come è stata classificata e perché.
-- **PGS italiani già nel riferimento:** la proposta è tenerli dopo quelli del donatore e mai predefiniti, con l'avviso `REFERENCE_HAS_ITALIAN_SUBS` (decisione aperta 9).
+- **PGS italiani già nel riferimento:** si tengono dopo quelli del donatore e mai predefiniti, oppure si scartano. È una scelta dell'utente (`--reference-italian-subs`, §10.1). In entrambi i casi scatta l'avviso `REFERENCE_HAS_ITALIAN_SUBS`.
 - **Sottotitoli italiani non PGS** nel donatore: si scartano con l'avviso `ITALIAN_SUBS_NOT_PGS`.
 - **Avviso sui forced mancanti:** `NO_FORCED_ITALIAN_SUBS` scatta solo se il riferimento ha un forced in un'altra lingua (indizio di scritte straniere a schermo) e il donatore non ha un forced italiano. Altrimenti scatterebbe su quasi tutti i film.
 - **Caso noto:** alcuni dischi italiani (tipicamente Disney e Pixar) hanno le scritte in italiano direttamente nel video. Su quei dischi possono mancare i forced per quelle scritte, che sul video inglese restano in inglese.
@@ -363,12 +367,15 @@ Prima si costruisce un file che contiene **solo** l'audio e i PGS italiani del d
 
 ## 8. Tracce audio italiane
 
-Quali tracce prendere è ancora aperto (decisione 2). Queste regole valgono in entrambi i casi:
+Quali tracce prendere è una scelta dell'utente (`--italian`, §10.1), che serve solo se il donatore ha più di una traccia audio italiana:
 
-- **Proposta:** prendere **tutte** le tracce audio italiane nell'ordine del donatore. Non serve indovinare niente e non si perde niente.
-- **Traccia predefinita:** quella italiana già marcata come predefinita nel donatore; altrimenti la prima traccia audio italiana.
+- **`all`:** tutte le tracce audio italiane, nell'ordine del donatore. Non serve indovinare niente e non si perde niente.
+- **`main`:** solo la traccia principale, cioè quella che sarebbe predefinita (sotto). Ogni traccia scartata va nel report (`ITALIAN_TRACKS_SKIPPED`).
+
+Queste regole valgono in entrambi i casi:
+
+- **Traccia predefinita (principale):** quella italiana già marcata come predefinita nel donatore; altrimenti la prima traccia audio italiana che non sembri un commento o un'audiodescrizione (sotto); altrimenti la prima traccia audio italiana.
 - **Commenti e audiodescrizione:** si riconoscono dai flag commento o non vedenti, o da parole nel nome (commento, audiodescrizione, non vedenti, AD). Questi indizi servono solo a **non** rendere predefinita una traccia, mai a scartarla in silenzio. Nei rip da Blu-ray i flag mancano quasi sempre.
-- **Se si sceglie "solo la principale":** la regola va scritta (per esempio: più canali, lossless prima, nome senza quelle parole) e ogni traccia scartata va nel report (`ITALIAN_TRACKS_SKIPPED`).
 - La stessa logica vale per i PGS italiani di commento.
 
 ---
@@ -423,7 +430,7 @@ Se la regola non è soddisfatta il merge si rifiuta con `TOO_FEW_CHECKPOINTS` o 
 1. **Controlli strutturali** (lingue, ruoli, video, framerate, integrità): se uno fallisce ci si ferma subito, e i successivi risultano "saltati".
 2. **Misura iniziale.**
 3. **Punti di conferma:** prima la deriva, poi le contraddizioni, poi i confini del materiale in comune (§4.6) e la copertura; infine il controllo di trasferimento (§4.7), che all'inizio dà solo avvisi.
-4. **Solo in modalità merge:** confronto con il report di `--expect` (`INPUT_CHANGED`), poi spazio libero.
+4. **Solo in modalità merge:** scelte dell'utente (§10.1, `CHOICE_REQUIRED`), confronto con il report di `--expect` (`INPUT_CHANGED`), poi spazio libero.
 
 ### 9.5 Verifiche dopo il merge
 
@@ -447,8 +454,8 @@ Se una verifica bloccante fallisce, il file temporaneo viene eliminato ed esce l
 - due file MKV in ingresso, senza ruoli (li decide Dyadrr);
 - `--output` (file finale, solo per merge);
 - `--report` (percorso del report);
-- `--tail trim|keep` (eccesso in coda; il default è la decisione aperta 1; con FLAC `trim` richiede il remux con ffmpeg, §6.1);
-- `--italian all|main` (tracce italiane da prendere; il default, e se `main` serva davvero, è la decisione aperta 2);
+- `--original-language <codice>` (lingua originale del film, facoltativa, §3.3);
+- le quattro scelte dell'utente: `--tail`, `--italian`, `--reference-italian-subs`, `--edge-mismatch` (§10.1);
 - `--temp-dir` (cartella temporanea; per default `.dyadrr/` accanto al file finale; deve stare sullo stesso disco del file finale e in una cartella che inizia con un punto, altrimenti `BAD_ARGUMENTS`, §6.4);
 - `--expect <report di analyze>`;
 - `--progress json`.
@@ -465,6 +472,33 @@ Se una verifica bloccante fallisce, il file temporaneo viene eliminato ed esce l
 - Nell'immagine Docker serve un piccolo init (`init: true` in Compose): un processo Node con PID 1 altrimenti ignora l'arresto normale e viene ucciso dopo 10 s.
 
 **Ingressi:** Dyadrr parte da **due MKV già rippati**, non dai dischi. Il ripping resta compito di MakeMKV o di Wayfinderr.
+
+### 10.1 Scelte dell'utente
+
+Alcuni comportamenti non hanno una risposta giusta per tutti: li decide chi usa Dyadrr, non Dyadrr. Ogni scelta si può fare in tre modi, in quest'ordine di precedenza:
+
+1. **opzione da riga di comando**, per il singolo film;
+2. **variabile d'ambiente**, come preimpostazione (per esempio nel `docker-compose.yml`);
+3. altrimenti la fa **l'utente al momento del merge**.
+
+| Scelta | Opzione | Variabile d'ambiente | Valori | Serve solo se |
+|---|---|---|---|---|
+| Eccesso italiano in coda (§5, §6.1) | `--tail` | `DYADRR_TAIL` | `trim`, `keep` | il donatore ha più coda del riferimento |
+| Tracce audio italiane (§8) | `--italian` | `DYADRR_ITALIAN` | `all`, `main` | il donatore ha più di una traccia audio italiana |
+| PGS italiani già nel riferimento (§7) | `--reference-italian-subs` | `DYADRR_REFERENCE_ITALIAN_SUBS` | `keep`, `drop` | il riferimento ha PGS italiani |
+| Audio italiano fuori dal materiale in comune: intro o code diverse (§5) | `--edge-mismatch` | `DYADRR_EDGE_MISMATCH` | `drop`, `keep` | intro o code diverse |
+
+**Regole:**
+- **Una scelta si chiede solo se serve.** analyze calcola quali scelte servono per quella coppia e, per ognuna, l'effetto di ogni valore (per esempio l'intervallo in cui l'italiano è presente). Nel report, ogni scelta necessaria ha il valore deciso con la sua origine (`option`, `env`, `prompt`) oppure risulta in sospeso.
+- **merge con una scelta necessaria e non decisa:**
+  - in un terminale interattivo la chiede, mostrando l'effetto di ogni valore;
+  - altrimenti (lanciato da Wayfinderr o da uno script) si ferma **prima di scrivere qualsiasi cosa** con l'errore `CHOICE_REQUIRED`, e il report elenca le scelte mancanti.
+- Una scelta indicata ma non necessaria si ignora, e il report lo dice.
+- Un valore non valido, da opzione o da variabile d'ambiente, è `BAD_ARGUMENTS`.
+- Con `--expect`, il piano confrontato è quello che corrisponde alle scelte fatte.
+- Con `--edge-mismatch drop` il taglio cade sul confine del materiale in comune, che è noto con circa 1 s di precisione (§4.6). Con `keep` scattano `INTRO_MISMATCH` o `OUTRO_MISMATCH`.
+
+**In Wayfinderr (fase 2)** le stesse quattro scelte diventano impostazioni della GUI, ognuna con un valore fisso oppure "chiedi ogni volta". Wayfinderr passa sempre a Dyadrr le scelte come opzioni, anche quelle preimpostate, così il report registra il valore usato. Con "chiedi ogni volta" la GUI mostra le scelte in sospeso del report di analyze insieme alla conferma del merge.
 
 ---
 
@@ -500,7 +534,7 @@ Se una verifica bloccante fallisce, il file temporaneo viene eliminato ed esce l
 3. **Ruoli:**
    - riferimento e donatore, con il motivo;
    - confronto video;
-   - lingua di misura scelta;
+   - lingua originale indicata e lingua di misura scelta;
    - tutte le coppie di tracce provate, con la loro confidenza.
 4. **Misura:**
    - ancore provate, ciascuna con posizione, NCC, rapporto ed esito;
@@ -511,20 +545,21 @@ Se una verifica bloccante fallisce, il file temporaneo viene eliminato ed esce l
    - confini del materiale in comune, tratto verificato, copertura;
    - controllo di trasferimento;
    - byte letti.
-5. **Piano:**
+5. **Scelte** (§10.1): per ognuna, se serve, l'effetto di ogni valore, il valore usato e la sua origine, oppure "in sospeso".
+6. **Piano:**
    - caso e quantità all'inizio e alla fine;
    - eccesso tolto o lasciato;
    - intervallo in cui l'italiano è presente;
    - sottotitoli persi ai tagli;
    - tracce italiane prese, con ruolo stimato e motivo;
    - classificazione dei forced.
-6. **Controlli:** per ognuno nome, esito, valore misurato, soglia. Poi la decisione e l'elenco dei motivi.
-7. **Uscita** (solo merge):
+7. **Controlli:** per ognuno nome, esito, valore misurato, soglia. Poi la decisione e l'elenco dei motivi.
+8. **Uscita** (solo merge):
    - percorso, dimensione, durata;
    - tracce finali in ordine con lingua, nome e flag;
    - comandi mkvmerge eseguiti e relativi avvisi;
    - esito di ogni verifica (§9.5).
-8. **Avvisi**, con codice (§12).
+9. **Avvisi**, con codice (§12).
 
 ---
 
@@ -562,6 +597,7 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
 | `INPUT_TRUNCATED` | File troncato (§4.8) |
 | `INPUT_BUSY` | File ancora in scrittura |
 | `INPUT_CHANGED` | Gli ingressi o il piano non coincidono con l'analisi confermata |
+| `CHOICE_REQUIRED` | Manca una scelta dell'utente necessaria per questa coppia, e Dyadrr non può chiederla (§10.1) |
 | `OUTPUT_EXISTS` | Il file finale esiste già o coincide con un ingresso |
 | `OUTPUT_NOT_WRITABLE` | Cartella di uscita non scrivibile |
 | `NO_SPACE` | Spazio insufficiente. È riprovabile, e non è un rifiuto: un disco pieno non deve mai far caricare un file senza italiano |
@@ -577,6 +613,7 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
 | Codice | Quando scatta |
 |---|---|
 | `VIDEO_QUALITY_UNCERTAIN` | Video confrontabile solo in modo incerto (§3.2) |
+| `ORIGINAL_LANGUAGE_NOT_COMMON` | La lingua originale indicata non è presente in entrambi i file (§3.3) |
 | `MEASURE_MIX_DIFFERS` | La somiglianza della coppia di misura è in una fascia bassa ma sufficiente |
 | `ITALIAN_TRANSFER_OFFSET`, `ITALIAN_UNVERIFIED` | Controllo di trasferimento (§4.7) |
 | `ITALIAN_TRACKS_SKIPPED` | Solo con `--italian main` |
@@ -598,7 +635,7 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
 |---|---|
 | 0 | Idoneo (analyze) oppure merge completato |
 | 20 | Rifiutato |
-| 30 | Errore negli ingressi, nell'ambiente o nei parametri (compreso `NO_SPACE`) |
+| 30 | Errore negli ingressi, nell'ambiente o nei parametri (compresi `NO_SPACE` e `CHOICE_REQUIRED`) |
 | 40 | Errore interno, merge fallito o verifica fallita |
 | 50 | Annullato |
 
@@ -628,9 +665,10 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
   - un piccolo init per i segnali;
   - amd64 e arm64, come le immagini di Wayfinderr.
 - **Windows:** con Docker Desktop le cartelle Windows montate sono lente per file di decine di GB, e lo sono sia l'analisi (alcuni GB) sia il merge. Se diventa un problema, si tengono i file di prova nel filesystem di WSL2.
+- **Licenza MIT**, come Wayfinderr, che così può includere Dyadrr senza vincoli. ffmpeg e mkvtoolnix sono GPL ma vengono lanciati come programmi esterni, quindi non vincolano la licenza di Dyadrr.
 - **Repo pubblico (consigliato):**
-  - Wayfinderr è pubblico (licenza MIT) e le sue immagini si scaricano senza login. Un Dyadrr privato incluso nell'immagine pubblica del backend sarebbe comunque distribuito a tutti.
-  - Restare privato avrebbe senso solo con un container separato con immagine propria. Servirebbero però credenziali nella CI e nella build, e chi compila Wayfinderr in locale non potrebbe più farlo (decisione aperta 8).
+  - Wayfinderr è pubblico e le sue immagini si scaricano senza login. Un Dyadrr privato incluso nell'immagine pubblica del backend sarebbe comunque distribuito a tutti.
+  - Restare privato avrebbe senso solo con un container separato con immagine propria. Servirebbero però credenziali nella CI e nella build, e chi compila Wayfinderr in locale non potrebbe più farlo.
 
 ---
 
@@ -726,6 +764,8 @@ Verifica a occhio su ogni lettore che usi davvero (app della TV, Plex o Jellyfin
 - **Ripper:** con il merge attivo deve rippare anche un disco senza italiano, tenendo la lingua originale e l'inglese.
 - **Abbinamento:** si lavora sugli upload, non sui rip, perché i file rippati a mano con MakeMKV non hanno un rip associato. È manuale, coerente con P3.
 - **Nome del file finale:** lo sceglie Wayfinderr e lo passa a Dyadrr con `--output` (decisione aperta 5).
+- **Lingua originale:** Wayfinderr la prende da TMDB e la passa con `--original-language` (§3.3).
+- **Impostazioni delle scelte** (§10.1): le quattro scelte, ognuna con un valore fisso o "chiedi ogni volta", passate sempre a Dyadrr come opzioni.
 - **Pulizia dei torrent** collegata a **entrambi** i torrent di partenza.
 - **Interfaccia:**
   - lancio dell'analisi e lettura del report (S, piano, controlli, motivi);
@@ -769,8 +809,10 @@ La conferma resta sempre all'utente.
 
 ## 17. Decisioni aperte
 
-1. **Eccesso italiano in coda:** tolto con l'intermedio (proposta) o lasciato? Con FLAC si può togliere solo con un remux di ffmpeg, altrimenti va lasciato.
-2. **Tracce audio italiane:** tutte (proposta) o solo la principale?
+Le decisioni 1, 2, 8, 9 e 10 sono chiuse nella 0.3. La numerazione resta quella della 0.2.
+
+1. ~~**Eccesso italiano in coda**~~ → **scelta dell'utente** (`--tail`, §10.1). Con FLAC `trim` richiede un remux con ffmpeg (§6.1).
+2. ~~**Tracce audio italiane**~~ → **scelta dell'utente** (`--italian`, §10.1).
 3. **Merge rifiutato in Wayfinderr:** si carica comunque il riferimento senza italiano, si aspetta una scelta nella UI, o non si fa niente? Gli errori (per esempio `NO_SPACE`) non sono rifiuti e non devono mai portare a caricare un file senza italiano.
 4. **Ciclo di vita dei due ingressi in Wayfinderr:**
    - quanto si trattiene un rip italiano in attesa del gemello con il video migliore (subito, N ore o giorni, fino a una tua scelta)?
@@ -778,9 +820,9 @@ La conferma resta sempre all'utente.
 5. **Nome del file finale e upload:** stesso nome del riferimento, che sul server **sostituisce** quello già caricato, oppure caricamento accanto?
 6. **Pulizia dopo il merge:** cosa fare dei due rip di partenza.
 7. **Dove gira in fase 2:** processo figlio dentro il container del backend, oppure container separato con profilo Compose (avevi chiesto se si potesse fare in un container a parte). Il contratto è lo stesso. Nel container separato servono un protocollo a file job su una cartella condivisa, come quello del runner MakeMKV (§19), i volumi giusti e un'immagine multi-architettura propria.
-8. **Repo pubblico o privato:** consigliato pubblico (§14).
-9. **PGS italiani già presenti nel riferimento:** tenerli dopo quelli del donatore senza flag default (proposta), oppure scartarli.
-10. **Audio italiano fuori dal materiale in comune** (intro o code diverse): scartarlo (un taglio solo all'inizio o alla fine, quindi P2 resta) oppure tenerlo con un avviso?
+8. ~~**Repo pubblico o privato**~~ → **licenza MIT**; repo pubblico consigliato (§14).
+9. ~~**PGS italiani già presenti nel riferimento**~~ → **scelta dell'utente** (`--reference-italian-subs`, §10.1).
+10. ~~**Audio italiano fuori dal materiale in comune**~~ → **scelta dell'utente** (`--edge-mismatch`, §10.1).
 11. **Voce di menu "Merge" in Wayfinderr:** nascosta quando il merge è spento, oppure sempre visibile come Rips?
 12. **Soglie definitive,** dopo la taratura sulle coppie reali.
 
@@ -872,3 +914,8 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
   - **Test:** piano riscritto, con le soglie tarate su coppie reali (§15).
   - **Decisioni aperte** passate da 6 a 12 (§17).
   - **Ultimo controllo** di coerenza interna e di fedeltà alle verifiche, con le relative correzioni.
+- **0.3:** decisioni dell'utente.
+  - **Lingua originale:** non si ricava dai file; si indica con `--original-language` (§3.3).
+  - **Scelte dell'utente:** coda, tracce italiane, PGS italiani del riferimento e audio fuori dal materiale in comune si decidono con un'opzione, una variabile d'ambiente o al momento del merge; in Wayfinderr diventano impostazioni della GUI (§10.1). Nuovo errore `CHOICE_REQUIRED`.
+  - **Traccia principale** definita (§8).
+  - **Licenza:** MIT (§14).
