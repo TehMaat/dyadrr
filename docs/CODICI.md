@@ -46,7 +46,7 @@ mai portare a caricare un file senza italiano.
 | `TOOL_MISSING` | 30 | mkvmerge, ffprobe o ffmpeg mancanti, o non si possono lanciare |
 | `TOOL_TOO_OLD` | 30 | mkvmerge più vecchio di v57, oppure ffmpeg più vecchio di 6.1 o di cui non si riesce a leggere la versione |
 | `MERGE_FAILED` | 40 | mkvmerge fallito (codice 2, crash, errore di I/O), o ffmpeg fallito nel taglio della coda delle tracce FLAC |
-| `VERIFY_FAILED` | 40 | Una verifica dopo il merge non torna |
+| `VERIFY_FAILED` | 40 | Una verifica bloccante dopo il merge non torna (tracce, video, pacchetti delle tracce del riferimento, inizio e fine dell'italiano, durata), o il file finale non si legge. Il file non si consegna e i temporanei si eliminano |
 | `INTERNAL` | 40 | Errore imprevisto |
 
 ## Annullamento
@@ -79,6 +79,8 @@ Non cambiano la decisione: finiscono nel report.
 | `ABRUPT_START` | Taglio iniziale con l'italiano sopra −40 dBFS nei 250 ms dopo il taglio ([`abruptStartDbfs`](TARATURA.md)) |
 | `MANY_INCONCLUSIVE` | Più del 10% di punti non conclusivi |
 | `MKVMERGE_WARNING` | Avvisi di mkvmerge (codice 1), uno per avviso, di ogni passata |
+| `OUTPUT_TRANSFER_OFFSET` | Nel file finale l'italiano è sfasato rispetto alla lingua di misura del riferimento oltre la tolleranza per punto: S sbagliato di tanto, o italiano già sfasato nel donatore. Verifica dopo il merge, con il valore |
+| `OUTPUT_TRANSFER_UNVERIFIED` | Nel file finale l'italiano non correla con la lingua di misura del riferimento: l'allineamento non si è potuto verificare di nuovo |
 
 ## Codici di uscita
 
@@ -103,7 +105,8 @@ decisione con serie sintetiche, quelli della misura (`test/measure.test.ts`)
 con MKV veri generati al volo (studio §15, 1a e 1b), quelli del piano
 (`test/plan.test.ts`) con ingressi sintetici e, dove si può, anche con i MKV
 della misura, quelli della costruzione (`test/build.test.ts`) con MKV veri e,
-per gli esiti di mkvmerge, con un mkvmerge finto. I codici dei
+per gli esiti di mkvmerge, con un mkvmerge finto, quelli delle verifiche
+(`test/verify.test.ts`) con MKV veri e, per `VERIFY_FAILED`, errori iniettati. I codici dei
 moduli non ancora scritti indicano il modulo previsto
 ([ARCHITETTURA.md](ARCHITETTURA.md#moduli-previsti)). Il test
 `test/docs.test.ts` controlla che ogni codice sia elencato e che ogni test
@@ -137,7 +140,7 @@ citato esista e usi quel codice.
 | `TOOL_MISSING` | `test/tools.test.ts` › TOOL_MISSING: mkvmerge, ffprobe o ffmpeg mancanti |
 | `TOOL_TOO_OLD` | `test/tools.test.ts` › TOOL_TOO_OLD: mkvmerge più vecchio di v57<br>`test/tools.test.ts` › TOOL_TOO_OLD: ffmpeg più vecchio di 6.1 |
 | `MERGE_FAILED` | `test/build.test.ts` › MERGE_FAILED: mkvmerge esce con 2, i temporanei si eliminano |
-| `VERIFY_FAILED` | previsto: verifiche dopo il merge (con un errore iniettato) |
+| `VERIFY_FAILED` | `test/verify.test.ts` › VERIFY_FAILED: un risultato della costruzione alterato, o il file cambiato dopo; la cartella di lavoro si elimina |
 | `INTERNAL` | `test/decision.test.ts` › INTERNAL: mancano le misure di una fase che serve<br>`test/plan.test.ts` › INTERNAL: il piano di un donatore senza audio italiano |
 | `CANCELLED` | previsto: report e riga di comando |
 | `VIDEO_QUALITY_UNCERTAIN` | `test/decision.test.ts` › VIDEO_QUALITY_UNCERTAIN: stessa risoluzione, HDR e codec, bitrate del donatore oltre il margine |
@@ -158,3 +161,5 @@ citato esista e usi quel codice.
 | `ABRUPT_START` | `test/plan.test.ts` › ABRUPT_START: taglio iniziale con l'italiano sopra soglia; senza il livello del taglio è INTERNAL<br>`test/measure.test.ts` › INTRO_MISMATCH: su file veri l'italiano di un'intro diversa si tiene o si scarta (--edge-mismatch) |
 | `MANY_INCONCLUSIVE` | `test/decision.test.ts` › MANY_INCONCLUSIVE: più del 10% di punti non conclusivi, copertura comunque sufficiente<br>`test/measure.test.ts` › MANY_INCONCLUSIVE: silenzi lunghi danno punti non conclusivi, e punti aggiunti nei tratti scoperti |
 | `MKVMERGE_WARNING` | `test/build.test.ts` › MKVMERGE_WARNING: mkvmerge esce con 1, il file si accetta e ogni avviso va nel report |
+| `OUTPUT_TRANSFER_OFFSET` | `test/verify.test.ts` › OUTPUT_TRANSFER_OFFSET: con uno S sbagliato di 40 ms le verifiche bloccanti passano, il trasferimento lo trova |
+| `OUTPUT_TRANSFER_UNVERIFIED` | `test/build.test.ts` › costruzione con S > 0 e --tail trim: ordine, flag, compressione, capitoli, coda tagliata anche in FLAC |

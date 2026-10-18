@@ -223,6 +223,23 @@ export function isConfident(match: Match | null | undefined, cal: Calibration): 
   return !!match && match.ncc >= cal.values.nccMin && match.ratio >= cal.values.peakRatioMin;
 }
 
+/**
+ * Esito del controllo di trasferimento (§4.7): la mediana dei picchi sicuri,
+ * al decimo di ms; `null` se nessun punto ne ha uno. Lo usano la decisione e
+ * la stessa verifica sul file finale (§9.5).
+ */
+export function transferResult(
+  probes: readonly TransferProbe[],
+  cal: Calibration,
+): { offsetMs: number | null; probes: number; confident: number } {
+  const confident = probes.filter((p) => isConfident(p.match, cal)).map((p) => p.match!.offsetMs);
+  return {
+    offsetMs: confident.length > 0 ? round1(median(confident)) : null,
+    probes: probes.length,
+    confident: confident.length,
+  };
+}
+
 interface Point {
   x: number;
   y: number;
@@ -677,9 +694,8 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
 
   // Controllo di trasferimento (§4.7): per ora dà solo avvisi.
   if (!input.transfer) throw missing('transfer probes');
-  const confidentTransfer = input.transfer.filter((p) => isConfident(p.match, cal)).map((p) => p.match!.offsetMs);
-  const transferOffset = confidentTransfer.length > 0 ? round1(median(confidentTransfer)) : null;
-  report.transfer = { offsetMs: transferOffset, probes: input.transfer.length, confident: confidentTransfer.length };
+  report.transfer = transferResult(input.transfer, cal);
+  const transferOffset = report.transfer.offsetMs;
   if (transferOffset === null) {
     Object.assign(check('transfer'), { result: 'fail', code: 'ITALIAN_UNVERIFIED' });
     warn('ITALIAN_UNVERIFIED', 'the Italian track does not correlate with the measure language in the donor');

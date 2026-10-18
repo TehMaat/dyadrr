@@ -4,6 +4,36 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.8.0] - 2026-10-18
+
+### Aggiunto
+- Libreria: verifiche dopo il merge (`verifyBuild`), tra `buildMerge` e
+  `commitBuild`. Il file costruito si legge come un ingresso e si confronta
+  con il riferimento e con il risultato della costruzione:
+  - tracce: numero, ordine, codec, lingue, nomi, flag default e forced,
+    compressione dei PGS; titolo e capitoli del riferimento;
+  - video identico al riferimento: dati del codec, metadati del flusso e del
+    primo fotogramma (HDR10, HDR10+, Dolby Vision), fotogrammi, primo e
+    ultimo timestamp entro un fotogramma;
+  - stesso numero di pacchetti in ogni traccia del riferimento, dai tag
+    statistici o, se il riferimento non li ha, contati con ffprobe;
+  - inizio e fine di ogni traccia audio italiana entro un pacchetto del suo
+    codec (AC-3 32 ms, DTS 11 ms, TrueHD 107 ms, FLAC 96 ms, altri 100 ms);
+  - durata del file: la fine del riferimento o quella prevista
+    dell'italiano, entro un pacchetto
+- `VERIFY_FAILED`: una verifica bloccante fallita, o un file finale che non si
+  legge; la cartella di lavoro si elimina e l'errore porta l'esito di ogni
+  verifica (`VerifyFailedError`)
+- Controllo di trasferimento sul file finale, tra l'italiano principale e la
+  lingua di misura del riferimento: solo avvisi, `OUTPUT_TRANSFER_OFFSET`
+  (con il valore) e `OUTPUT_TRANSFER_UNVERIFIED`
+- Studio di fattibilità 0.10: metodo delle verifiche, tolleranze per codec,
+  cosa è bloccante e cosa è un avviso
+
+### Modificato
+- Studio: con `--split` il taglio finale di una traccia TrueHD cade sul primo
+  punto di sincronizzazione dopo il punto di taglio, fino a circa 107 ms dopo
+
 ## [0.7.0] - 2026-10-18
 
 ### Aggiunto

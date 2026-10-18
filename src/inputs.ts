@@ -146,6 +146,12 @@ export interface InputFile extends FileFacts {
 export interface ReadInputOptions {
   calibration: Calibration;
   tools?: ToolPaths;
+  /**
+   * Il file l'ha appena scritto Dyadrr (il file finale, letto dalle verifiche,
+   * §9.5): niente attesa di `inputBusyMs`. Resta il controllo che non cambi
+   * durante la lettura.
+   */
+  ownOutput?: boolean;
 }
 
 // ---------------------------------------------------------------- ffprobe
@@ -348,7 +354,7 @@ export async function readInput(file: string, options: ReadInputOptions): Promis
   // 1. Esiste, ed è fermo da abbastanza tempo (§10).
   const before = await statFile(path);
   const age = Date.now() - before.mtimeMs;
-  if (age < cal.inputBusyMs) {
+  if (age < cal.inputBusyMs && !options.ownOutput) {
     const when = age < 0 ? 'in the future' : `${Math.round(age / 1000)} s ago`;
     throw new DyadrrError(
       'INPUT_BUSY',
