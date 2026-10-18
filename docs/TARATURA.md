@@ -46,6 +46,12 @@ Gli altri parametri di §9.2 (lunghezza delle finestre, zona di esclusione,
 numero di punti, soglie di `LONG_GAP_WITHOUT_ITALIAN` e `ABRUPT_START`,
 riconoscimento dei forced) entrano nel file insieme ai moduli che li usano.
 
+Il pre-roll della lettura delle finestre (2 s), la soglia dei buchi nei
+timestamp (2 ms) e quella della finestra troppo corta (90% dei campioni
+attesi) **non** sono parametri di taratura: non decidono se una coppia è
+idonea ma se la lettura è corretta, e stanno nel codice (`src/audio.ts`) come
+costanti del metodo (studio §4.3).
+
 ## Come si cambia un valore
 
 1. Si modifica `src/calibration.json` e si alza il suo `version`.

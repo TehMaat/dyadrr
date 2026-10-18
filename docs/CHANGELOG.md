@@ -4,6 +4,34 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.4.0] - 2026-10-18
+
+### Aggiunto
+- Libreria: lettura delle finestre audio (`readAudioWindow`). Una sola
+  lettura con ffmpeg per finestra, anche di più tracce dello stesso file;
+  timestamp delle tracce non ribasati, 2 s di pre-roll, taglio sui timestamp
+  decodificati. Ogni finestra riporta il suo inizio reale (con il decimale),
+  i campioni a 8 kHz con passa-basso a 3 kHz, l'energia in dBFS e i byte
+  letti dal file
+- Segnale di analisi: solo il canale centrale se entrambe le tracce della
+  coppia lo hanno (`analysisMix`), altrimenti la media di L e R, senza LFE;
+  AC3 ed E-AC3 senza compressione dinamica. I buchi nei timestamp oltre 2 ms
+  si riempiono di silenzio, così ogni campione cade al suo istante
+- `INPUT_UNREADABLE` anche per una finestra che decodifica meno del 90% dei
+  campioni attesi, per esempio oltre il punto in cui un file è troncato;
+  `INPUT_BUSY` se il file cambia tra la lettura degli ingressi e quella
+  dell'audio
+- `TOOL_TOO_OLD` anche per ffmpeg più vecchio di 6.1 (per le build da git
+  conta la versione di libavformat)
+- Ingressi: disposizione dei canali e indice del flusso di ogni traccia
+- Studio di fattibilità 0.6: metodo di lettura delle finestre provato a mano
+  su AC3, E-AC3, FLAC, TrueHD e DTS con ffmpeg 6.1.1 e 7.0.2 (errore di
+  lettura entro ±0,5 ms, contro fino a 89 ms della lettura ingenua),
+  costanti del metodo e versione minima di ffmpeg
+
+### Modificato
+- Requisiti: ffmpeg almeno 6.1
+
 ## [0.3.0] - 2026-10-18
 
 ### Aggiunto

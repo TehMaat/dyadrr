@@ -59,7 +59,7 @@ codici di uscita in [docs/CODICI.md](docs/CODICI.md).
 
 - Node 22
 - mkvtoolnix, almeno v57
-- ffmpeg/ffprobe (solo per l'analisi)
+- ffmpeg almeno 6.1 e ffprobe (solo per l'analisi)
 
 Nessuna scheda grafica: il video non viene mai decodificato.
 

@@ -6,3 +6,4 @@ export * from './decision.js';
 export * from './tools.js';
 export * from './matroska.js';
 export * from './inputs.js';
+export * from './audio.js';
