@@ -1,9 +1,10 @@
 # Riga di comando
 
 > **Stato:** la riga di comando non esiste ancora. La libreria legge e valida
-> già `--original-language` e le scelte, e calcola quali scelte servono per una
-> coppia con l'effetto di ogni valore. Questa pagina descrive l'interfaccia
-> prevista (studio §10) e, per ogni voce, se è già implementata.
+> già `--original-language` e le scelte, calcola quali scelte servono per una
+> coppia con l'effetto di ogni valore e costruisce il file finale. Questa
+> pagina descrive l'interfaccia prevista (studio §10) e, per ogni voce, se è
+> già implementata.
 
 ## Comandi
 
@@ -18,16 +19,16 @@ con audio italiano) e quale il **riferimento** (studio §3.2).
 | Comando | Cosa fa | Stato |
 |---|---|---|
 | `analyze` | Misura e controlli. Scrive solo il report, nessun MKV | previsto; misura, decisione e piano sono già nella libreria (`analyzePair`), senza report |
-| `merge` | Analisi, scrittura del file finale, verifica | previsto |
+| `merge` | Analisi, scrittura del file finale, verifica | previsto; la costruzione è già nella libreria (`buildMerge`, poi `commitBuild`), senza verifiche né report |
 
 ## Opzioni
 
 | Opzione | Comandi | Significato | Stato |
 |---|---|---|---|
-| `--output <file>` | merge | File finale. Se esiste già o coincide con un ingresso: `OUTPUT_EXISTS`. Nessuna sovrascrittura | previsto |
+| `--output <file>` | merge | File finale. Se esiste già o coincide con un ingresso, anche se compare durante il merge: `OUTPUT_EXISTS`. Nessuna sovrascrittura. Cartella mancante o non scrivibile: `OUTPUT_NOT_WRITABLE` | nella libreria (`BuildRequest.output`) |
 | `--report <file>` | entrambi | Percorso del report JSON | previsto |
 | `--original-language <codice>` | entrambi | Lingua originale del film (sotto) | lettura e validazione implementate |
-| `--temp-dir <cartella>` | merge | Cartella dei temporanei. Default `.dyadrr/` accanto al file finale; deve stare sullo stesso disco e iniziare con un punto, altrimenti `BAD_ARGUMENTS` | previsto |
+| `--temp-dir <cartella>` | merge | Cartella dei temporanei. Default `.dyadrr/` accanto al file finale, che si toglie quando resta vuota; deve stare sullo stesso disco e in una cartella che inizia con un punto, altrimenti `BAD_ARGUMENTS` | nella libreria (`BuildRequest.tempDir`) |
 | `--expect <report>` | merge | Report di un'analisi confermata: se ingressi, ruoli, spostamento o piano sono cambiati, `INPUT_CHANGED` | previsto |
 | `--progress json` | entrambi | Avanzamento su stderr, una riga JSON per evento | previsto |
 

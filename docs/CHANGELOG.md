@@ -4,6 +4,42 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.7.0] - 2026-10-18
+
+### Aggiunto
+- Libreria: costruzione del file finale (`buildMerge`, poi `commitBuild` o
+  `discardBuild`), dal piano senza scelte in sospeso. Il file resta nella
+  cartella temporanea fino alla rinomina, che arriverà dopo le verifiche
+- Intermedio con le sole tracce italiane prese: spostamento di S, taglio
+  iniziale con due passate di `--sync` (anche sui confini e con FLAC), TrueHD
+  che riparte da un punto di sincronizzazione, coda tagliata con
+  `--split parts:` o, per FLAC, con ffmpeg senza ricodificare
+- Unione finale: riferimento per primo, capitoli, tag e titolo solo del
+  riferimento, ordine delle tracce esplicito, flag default e forced espliciti
+  per ogni traccia, PGS non compressi come nell'originale
+- `SUBTITLES_DROPPED_AT_CUT`: i sottotitoli a schermo in un punto di taglio,
+  letti dai blocchi PGS; alla fine, se il taglio cade prima della fine del
+  video, il sottotitolo si toglie tutto invece di restare a schermo
+- Esito di mkvmerge: `MKVMERGE_WARNING` per ogni avviso, `MERGE_FAILED` con
+  il codice 2 o un crash, `NO_SPACE` se il disco si riempie durante il merge
+- Prima di scrivere: `NO_SPACE` (riferimento, tracce italiane due volte e
+  2 GiB), `OUTPUT_EXISTS`, `OUTPUT_NOT_WRITABLE`, cartella dei temporanei
+  con un punto e sullo stesso disco (`BAD_ARGUMENTS`), ingressi cambiati
+  dall'analisi (`INPUT_BUSY`)
+- Temporanei in `.dyadrr/` accanto al file finale, una cartella di lavoro per
+  host e processo, avanzi di un'interruzione brusca eliminati all'avvio;
+  rinomina con un link fisico, che non sovrascrive mai; annullamento con un
+  `AbortSignal`
+- Avanzamento di ogni comando dalle righe `#GUI#progress` di mkvmerge
+- Studio di fattibilità 0.9: metodo della costruzione, con le prove su
+  mkvmerge v82 e ffmpeg 6.1.1, e decisione 7 chiusa: in fase 2 Dyadrr gira in
+  un container separato con profilo Compose, protocollo a file job come il
+  runner MakeMKV e immagine propria multi-architettura
+
+### Modificato
+- Studio: il taglio di TrueHD si fa con due passate di `--sync` invece di
+  `--split parts:t-`, che non vale fuori dallo zero né con una traccia FLAC
+
 ## [0.6.0] - 2026-10-18
 
 ### Aggiunto

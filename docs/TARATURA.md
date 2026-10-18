@@ -95,6 +95,14 @@ Anche il piano di inizio e fine ha le sue costanti del metodo, in `src/plan.ts`
 | Intro e code diverse ed eccesso in coda più corti di così non contano (la precisione dei confini) | 1 s |
 | Tratto dopo il taglio iniziale su cui si misura il livello, il più alto tra centrale e L+R | 250 ms |
 
+E la costruzione, in `src/build.ts` (studio §6.5, §7, §13):
+
+| Costante | Valore |
+|---|---|
+| Margine di spazio libero, oltre al riferimento e alle tracce italiane due volte | 2 GiB |
+| Ricerca del punto di sincronizzazione TrueHD dopo un taglio | 1 s |
+| Tratto prima di un taglio in cui si cerca un sottotitolo a schermo | 30 s |
+
 ## Come si cambia un valore
 
 1. Si modifica `src/calibration.json` e si alza il suo `version`.

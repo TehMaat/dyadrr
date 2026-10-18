@@ -10,3 +10,4 @@ export * from './audio.js';
 export * from './correlation.js';
 export * from './measure.js';
 export * from './plan.js';
+export * from './build.js';

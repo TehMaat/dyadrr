@@ -53,6 +53,59 @@ export function runTool(paths: ToolPaths, tool: ToolName, args: readonly string[
 const spawnError = (paths: ToolPaths, tool: ToolName, code: string) =>
   new DyadrrError('TOOL_MISSING', `${tool} could not be started (${paths[tool]}): ${code}`);
 
+export interface StreamingOptions {
+  /** Ogni riga di stdout, appena arriva (per mkvmerge `--gui-mode`, l'avanzamento). */
+  onLine?: (line: string) => void;
+  /** Interrompe il programma: il processo riceve SIGTERM e la promessa fallisce con l'errore dell'annullamento. */
+  signal?: AbortSignal;
+  /** Variabili d'ambiente in più. */
+  env?: Readonly<Record<string, string>>;
+}
+
+/**
+ * Come `runTool`, ma legge stdout riga per riga mentre il programma lavora e
+ * si può interrompere: serve per mkvmerge e ffmpeg nella costruzione, che
+ * durano minuti.
+ */
+export function runToolStreaming(
+  paths: ToolPaths,
+  tool: ToolName,
+  args: readonly string[],
+  options: StreamingOptions = {},
+): Promise<ToolResult> {
+  return new Promise((resolve, reject) => {
+    if (options.signal?.aborted) {
+      reject(options.signal.reason);
+      return;
+    }
+    const child = spawn(paths[tool], args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: options.env ? { ...process.env, ...options.env } : process.env,
+      signal: options.signal,
+    });
+    const stdout: string[] = [];
+    const stderr: Buffer[] = [];
+    let pending = '';
+    child.stdout!.setEncoding('utf8');
+    child.stdout!.on('data', (d: string) => {
+      stdout.push(d);
+      const lines = (pending + d).split(/\r?\n|\r/);
+      pending = lines.pop()!;
+      for (const line of lines) options.onLine?.(line);
+    });
+    child.stderr!.on('data', (d: Buffer) => stderr.push(d));
+    child.on('error', (error: NodeJS.ErrnoException) => {
+      if (options.signal?.aborted) reject(options.signal.reason);
+      else reject(spawnError(paths, tool, error.code ?? String(error)));
+    });
+    child.on('close', (code) => {
+      if (options.signal?.aborted) return;
+      if (pending !== '') options.onLine?.(pending);
+      resolve({ stdout: stdout.join(''), stderr: Buffer.concat(stderr).toString('utf8'), exitCode: code });
+    });
+  });
+}
+
 export interface PipedToolResult {
   stderr: string;
   exitCode: number | null;
