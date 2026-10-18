@@ -2,8 +2,12 @@
 
 ## Sviluppo
 
-Requisiti: Node 22. Per l'analisi e il merge servono anche ffmpeg/ffprobe e
-mkvtoolnix (almeno v57).
+Requisiti: Node 22, ffmpeg/ffprobe e mkvtoolnix (almeno v57). Servono anche
+per `npm test`: i test degli ingressi generano piccoli MKV veri.
+
+```bash
+sudo apt-get install ffmpeg mkvtoolnix   # Debian e Ubuntu
+```
 
 ```bash
 npm ci          # dipendenze

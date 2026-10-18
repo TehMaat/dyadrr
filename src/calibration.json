@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "values": {
     "toleranceMs": 10,
     "maxOffsetMs": 180000,
@@ -13,7 +13,9 @@
     "minCoverage": 0.9,
     "manyInconclusiveFraction": 0.1,
     "bitrateMargin": 0.2,
-    "fpsRelativeTolerance": 0.0001
+    "fpsRelativeTolerance": 0.0001,
+    "integrityToleranceMs": 1000,
+    "inputBusyMs": 30000
   },
-  "provisional": ["nccMin", "peakRatioMin", "measureMixDiffersBand", "silenceDbfs"]
+  "provisional": ["nccMin", "peakRatioMin", "measureMixDiffersBand", "silenceDbfs", "integrityToleranceMs"]
 }

@@ -1,10 +1,10 @@
 # Dyadrr: studio di fattibilità
 
-Stato: bozza 0.4, ottobre 2026.
+Stato: bozza 0.5, ottobre 2026.
 
 Questo documento raccoglie le decisioni prese, quelle ancora aperte e i risultati delle prime verifiche sperimentali (§18). È il punto di partenza del repo.
 
-La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). Le modifiche principali sono elencate in §20.
+La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). Le modifiche principali sono elencate in §20.
 
 ---
 
@@ -234,6 +234,16 @@ S viene misurato sulla lingua di misura e applicato alla traccia italiana. Funzi
 
 - **Il rischio:** un MKV troncato riporta comunque la durata completa nell'intestazione. ffmpeg legge una finestra oltre il punto di troncamento senza errori e restituisce zero campioni, e mkvmerge unisce il file senza avvisi.
 - **Controllo prima di misurare:** il timestamp più alto letto dagli ultimi cluster del file deve corrispondere, entro una tolleranza, alla durata dichiarata; per ogni traccia usata, l'ultimo timestamp reale deve corrispondere alla sua durata nei tag statistici, se ci sono. Altrimenti è errore `INPUT_TRUNCATED`. La fine di ogni traccia non si confronta con la durata del file: audio e sottotitoli possono finire legittimamente prima del video (§5).
+- **Come si legge la coda.** Dyadrr legge da sé gli ultimi byte del file e ne riconosce i cluster Matroska, senza ffmpeg: un file troncato ha perso l'indice (Cues), che mkvmerge scrive in fondo, e ffmpeg cercherebbe la fine leggendo tutto il file. Si parte dagli ultimi 8 MiB e si raddoppia, fino a 256 MiB, finché ogni traccia controllata ha il suo ultimo pacchetto oppure il tratto letto arriva prima del punto in cui la traccia dovrebbe finire.
+- **Fine di un pacchetto:** timestamp più durata. La durata è quella del blocco (BlockDuration) se c'è, altrimenti la durata predefinita della traccia per il numero di fotogrammi del blocco.
+- **Durata dichiarata:** quella dell'intestazione del segmento. mkvmerge la scrive come fine più alta meno il primo timestamp del file; si accetta anche la fine più alta contata da zero, perché altri programmi possono scriverla così.
+- **Tracce controllate:** audio e video. La fine attesa è il primo timestamp della traccia (`minimum_timestamp` di mkvmerge -J) più la durata dei tag statistici (`DURATION`).
+  - I sottotitoli non si controllano: sono sparsi, e l'ultimo può stare molto prima della coda. Un troncamento lo trova comunque il controllo sul file.
+  - Una traccia senza tag statistici, o la cui fine attesa cade prima del tratto letto, risulta "saltata".
+  - Una traccia senza pacchetti nel tratto letto, quando il tratto arriva prima della sua fine attesa, è troncata.
+- **Tolleranza:** un solo parametro di taratura, per il file e per le tracce (`integrityToleranceMs`, 1 s, **provvisorio**, §9.2). Assorbe l'ultimo fotogramma o pacchetto senza durata esplicita; si controlla sui rip reali di MakeMKV (§15, fase 0).
+- **Quando non si può verificare:** senza durata dichiarata, o senza nessun cluster negli ultimi 256 MiB, il file risulta troncato. Meglio un errore da correggere che un merge su un file forse incompleto.
+- **Esito:** il report degli ingressi riporta durata dichiarata, fine più alta, fine attesa e fine letta di ogni traccia (§11.2); la decisione lo usa nel controllo `integrity` (§9.6).
 - **Finestra vuota:** una finestra che decodifica zero campioni, o troppo pochi, è un errore (`INPUT_UNREADABLE`) e non un punto non conclusivo.
 
 ### 4.9 Precisione e accuratezza
@@ -415,6 +425,8 @@ I valori **provvisori** sono fissati prima della taratura sulle coppie reali (§
 | Altre soglie | margine di bitrate 20% (§3.2), forced sotto il 10–20% dei sottotitoli della traccia più grande (§7) | bitrate 5–100%; forced con il modulo del piano |
 | Spostamento massimo S_max | 180 s | 1–300 s |
 | Framerate uguale | differenza relativa sotto 1e-4 (non uguaglianza esatta: 23,976 si può scrivere in modi diversi) | da 1e-6 a 5e-4: sempre sotto 1e-3, la differenza tra 24 e 23,976 |
+| Tolleranza del controllo di integrità (§4.8) | 1 s, **provvisoria** | 50 ms – 5 s |
+| Finestra di `INPUT_BUSY` (§10) | 30 s, come Wayfinderr | 5 s – 10 min |
 
 I parametri dei moduli non ancora scritti entrano nel file insieme ai moduli che li usano.
 
@@ -509,7 +521,10 @@ La decisione è una **funzione pura**: riceve i fatti dei due file e le misure, 
 - **analyze:** misura e controlli, solo report, nessun MKV scritto.
 - **merge:** analisi, scrittura, verifica.
   - Con `--expect`, il merge controlla che ingressi (impronte, §11.2), ruoli, S e piano coincidano con quelli dell'analisi confermata. Altrimenti esce con `INPUT_CHANGED`. Così il merge esegue esattamente il piano che hai approvato.
-  - Se un ingresso è stato modificato negli ultimi secondi si ferma con l'errore riprovabile `INPUT_BUSY`: MakeMKV scrive lentamente.
+- **In entrambe le modalità**, se un ingresso è stato modificato negli ultimi secondi Dyadrr si ferma con l'errore riprovabile `INPUT_BUSY`: MakeMKV scrive lentamente, e analizzare un file a metà non serve.
+  - La finestra è un parametro di taratura (`inputBusyMs`, §9.2): 30 s, come la stabilità che Wayfinderr aspetta prima di prendere un file (§19).
+  - Una data di modifica nel futuro conta come recente: meglio un errore riprovabile che analizzare un file forse ancora in scrittura.
+  - È `INPUT_BUSY` anche un file che cambia dimensione o data di modifica mentre Dyadrr ne legge i metadati.
 
 **Interruzione:**
 - Con un segnale di stop (o un file di annullamento in Wayfinderr), Dyadrr termina mkvmerge e ffmpeg, elimina i temporanei e scrive un report con esito "annullato".
@@ -689,6 +704,7 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
 ## 13. Requisiti tecnici
 
 - **Nessuna scheda grafica:** il video non viene mai decodificato né codificato.
+- **Programmi esterni:** mkvmerge almeno v57, ffmpeg e ffprobe. Dyadrr controlla la versione di mkvmerge prima di cominciare (`TOOL_TOO_OLD`) e si ferma se un programma manca (`TOOL_MISSING`); le versioni finiscono nel report (§11.2). La versione minima di ffmpeg si fissa con la lettura delle finestre audio (§4.3): fino ad allora basta che ci sia.
 - **Processore:** carico leggero. Correlare alcuni minuti di audio a 8 kHz richiede secondi.
 - **Disco:** è il vero limite.
   - **Analisi:** legge alcuni GB, per i motivi di §4.3.
@@ -759,6 +775,7 @@ Prima di scrivere codice si verificano su file di prova i meccanismi da cui dipe
 **2. Casi da rifiutare con file reali**
 - Theatrical contro extended, framerate diversi, due film diversi.
 - Un file senza lingua in comune, entrambi con audio italiano, donatore con video migliore, un file troncato.
+- *Stato (Dyadrr 0.3.0):* lettura degli ingressi provata su piccoli MKV generati con ffmpeg e mkvmerge: tracce in più lingue, tag IETF, file troncato, traccia più corta dei suoi tag, file non MKV, file in scrittura, programmi mancanti o vecchi.
 
 **3. Coppie reali: è qui che si tarano le soglie**
 
@@ -870,7 +887,7 @@ Le decisioni 1, 2, 8, 9 e 10 sono chiuse nella 0.3. La numerazione resta quella 
 9. ~~**PGS italiani già presenti nel riferimento**~~ → **scelta dell'utente** (`--reference-italian-subs`, §10.1).
 10. ~~**Audio italiano fuori dal materiale in comune**~~ → **scelta dell'utente** (`--edge-mismatch`, §10.1).
 11. **Voce di menu "Merge" in Wayfinderr:** nascosta quando il merge è spento, oppure sempre visibile come Rips?
-12. **Soglie definitive,** dopo la taratura sulle coppie reali. Fino ad allora θ_ncc, θ_rapporto, E_min e la fascia di `MEASURE_MIX_DIFFERS` hanno valori provvisori (§9.2).
+12. **Soglie definitive,** dopo la taratura sulle coppie reali. Fino ad allora θ_ncc, θ_rapporto, E_min, la fascia di `MEASURE_MIX_DIFFERS` e la tolleranza del controllo di integrità hanno valori provvisori (§9.2).
 
 ---
 
@@ -968,3 +985,7 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
 - **0.4:** funzione di decisione.
   - **Taratura:** limiti dei parametri e valori provvisori di θ_ncc, θ_rapporto, E_min e della fascia di `MEASURE_MIX_DIFFERS`; file versionato `src/calibration.json` (§9.2).
   - **Regole della decisione:** ordine e arresto al primo controllo bloccante, picco sicuro, accordo tra le ancore, classificazione dei punti, deriva come retta che spiega tutti i punti, forma della contraddizione, confini, video, controllo di trasferimento (§9.6).
+- **0.5:** lettura degli ingressi.
+  - **Integrità:** lettura della coda del file senza ffmpeg, fine dei pacchetti, durata dichiarata nelle due letture, tracce controllate (audio e video), casi non verificabili; nuovo parametro `integrityToleranceMs`, provvisorio (§4.8, §9.2, decisione 12).
+  - **File in scrittura:** `INPUT_BUSY` anche in analyze, con la finestra `inputBusyMs` di 30 s, le date nel futuro e i cambiamenti durante la lettura (§10).
+  - **Programmi esterni:** mkvmerge almeno v57 (`TOOL_TOO_OLD`), ffmpeg e ffprobe presenti (`TOOL_MISSING`); versione minima di ffmpeg rimandata alla lettura delle finestre (§13).

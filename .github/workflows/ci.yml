@@ -14,6 +14,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # I test degli ingressi generano MKV veri (CONTRIBUTING.md, "Sviluppo").
+      - name: Install ffmpeg and mkvtoolnix
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg mkvtoolnix
+      - run: mkvmerge --version && ffprobe -version | head -n 1
       - run: npm ci
       - run: npm test
       - run: npm run build

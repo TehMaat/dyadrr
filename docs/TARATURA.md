@@ -36,6 +36,8 @@ taratura e ai limiti del codice.
 | Soglia di `MANY_INCONCLUSIVE` | `manyInconclusiveFraction` | `0.1` | `0.01` – `0.5` | no | §9.3 |
 | Margine di bitrate per `VIDEO_QUALITY_UNCERTAIN` | `bitrateMargin` | `0.2` | `0.05` – `1` | no | §3.2 |
 | Differenza relativa massima tra i framerate | `fpsRelativeTolerance` | `0.0001` | `0.000001` – `0.0005` | no | §9.2 |
+| Tolleranza del controllo di integrità (ms) | `integrityToleranceMs` | `1000` | `50` – `5000` | sì | §4.8 |
+| Finestra di `INPUT_BUSY` (ms) | `inputBusyMs` | `30000` | `5000` – `600000` | no | §10 |
 
 `minConsistentCheckpoints` deve essere un intero. Il massimo di
 `fpsRelativeTolerance` resta sotto 0,001, la differenza tra 24 e 23,976.

@@ -42,6 +42,10 @@ export const CALIBRATION_LIMITS = {
    * 1e-3, la differenza tra 24 e 23,976: altrimenti passerebbero per uguali.
    */
   fpsRelativeTolerance: { min: 1e-6, max: 5e-4 },
+  /** Tolleranza del controllo di integrità, per il file e per le tracce, in ms (§4.8). */
+  integrityToleranceMs: { min: 50, max: 5000 },
+  /** Un ingresso modificato da meno di così è ancora in scrittura (`INPUT_BUSY`, §10), in ms. */
+  inputBusyMs: { min: 5000, max: 600_000 },
 } as const satisfies Record<string, Limit>;
 
 export type CalibrationName = keyof typeof CALIBRATION_LIMITS;
