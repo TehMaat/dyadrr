@@ -147,10 +147,24 @@ export interface BuildRequest {
   donor: InputFile;
   /** Il piano della coppia, senza scelte in sospeso; il suo `offsetMs` è `report.offset.offsetMs`. */
   plan: Plan;
-  /** File finale (§6.4): non deve esistere. */
+  /** File finale (§6.4): non deve esistere, salvo quello di `replace`. */
   output: string;
   /** Cartella dei temporanei; per default `.dyadrr/` accanto al file finale. */
   tempDir?: string;
+  /**
+   * Il file finale che c'è già, da cancellare con il consenso dell'utente
+   * (§6.4): si cancella solo in `commitBuild`, dopo le verifiche, e solo se è
+   * ancora lui.
+   */
+  replace?: ExistingOutput;
+}
+
+/** Un file finale che c'è già, riconosciuto da disco, inode, dimensione e data di modifica. */
+export interface ExistingOutput {
+  dev: number;
+  ino: number;
+  size: number;
+  mtimeMs: number;
 }
 
 export interface BuildOptions {
@@ -179,6 +193,10 @@ export interface Build {
   commands: ExecutedCommand[];
   /** `SUBTITLES_DROPPED_AT_CUT` e `MKVMERGE_WARNING`. */
   warnings: Warning[];
+  /** Il file finale che c'era già, da sostituire; `null` se non c'era. */
+  replace: ExistingOutput | null;
+  /** Vero quando `commitBuild` l'ha cancellato. */
+  replaced: boolean;
 }
 
 // ---------------------------------------------------------------- tracce
@@ -728,9 +746,24 @@ export async function removeStaleJobs(tempDir: string): Promise<string[]> {
 const notWritable = (path: string, e: unknown) =>
   new DyadrrError('OUTPUT_NOT_WRITABLE', `${path}: not writable (${(e as NodeJS.ErrnoException).code ?? String(e)})`);
 
-/** Il file finale non esiste e la sua cartella è scrivibile (§6.4). */
-async function checkOutput(output: string): Promise<string> {
-  if (await exists(output)) throw new DyadrrError('OUTPUT_EXISTS', `${output} already exists: it is never overwritten`);
+/**
+ * Il file finale che c'è già, se è un file normale (non una cartella né un
+ * link); `null` se non c'è o non è un file che si possa sostituire.
+ */
+export async function existingOutput(path: string): Promise<ExistingOutput | null> {
+  const st = await lstat(path).catch(() => null);
+  if (!st?.isFile()) return null;
+  return { dev: st.dev, ino: st.ino, size: st.size, mtimeMs: st.mtimeMs };
+}
+
+const sameFile = (a: ExistingOutput | null, b: ExistingOutput) =>
+  a !== null && a.dev === b.dev && a.ino === b.ino && a.size === b.size && a.mtimeMs === b.mtimeMs;
+
+/** Il file finale non esiste (o è quello da sostituire) e la sua cartella è scrivibile (§6.4). */
+async function checkOutput(output: string, replace?: ExistingOutput): Promise<string> {
+  if (await exists(output) && !(replace && sameFile(await existingOutput(output), replace))) {
+    throw new DyadrrError('OUTPUT_EXISTS', `${output} already exists: it is never overwritten`);
+  }
   const outDir = dirname(output);
   try {
     if (!(await stat(outDir)).isDirectory()) throw Object.assign(new Error('not a directory'), { code: 'ENOTDIR' });
@@ -761,7 +794,7 @@ async function checkTempDir(outDir: string, tempDir: string | undefined): Promis
 
 /**
  * Il file finale e la cartella dei temporanei si possono usare (§6.4): il
- * file non esiste, la sua cartella è scrivibile, i temporanei stanno in una
+ * file non esiste (o è `replace`), la sua cartella è scrivibile, i temporanei stanno in una
  * cartella che inizia con un punto, sullo stesso disco. `buildMerge` lo
  * controlla prima di scrivere; la riga di comando anche prima dell'analisi,
  * che costa gigabyte di letture (§10).
@@ -771,9 +804,10 @@ async function checkTempDir(outDir: string, tempDir: string | undefined): Promis
 export async function checkBuildTarget(
   output: string,
   tempDir?: string,
+  replace?: ExistingOutput,
 ): Promise<{ output: string; outDir: string; tempDir: string }> {
   const resolved = resolve(output);
-  const outDir = await checkOutput(resolved);
+  const outDir = await checkOutput(resolved, replace);
   return { output: resolved, outDir, tempDir: await checkTempDir(outDir, tempDir) };
 }
 
@@ -805,7 +839,7 @@ export async function buildMerge(request: BuildRequest, options: BuildOptions = 
   const tools = options.tools ?? DEFAULT_TOOLS;
   const { reference, donor, plan } = request;
   assertNoPendingChoices(plan.choices);
-  const { output, outDir, tempDir } = await checkBuildTarget(request.output, request.tempDir);
+  const { output, outDir, tempDir } = await checkBuildTarget(request.output, request.tempDir, request.replace);
   const defaultTempDir = request.tempDir === undefined;
 
   // Gli ingressi non devono essere cambiati dall'analisi.
@@ -844,6 +878,8 @@ export async function buildMerge(request: BuildRequest, options: BuildOptions = 
     endCutMs: null,
     tracks: [],
     droppedSubtitles: [],
+    replace: request.replace ?? null,
+    replaced: false,
     space: { ...space, availableBytes },
     commands: [],
     warnings: [],
@@ -914,13 +950,18 @@ const NO_HARD_LINKS = new Set(['EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'ENOSYS', 'EMLI
 
 /**
  * Porta il file costruito al nome finale (§6.4), da chiamare dopo le
- * verifiche. Con un link fisico, che non sovrascrive mai: se nel frattempo il
- * file finale è comparso, `OUTPUT_EXISTS`. Su un filesystem senza link fisici
+ * verifiche. Con `Build.replace` prima cancella il file che c'era, se è
+ * ancora lui. Con un link fisico, che non sovrascrive mai: se nel frattempo il
+ * file finale è comparso (o quello da sostituire è cambiato), `OUTPUT_EXISTS`. Su un filesystem senza link fisici
  * si rinomina, dopo aver controllato che il nome sia libero. Poi la cartella
  * di lavoro si elimina, anche se qualcosa è fallito.
  */
 export async function commitBuild(build: Build): Promise<void> {
   try {
+    if (build.replace && sameFile(await existingOutput(build.output), build.replace)) {
+      await rm(build.output);
+      build.replaced = true;
+    }
     try {
       await link(build.file, build.output);
     } catch (e) {

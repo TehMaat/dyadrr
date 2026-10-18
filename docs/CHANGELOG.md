@@ -4,6 +4,20 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.11.0] - 2026-10-18
+
+### Aggiunto
+- `merge` con un `--output` che esiste già: in un terminale si chiede se
+  cancellarlo e andare avanti. Il file vecchio si cancella solo dopo che il
+  nuovo è costruito e verificato, e solo se è ancora lo stesso file; se il
+  merge fallisce, è rifiutato o annullato, resta. Senza terminale, o con
+  "no", `OUTPUT_EXISTS` come prima. Un ingresso o un report non si
+  cancellano mai
+- Report: `output.build.replace` e `output.build.replaced`
+- Libreria: `existingOutput`, `BuildRequest.replace`; `commitBuild` cancella
+  il file da sostituire subito prima del link fisico
+- Studio di fattibilità 0.13 (§6.4)
+
 ## [0.10.0] - 2026-10-18
 
 ### Aggiunto

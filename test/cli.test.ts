@@ -427,6 +427,55 @@ test('INPUT_NOT_DELETED: --inputs delete cancella gli ingressi solo dopo un merg
   assert.deepEqual(readdirSync(b.d), ['Film.mkv']);
 });
 
+test('OUTPUT_EXISTS: in un terminale si chiede se cancellare il file finale; si cancella solo dopo le verifiche', async () => {
+  const merge = (out: string, io: Partial<CliEnvironment> = {}, extra: string[] = []) =>
+    cli(['merge', 'reference.mkv', 'donor.mkv', '--output', out, '--italian', 'main', '--inputs', 'keep', ...extra], io);
+  const answering = (answer: string | null, asked: string[]) => ({ ask: async (q: string) => (asked.push(q), answer) });
+
+  // "no": OUTPUT_EXISTS, il file resta com'è.
+  const d = outDir();
+  const out = join(d, 'Film.mkv');
+  writeFileSync(out, 'old');
+  const asked: string[] = [];
+  const no = await merge(out, answering('no', asked));
+  assert.deepEqual(reasons(no), ['OUTPUT_EXISTS']);
+  assert.match(asked[0]!, /Film\.mkv already exists\.\nDelete it and continue\? It is deleted only after the new file is built and verified\.\nChoose yes or no: $/);
+  assert.equal(readFileSync(out, 'utf8'), 'old');
+
+  // Con --progress json non si chiede: OUTPUT_EXISTS prima di leggere gli ingressi.
+  const json = await merge(out, answering('yes', []), ['--progress', 'json']);
+  assert.deepEqual(reasons(json), ['OUTPUT_EXISTS']);
+  assert.deepEqual(json.report!.inputs, [null, null]);
+
+  // Annullato dopo il "sì", appena comincia la costruzione: il file vecchio resta.
+  const stop = new AbortController();
+  const cancelled = await merge(out, {
+    ...answering('yes', []),
+    signal: stop.signal,
+    freeSpace: async () => {
+      stop.abort(new CancelledError('received SIGTERM'));
+      return Number.MAX_SAFE_INTEGER;
+    },
+  });
+  assert.equal(cancelled.code, 50);
+  assert.equal(readFileSync(out, 'utf8'), 'old');
+
+  // "sì": il nuovo file prende il posto del vecchio, dopo le verifiche.
+  const yes = await merge(out, answering('yes', []));
+  assert.equal(yes.code, 0, yes.stderr);
+  assert.equal(yes.report!.output!.delivered, true);
+  assert.equal(yes.report!.output!.build!.replaced, true);
+  assert.ok(yes.report!.output!.build!.replace !== null);
+  assert.ok(readFileSync(out).length > 1000);
+
+  // Un ingresso non si cancella mai: non si chiede nemmeno.
+  const input: string[] = [];
+  const onInput = await merge(p('donor.mkv'), answering('yes', input));
+  assert.deepEqual(reasons(onInput), ['OUTPUT_EXISTS']);
+  assert.deepEqual(input, []);
+  assert.ok(existsSync(p('donor.mkv')));
+});
+
 test('riga di comando: rifiuto con uscita 20, OUTPUT_EXISTS prima di leggere gli ingressi', async () => {
   const refused = await cli(['analyze', 'reference.mkv', 'reference.mkv', '--report', 'refused.json']);
   assert.equal(refused.code, 20);

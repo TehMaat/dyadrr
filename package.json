@@ -1,6 +1,6 @@
 {
   "name": "dyadrr",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Unisce l'audio italiano di un rip al video migliore di un altro, senza ricodificare",
   "license": "MIT",
   "private": true,

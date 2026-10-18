@@ -2,7 +2,16 @@ import { constants } from 'node:fs';
 import { access, rm, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { buildMerge, checkBuildTarget, commitBuild, discardBuild, type Build, type BuildProgress } from './build.js';
+import {
+  buildMerge,
+  checkBuildTarget,
+  commitBuild,
+  discardBuild,
+  existingOutput,
+  type Build,
+  type BuildProgress,
+  type ExistingOutput,
+} from './build.js';
 import { loadCalibration, type Calibration } from './calibration.js';
 import {
   CHOICES,
@@ -368,8 +377,29 @@ export async function runCli(argv: readonly string[], io: CliEnvironment): Promi
     const signal = io.signal;
     signal?.throwIfAborted();
 
-    // Il file finale si controlla prima di leggere gigabyte (§9.4).
-    if (a.mode === 'merge') await checkBuildTarget(output!, a.tempDir === null ? undefined : at(a.tempDir));
+    // Il file finale si controlla prima di leggere gigabyte (§9.4). Se c'è
+    // già, in un terminale si chiede se cancellarlo: si cancella solo dopo le
+    // verifiche, e mai se è un ingresso o un report (§10).
+    let replace: ExistingOutput | undefined;
+    const ask = progressJson ? undefined : io.ask;
+    if (a.mode === 'merge') {
+      const existing = await existingOutput(output!);
+      const others = await Promise.all([...files, expectPath, reportPath].map((f) => (f === null ? null : existingOutput(f))));
+      const protectedFile = others.some((o) => o !== null && existing !== null && o.dev === existing.dev && o.ino === existing.ino);
+      if (existing && !protectedFile && ask) {
+        const question = [
+          `${output} already exists.`,
+          'Delete it and continue? It is deleted only after the new file is built and verified.',
+          'Choose yes or no: ',
+        ].join('\n');
+        let answer: string | null;
+        do answer = (await ask(question))?.trim() ?? null;
+        while (answer !== null && answer !== 'yes' && answer !== 'no');
+        signal?.throwIfAborted();
+        if (answer === 'yes') replace = existing;
+      }
+      await checkBuildTarget(output!, a.tempDir === null ? undefined : at(a.tempDir), replace);
+    }
     let expected: ExpectedReport | null = null;
     if (expectPath !== null) {
       expected = await readExpectedReport(expectPath);
@@ -405,7 +435,6 @@ export async function runCli(argv: readonly string[], io: CliEnvironment): Promi
       // ricalcolando il piano dopo ogni risposta (§10).
       let plan = analysis.plan!;
       const given: GivenChoices = { ...state.choices };
-      const ask = progressJson ? undefined : io.ask;
       while (ask) {
         const name = PROMPT_ORDER.find((n) => plan.pending.includes(n));
         if (name === undefined) break;
@@ -431,7 +460,14 @@ export async function runCli(argv: readonly string[], io: CliEnvironment): Promi
       if (expected) differ(comparePlan(expected, plan));
 
       const build = await buildMerge(
-        { reference, donor, plan, output: output!, ...(a.tempDir === null ? {} : { tempDir: at(a.tempDir) }) },
+        {
+          reference,
+          donor,
+          plan,
+          output: output!,
+          ...(a.tempDir === null ? {} : { tempDir: at(a.tempDir) }),
+          ...(replace ? { replace } : {}),
+        },
         { tools, signal, onProgress: onBuild, ...(io.freeSpace ? { freeSpace: io.freeSpace } : {}) },
       );
       state.build = build;
@@ -457,8 +493,7 @@ export async function runCli(argv: readonly string[], io: CliEnvironment): Promi
 
       // Gli ingressi dopo la consegna (§10.2): si cancellano solo con un consenso esplicito.
       let choice: Pick<ReportInputs, 'value' | 'origin'> | null = inputsChoice;
-      const askInputs = progressJson ? undefined : io.ask;
-      if (choice === null && askInputs) {
+      if (choice === null && ask) {
         const values: readonly string[] = INPUTS_OPTION.values;
         const question = [
           `The merge is complete: ${build.output}`,
@@ -467,7 +502,7 @@ export async function runCli(argv: readonly string[], io: CliEnvironment): Promi
           `Choose ${values.join(' or ')}: `,
         ].join('\n');
         let answer: string | null;
-        do answer = (await askInputs(question))?.trim() ?? null;
+        do answer = (await ask(question))?.trim() ?? null;
         while (answer !== null && !signal?.aborted && !values.includes(answer));
         if (answer !== null && !signal?.aborted) choice = { value: answer as InputsValue, origin: 'prompt' };
       }
