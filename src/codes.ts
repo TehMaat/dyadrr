@@ -56,6 +56,7 @@ export const WARNING_CODES = [
   'MKVMERGE_WARNING',
   'OUTPUT_TRANSFER_OFFSET',
   'OUTPUT_TRANSFER_UNVERIFIED',
+  'INPUT_NOT_DELETED',
 ] as const;
 
 export type RefusalCode = (typeof REFUSAL_CODES)[number];

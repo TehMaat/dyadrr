@@ -4,6 +4,23 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.10.0] - 2026-10-18
+
+### Aggiunto
+- `merge --inputs keep|delete` (o `DYADRR_INPUTS`): cosa fare dei due
+  ingressi dopo un merge riuscito, verificato e consegnato. Senza opzione né
+  variabile si chiede in un terminale; altrimenti gli ingressi si tengono.
+  Un rifiuto, un errore o un annullamento non li toccano mai
+- `INPUT_NOT_DELETED`: un ingresso cambiato da quando è stato letto, o che
+  non si è potuto cancellare, resta dov'è; il merge resta consegnato
+- Report: `output.inputs` (valore, origine, file cancellati) e la fase
+  `inputs` negli avvisi
+- Studio di fattibilità 0.12: chiuse le decisioni 3 (merge rifiutato: file
+  trattenuti e scelta nella GUI), 4 (ingressi trattenuti finché non arriva il
+  gemello o non li cancelli), 5 (nome normale del film, con un controllo se
+  il file c'è già), 6 (tenere o cancellare gli ingressi) e 11 (voce di menu
+  come Rips). Resta aperta la 12, le soglie definitive
+
 ## [0.9.0] - 2026-10-18
 
 ### Aggiunto

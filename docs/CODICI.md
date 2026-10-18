@@ -80,6 +80,7 @@ Non cambiano la decisione: finiscono nel report.
 | `MANY_INCONCLUSIVE` | Più del 10% di punti non conclusivi |
 | `MKVMERGE_WARNING` | Avvisi di mkvmerge (codice 1), uno per avviso, di ogni passata |
 | `OUTPUT_TRANSFER_OFFSET` | Nel file finale l'italiano è sfasato rispetto alla lingua di misura del riferimento oltre la tolleranza per punto: S sbagliato di tanto, o italiano già sfasato nel donatore. Verifica dopo il merge, con il valore |
+| `INPUT_NOT_DELETED` | Con `--inputs delete`, un ingresso cambiato da quando è stato letto o che non si è potuto cancellare: resta dov'è. Il file finale è consegnato ([CLI.md](CLI.md#ingressi-dopo-il-merge)) |
 | `OUTPUT_TRANSFER_UNVERIFIED` | Nel file finale l'italiano non correla con la lingua di misura del riferimento: l'allineamento non si è potuto verificare di nuovo |
 
 ## Codici di uscita
@@ -165,3 +166,4 @@ citato esista e usi quel codice.
 | `MKVMERGE_WARNING` | `test/build.test.ts` › MKVMERGE_WARNING: mkvmerge esce con 1, il file si accetta e ogni avviso va nel report |
 | `OUTPUT_TRANSFER_OFFSET` | `test/verify.test.ts` › OUTPUT_TRANSFER_OFFSET: con uno S sbagliato di 40 ms le verifiche bloccanti passano, il trasferimento lo trova |
 | `OUTPUT_TRANSFER_UNVERIFIED` | `test/build.test.ts` › costruzione con S > 0 e --tail trim: ordine, flag, compressione, capitoli, coda tagliata anche in FLAC |
+| `INPUT_NOT_DELETED` | `test/cli.test.ts` › INPUT_NOT_DELETED: --inputs delete cancella gli ingressi solo dopo un merge consegnato; chiesto in un terminale |

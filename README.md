@@ -46,6 +46,8 @@ dyadrr merge   <a.mkv> <b.mkv> --output <file> [--expect <report>] [scelte]
   `fr`…): serve a scegliere la lingua con cui misurare.
 - `--expect <report>` fa eseguire al merge esattamente il piano di un'analisi
   confermata; `--progress json` scrive l'avanzamento su stderr.
+- `--inputs keep|delete` dice cosa fare dei due rip dopo un merge riuscito;
+  senza, in un terminale si chiede, altrimenti si tengono.
 - Su stdout c'è solo il percorso del report; la decisione sta nel report
   ([docs/REPORT.md](docs/REPORT.md)) e nel codice di uscita.
 

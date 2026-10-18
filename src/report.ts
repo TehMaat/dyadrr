@@ -133,9 +133,20 @@ export interface ReportOutput {
   durationMs: number | null;
   build: Build | null;
   verification: Verification | null;
+  /** Cosa si è fatto degli ingressi dopo la consegna (§10.2); `null` se il file non è stato consegnato. */
+  inputs: ReportInputs | null;
 }
 
-export type WarningSource = 'analysis' | 'plan' | 'build' | 'verify';
+/** `--inputs` dopo un merge consegnato (§10.2). */
+export interface ReportInputs {
+  value: 'keep' | 'delete';
+  /** `default`: né opzione né variabile, e nessuna risposta in un terminale: si tengono. */
+  origin: 'option' | 'env' | 'prompt' | 'default';
+  /** Percorsi degli ingressi cancellati. */
+  deleted: string[];
+}
+
+export type WarningSource = 'analysis' | 'plan' | 'build' | 'verify' | 'inputs';
 export type ReportWarning = Warning & { source: WarningSource };
 
 export interface Report {

@@ -1,10 +1,10 @@
 # Dyadrr: studio di fattibilità
 
-Stato: bozza 0.11, ottobre 2026.
+Stato: bozza 0.12, ottobre 2026.
 
 Questo documento raccoglie le decisioni prese, quelle ancora aperte e i risultati delle prime verifiche sperimentali (§18). È il punto di partenza del repo.
 
-La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). La 0.9 fissa la costruzione del file finale (tagli, TrueHD, coda, unione, sottotitoli persi ai tagli, file temporanei) e chiude la decisione 7: in fase 2 Dyadrr gira in un container separato (§6, §7, §13, §14, §17). La 0.10 fissa le verifiche dopo il merge: cosa si legge del file finale, le tolleranze "entro un pacchetto" per codec, cosa è bloccante e cosa è solo un avviso (§9.5, §12). La 0.11 fissa la riga di comando e il report: forma esatta del report e sua versione, eventi di `--progress json`, confronto di `--expect`, richiesta delle scelte e annullamento (§9.4, §10, §11). Le modifiche principali sono elencate in §20.
+La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). La 0.9 fissa la costruzione del file finale (tagli, TrueHD, coda, unione, sottotitoli persi ai tagli, file temporanei) e chiude la decisione 7: in fase 2 Dyadrr gira in un container separato (§6, §7, §13, §14, §17). La 0.10 fissa le verifiche dopo il merge: cosa si legge del file finale, le tolleranze "entro un pacchetto" per codec, cosa è bloccante e cosa è solo un avviso (§9.5, §12). La 0.11 fissa la riga di comando e il report: forma esatta del report e sua versione, eventi di `--progress json`, confronto di `--expect`, richiesta delle scelte e annullamento (§9.4, §10, §11). La 0.12 chiude le decisioni 3, 4, 5, 6 e 11 sull'integrazione con Wayfinderr, e aggiunge alla riga di comando la cancellazione degli ingressi dopo il merge (§10.2, §15, §17). Le modifiche principali sono elencate in §20.
 
 ---
 
@@ -660,6 +660,7 @@ La decisione è una **funzione pura**: riceve i fatti dei due file e le misure, 
 - `--report` (percorso del report);
 - `--original-language <codice>` (lingua originale del film, facoltativa, §3.3);
 - le quattro scelte dell'utente: `--tail`, `--italian`, `--reference-italian-subs`, `--edge-mismatch` (§10.1);
+- `--inputs keep|delete` (solo merge: cosa fare dei due ingressi dopo un merge riuscito, §10.2);
 - `--temp-dir` (cartella temporanea; per default `.dyadrr/` accanto al file finale; deve stare sullo stesso disco del file finale e in una cartella che inizia con un punto, altrimenti `BAD_ARGUMENTS`, §6.4);
 - `--expect <report di analyze>`;
 - `--progress json`.
@@ -733,6 +734,16 @@ Alcuni comportamenti non hanno una risposta giusta per tutti: li decide chi usa 
 - Con `--edge-mismatch drop` il taglio cade sul confine del materiale in comune, che è noto con circa 1 s di precisione (§4.6). Con `keep` scattano `INTRO_MISMATCH` o `OUTRO_MISMATCH`.
 
 **In Wayfinderr (fase 2)** le stesse quattro scelte diventano impostazioni della GUI, ognuna con un valore fisso oppure "chiedi ogni volta". Wayfinderr passa sempre a Dyadrr le scelte come opzioni, anche quelle preimpostate, così il report registra il valore usato. Con "chiedi ogni volta" la GUI mostra le scelte in sospeso del report di analyze insieme alla conferma del merge.
+
+### 10.2 Gli ingressi dopo il merge (0.12)
+
+Decisione 6 (§17), per la riga di comando. In Wayfinderr la pulizia la fa Wayfinderr (§15, fase 2), che passa sempre `--inputs keep`.
+
+- **`--inputs keep|delete`**, oppure la variabile `DYADRR_INPUTS`, con la stessa precedenza e le stesse regole di validazione delle scelte (§10.1): un valore non valido è `BAD_ARGUMENTS`, una variabile vuota vale come non impostata. Solo per merge: con `analyze` l'opzione è `BAD_ARGUMENTS`, la variabile si ignora.
+- **Quando:** solo dopo un merge riuscito, verificato e consegnato. Un rifiuto, un errore o un annullamento non toccano mai gli ingressi.
+- **Senza opzione né variabile:** in un terminale (con le stesse condizioni di §10: stdin e stderr terminali, niente `--progress json`) si chiede, con i due percorsi; altrimenti, o alla fine dell'ingresso, gli ingressi **si tengono**. Cancellare non si annulla: serve un consenso esplicito, e uno script non si blocca per questo. Non è una scelta necessaria nel senso di §10.1: non dà mai `CHOICE_REQUIRED`.
+- **Cancellare:** ogni ingresso si cancella solo se dimensione e data di modifica sono ancora quelle lette all'inizio; se è cambiato, o la cancellazione fallisce, resta dov'è con l'avviso `INPUT_NOT_DELETED`. La decisione resta `eligible`: il file finale è consegnato.
+- **Nel report:** in `output.inputs`, il valore, la sua origine (`option`, `env`, `prompt`, `default`) e i file cancellati.
 
 ---
 
@@ -808,7 +819,7 @@ Alcuni comportamenti non hanno una risposta giusta per tutti: li decide chi usa 
   7. `choices`: tutte le scelte, con l'effetto di ogni valore per quelle necessarie; `null` senza piano;
   8. `plan`: il piano (§5) senza scelte e avvisi, che stanno in `choices` e `warnings`; `null` per una coppia non idonea. I sottotitoli persi ai tagli si leggono dal donatore nella costruzione (§6.5): stanno in `output`, solo nel merge;
   9. `expect`: percorso del report confrontato, esito e differenze; `null` senza `--expect`;
-  10. `output`, solo nel merge: percorso del file finale, se è stato consegnato, dimensione e durata, la costruzione (tagli, tracce finali, sottotitoli persi, spazio, comandi eseguiti con i loro avvisi) e le verifiche (§9.5). Dopo `VERIFY_FAILED` ci sono costruzione e verifiche, e il file non è consegnato;
+  10. `output`, solo nel merge: percorso del file finale, se è stato consegnato, dimensione e durata, la costruzione (tagli, tracce finali, sottotitoli persi, spazio, comandi eseguiti con i loro avvisi), le verifiche (§9.5) e, dalla 0.12, cosa si è fatto degli ingressi (§10.2). Dopo `VERIFY_FAILED` ci sono costruzione e verifiche, e il file non è consegnato;
   11. `warnings`: gli avvisi di decisione, piano, costruzione e verifiche in un solo elenco, ognuno con la fase che l'ha dato (`analysis`, `plan`, `build`, `verify`).
 - **Numeri:** l'energia di un tratto tutto a zero è −∞, che in JSON si scrive `null`.
 - **Avanzamento** (`--progress json`): su stderr, una riga JSON per evento, con `event`, `phase` ed `elapsedMs` (dall'avvio):
@@ -885,6 +896,7 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
 | `MANY_INCONCLUSIVE` | Più del 10% di punti non conclusivi |
 | `MKVMERGE_WARNING` | Avvisi di mkvmerge (codice 1) |
 | `OUTPUT_TRANSFER_OFFSET`, `OUTPUT_TRANSFER_UNVERIFIED` | Controllo di trasferimento sul file finale (§4.7, §9.5) |
+| `INPUT_NOT_DELETED` | Con `--inputs delete`, un ingresso cambiato dall'inizio o che non si è potuto cancellare: resta dov'è (§10.2) |
 
 **Codici di uscita:** numeri che Node non usa mai da solo (Node usa 1, 3–7, 9, 10, 12–14 e i valori sopra 128 per i segnali). Un crash di Node esce con 1, e sembrerebbe un rifiuto.
 
@@ -1046,13 +1058,21 @@ Verifica a occhio su ogni lettore che usi davvero (app della TV, Plex o Jellyfin
 
 **Cosa serve:**
 - **`MERGE_ENABLED`**, spento di default. Va aggiunto alla configurazione del backend, a `docker-compose.yml`, a `.env.example` e alla tabella del README.
-- **Ciclo di vita dei due ingressi** (decisione aperta 4):
-  - con il merge attivo, **entrambi** i file di una possibile coppia vanno trattenuti prima della coda di upload, qualunque sia la politica del server;
+- **Ciclo di vita dei due ingressi** (decisione 4, chiusa nella 0.12):
+  - con il merge attivo, **entrambi** i file di una possibile coppia vanno trattenuti prima della coda di upload, qualunque sia la politica del server, **finché non arriva il gemello o non li cancelli a mano**: nessun limite di tempo;
+  - se il gemello è già stato caricato (con il merge spento, o prima che il merge si attivasse), il file nuovo si trattiene e si **aspetta sempre una tua scelta nella GUI**, che mostra se il gemello è ancora sul disco: merge (solo se c'è ancora), caricare il file così com'è, aspettare, cancellare;
   - il modo può essere un nuovo stato di attesa (richiede una modifica al database) oppure una cartella di ingresso separata, fuori da quella sorvegliata;
   - i file trattenuti vanno protetti da upload, cancellazione, pulizia degli archivi e pulizia dei torrent finché non vengono abbinati o rilasciati.
 - **Ripper:** con il merge attivo deve rippare anche un disco senza italiano, tenendo la lingua originale e l'inglese.
 - **Abbinamento:** si lavora sugli upload, non sui rip, perché i file rippati a mano con MakeMKV non hanno un rip associato. È manuale, coerente con P3.
-- **Nome del file finale:** lo sceglie Wayfinderr e lo passa a Dyadrr con `--output` (decisione aperta 5).
+- **Nome del file finale** (decisione 5, chiusa nella 0.12): lo sceglie Wayfinderr e lo passa a Dyadrr con `--output`. È il nome che Wayfinderr darebbe normalmente al film; gli ingressi hanno nomi diversi (il ripper aggiunge già " (2)"), e Dyadrr rifiuta comunque un file finale uguale a un ingresso (`OUTPUT_EXISTS`).
+  - Prima di lanciare il merge Wayfinderr controlla se un file con quel nome c'è già, nella cartella sorvegliata o sul server. Se c'è, chiede nella GUI: cancellarlo (o sostituirlo sul server) e andare avanti, oppure fermarsi per verificare.
+  - Dyadrr non sovrascrive mai (§6.4): il file che c'è già lo toglie Wayfinderr, dopo la tua conferma.
+- **Merge rifiutato** (decisione 3, chiusa nella 0.12): i due file restano trattenuti e la GUI mostra il motivo del rifiuto, con le azioni: caricare il riferimento, caricare il donatore, caricare entrambi, cancellare. Niente si carica da solo. Un errore (per esempio `NO_SPACE`) non è un rifiuto: si può riprovare, e non porta mai a caricare un file senza italiano.
+- **Pulizia dopo il merge** (decisione 6, chiusa nella 0.12): un'impostazione nel pannello Dyadrr di Wayfinderr, con due valori:
+  - **tenerli**, cancellabili poi dalla GUI;
+  - **cancellarli**, dopo un merge riuscito e verificato.
+  Wayfinderr li cancella lui (i file e il loro stato nel database sono suoi) e passa a Dyadrr `--inputs keep`. Da riga di comando vale §10.2.
 - **Lingua originale:** Wayfinderr la prende da TMDB e la passa con `--original-language` (§3.3).
 - **Impostazioni delle scelte** (§10.1): le quattro scelte, ognuna con un valore fisso o "chiedi ogni volta", passate sempre a Dyadrr come opzioni.
 - **Pulizia dei torrent** collegata a **entrambi** i torrent di partenza.
@@ -1060,7 +1080,7 @@ Verifica a occhio su ogni lettore che usi davvero (app della TV, Plex o Jellyfin
   - lancio dell'analisi e lettura del report (S, piano, controlli, motivi);
   - conferma, poi merge con `--expect` sul report confermato;
   - avanzamento in tempo reale.
-- **Voce di menu** (decisione aperta 11): oggi la voce Rips c'è sempre e, a funzione spenta, mostra come attivarla. Nasconderla quando il merge è spento richiede che il menu legga lo stato dal backend.
+- **Voce di menu** (decisione 11, chiusa nella 0.12): come Rips, sempre visibile; a funzione spenta mostra come attivarla. Il menu resta statico.
 - **Concorrenza:** un merge alla volta, in coda con i rip. In alternativa, lo spazio va contato insieme a quello riservato dai lavori in corso: oggi il controllo di spazio del ripper conta solo sé stesso.
 - **Lingua:** Dyadrr lavora solo con l'italiano. Il merge si attiva solo se `RIP_LANGUAGE` è `it`.
 - **Container Dyadrr** (decisione 7, §14): il servizio con il suo profilo nel `docker-compose.yml`, il runner dei job nell'immagine di Dyadrr, il lato Wayfinderr del protocollo e i volumi.
@@ -1099,21 +1119,19 @@ La conferma resta sempre all'utente.
 
 ## 17. Decisioni aperte
 
-Le decisioni 1, 2, 8, 9 e 10 sono chiuse nella 0.3, la 7 nella 0.9. La numerazione resta quella della 0.2.
+Le decisioni 1, 2, 8, 9 e 10 sono chiuse nella 0.3, la 7 nella 0.9, la 3, la 4, la 5, la 6 e la 11 nella 0.12. Resta aperta la 12. La numerazione resta quella della 0.2.
 
 1. ~~**Eccesso italiano in coda**~~ → **scelta dell'utente** (`--tail`, §10.1). Con FLAC `trim` richiede un remux con ffmpeg (§6.1).
 2. ~~**Tracce audio italiane**~~ → **scelta dell'utente** (`--italian`, §10.1).
-3. **Merge rifiutato in Wayfinderr:** si carica comunque il riferimento senza italiano, si aspetta una scelta nella UI, o non si fa niente? Gli errori (per esempio `NO_SPACE`) non sono rifiuti e non devono mai portare a caricare un file senza italiano.
-4. **Ciclo di vita dei due ingressi in Wayfinderr:**
-   - quanto si trattiene un rip italiano in attesa del gemello con il video migliore (subito, N ore o giorni, fino a una tua scelta)?
-   - cosa si fa se il donatore era già stato caricato?
-5. **Nome del file finale e upload:** stesso nome del riferimento, che sul server **sostituisce** quello già caricato, oppure caricamento accanto?
-6. **Pulizia dopo il merge:** cosa fare dei due rip di partenza.
+3. ~~**Merge rifiutato in Wayfinderr**~~ → i due file **restano trattenuti** e la GUI mostra il motivo con le azioni possibili (caricare il riferimento, il donatore, entrambi, cancellare); niente si carica da solo. Gli errori (per esempio `NO_SPACE`) non sono rifiuti e non portano mai a caricare un file senza italiano (§15, fase 2).
+4. ~~**Ciclo di vita dei due ingressi in Wayfinderr**~~ → si trattengono **finché non arriva il gemello o non li cancelli a mano**. Se il gemello è già stato caricato si aspetta sempre una tua scelta nella GUI (§15, fase 2).
+5. ~~**Nome del file finale e upload**~~ → il **nome normale** che Wayfinderr dà al film, diverso da quelli degli ingressi. Se un file con quel nome c'è già, Wayfinderr chiede se cancellarlo e andare avanti o fermarsi per verificare (§15, fase 2).
+6. ~~**Pulizia dopo il merge**~~ → in Wayfinderr un'impostazione del pannello Dyadrr: **tenerli** (cancellabili dalla GUI) o **cancellarli**. Da riga di comando `--inputs keep|delete`: si chiede in un terminale dopo un merge riuscito e verificato, altrimenti si tengono (§10.2).
 7. ~~**Dove gira in fase 2**~~ → **container separato** con un profilo Compose (§14). Il contratto è lo stesso della riga di comando. Servono un protocollo a file job su una cartella condivisa, come quello del runner MakeMKV (§19), i volumi giusti (la cartella sorvegliata in scrittura) e un'immagine multi-architettura propria, costruita in questo repo.
 8. ~~**Repo pubblico o privato**~~ → **licenza MIT**; repo pubblico consigliato (§14).
 9. ~~**PGS italiani già presenti nel riferimento**~~ → **scelta dell'utente** (`--reference-italian-subs`, §10.1).
 10. ~~**Audio italiano fuori dal materiale in comune**~~ → **scelta dell'utente** (`--edge-mismatch`, §10.1).
-11. **Voce di menu "Merge" in Wayfinderr:** nascosta quando il merge è spento, oppure sempre visibile come Rips?
+11. ~~**Voce di menu "Merge" in Wayfinderr**~~ → **come Rips**: sempre visibile, a funzione spenta mostra come attivarla (§15, fase 2).
 12. **Soglie definitive,** dopo la taratura sulle coppie reali. Fino ad allora hanno valori provvisori θ_ncc, θ_rapporto, E_min, la fascia di `MEASURE_MIX_DIFFERS`, la lunghezza delle finestre dei punti di conferma, la tolleranza del controllo di integrità e le soglie del piano: buco lungo senza italiano, partenza brusca, forced (§9.2).
 
 ---
@@ -1271,3 +1289,9 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
   - **Scelte chieste in un terminale:** solo senza `--progress json`, in un ordine fisso, con il piano ricalcolato dopo ogni risposta (§10, §10.1).
   - **Annullamento:** segnali, report `cancelled`, secondo segnale (§10).
   - **Forma esatta del report**, versione del formato 1, eventi di `--progress json` (§11.3).
+- **0.12:** decisioni sull'integrazione con Wayfinderr e ingressi dopo il merge.
+  - **Decisione 3 chiusa:** un merge rifiutato lascia i file trattenuti, con il motivo e le azioni nella GUI (§15, §17).
+  - **Decisione 4 chiusa:** ingressi trattenuti finché non arriva il gemello o non li cancelli; con il gemello già caricato, sempre una tua scelta (§15, §17).
+  - **Decisione 5 chiusa:** nome normale del film; se il file c'è già, Wayfinderr chiede se cancellarlo o fermarsi (§15, §17).
+  - **Decisione 6 chiusa:** tenerli o cancellarli, impostazione di Wayfinderr; da riga di comando `--inputs keep|delete`, chiesto in un terminale dopo un merge riuscito, altrimenti si tengono; nuovo avviso `INPUT_NOT_DELETED` (§10, §10.2, §11.3, §12, §17).
+  - **Decisione 11 chiusa:** voce di menu sempre visibile, come Rips (§15, §17).
