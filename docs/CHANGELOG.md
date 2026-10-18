@@ -4,6 +4,34 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.3.0] - 2026-10-18
+
+### Aggiunto
+- Libreria: lettura degli ingressi (`readInput`). Da mkvmerge -J le tracce con
+  ID, tipo, lingua (campo classico e IETF), codec, canali, nome, flag default,
+  forced, commento e non vedenti, compressione e primo timestamp; da ffprobe
+  risoluzione, framerate, HDR (SDR, HLG, HDR10, HDR10+, Dolby Vision con il
+  profilo) e tag statistici (fotogrammi, bitrate, durata, byte). Il risultato
+  si passa direttamente alla decisione
+- Impronta di ogni ingresso: dimensione, data di modifica, hash SHA-256 del
+  primo e dell'ultimo MiB
+- Controllo di integrità: Dyadrr legge da sé la coda del file e confronta la
+  fine dei pacchetti con la durata dichiarata e con i tag statistici di ogni
+  traccia audio e video. Un file troncato dà `INPUT_TRUNCATED`
+- Errori `INPUT_UNREADABLE` (file mancante, non MKV o senza video),
+  `INPUT_BUSY` (file modificato negli ultimi 30 s, con una data nel futuro o
+  cambiato durante la lettura), `TOOL_MISSING` e `TOOL_TOO_OLD` (mkvmerge
+  più vecchio di v57), con i loro test
+- Taratura (versione 2 del file): `integrityToleranceMs` (1 s, provvisoria) e
+  `inputBusyMs` (30 s)
+- Studio di fattibilità 0.5: regole del controllo di integrità, di
+  `INPUT_BUSY` e dei programmi esterni
+
+### Modificato
+- `INPUT_BUSY` vale anche per `analyze`, non solo per `merge`
+- Per sviluppare e lanciare i test servono ffmpeg e mkvtoolnix; la CI li
+  installa
+
 ## [0.2.0] - 2026-10-18
 
 ### Aggiunto
