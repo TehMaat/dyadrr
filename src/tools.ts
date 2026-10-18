@@ -30,15 +30,28 @@ export interface ToolResult {
   exitCode: number | null;
 }
 
+export interface RunOptions {
+  /** Interrompe il programma: il processo riceve SIGTERM e la promessa fallisce con l'errore dell'annullamento. */
+  signal?: AbortSignal;
+}
+
 /**
  * Lancia un programma e ne raccoglie l'uscita. Un codice di uscita diverso da
  * zero non è un'eccezione: lo valuta chi chiama (mkvmerge esce con 1 per gli
  * avvisi e con 2 per gli errori). Un programma che non si può lanciare è
  * `TOOL_MISSING`.
  */
-export function runTool(paths: ToolPaths, tool: ToolName, args: readonly string[]): Promise<ToolResult> {
+export function runTool(paths: ToolPaths, tool: ToolName, args: readonly string[], options: RunOptions = {}): Promise<ToolResult> {
   return new Promise((resolve, reject) => {
-    execFile(paths[tool], args, { maxBuffer: 256 * 1024 * 1024, encoding: 'utf8' }, (error, stdout, stderr) => {
+    if (options.signal?.aborted) {
+      reject(options.signal.reason);
+      return;
+    }
+    execFile(paths[tool], args, { maxBuffer: 256 * 1024 * 1024, encoding: 'utf8', signal: options.signal }, (error, stdout, stderr) => {
+      if (options.signal?.aborted) {
+        reject(options.signal.reason);
+        return;
+      }
       if (error && typeof error.code === 'string') {
         // ENOENT, EACCES…: il programma non c'è o non si può eseguire.
         reject(spawnError(paths, tool, error.code));
@@ -53,11 +66,9 @@ export function runTool(paths: ToolPaths, tool: ToolName, args: readonly string[
 const spawnError = (paths: ToolPaths, tool: ToolName, code: string) =>
   new DyadrrError('TOOL_MISSING', `${tool} could not be started (${paths[tool]}): ${code}`);
 
-export interface StreamingOptions {
+export interface StreamingOptions extends RunOptions {
   /** Ogni riga di stdout, appena arriva (per mkvmerge `--gui-mode`, l'avanzamento). */
   onLine?: (line: string) => void;
-  /** Interrompe il programma: il processo riceve SIGTERM e la promessa fallisce con l'errore dell'annullamento. */
-  signal?: AbortSignal;
   /** Variabili d'ambiente in più. */
   env?: Readonly<Record<string, string>>;
 }
@@ -116,24 +127,34 @@ export interface PipedToolResult {
 /**
  * Come `runTool`, ma raccoglie anche `outputs` uscite binarie sui descrittori
  * 3, 4, … (per ffmpeg `pipe:3`, `pipe:4`, …): così una sola lettura dà più
- * flussi separati. stdout non si legge.
+ * flussi separati. stdout non si legge. Si può interrompere come `runTool`.
  */
 export function runToolPiped(
   paths: ToolPaths,
   tool: ToolName,
   args: readonly string[],
   outputs: number,
+  options: RunOptions = {},
 ): Promise<PipedToolResult> {
   return new Promise((resolve, reject) => {
+    if (options.signal?.aborted) {
+      reject(options.signal.reason);
+      return;
+    }
     const child = spawn(paths[tool], args, {
       stdio: ['ignore', 'ignore', 'pipe', ...Array.from({ length: outputs }, () => 'pipe' as const)],
+      signal: options.signal,
     });
     const stderr: Buffer[] = [];
     const chunks: Buffer[][] = Array.from({ length: outputs }, () => []);
     child.stderr!.on('data', (d: Buffer) => stderr.push(d));
     chunks.forEach((list, i) => child.stdio[3 + i]!.on('data', (d: Buffer) => list.push(d)));
-    child.on('error', (error: NodeJS.ErrnoException) => reject(spawnError(paths, tool, error.code ?? String(error))));
+    child.on('error', (error: NodeJS.ErrnoException) => {
+      if (options.signal?.aborted) reject(options.signal.reason);
+      else reject(spawnError(paths, tool, error.code ?? String(error)));
+    });
     child.on('close', (code) => {
+      if (options.signal?.aborted) return;
       resolve({
         stderr: Buffer.concat(stderr).toString('utf8'),
         exitCode: code,

@@ -1,10 +1,10 @@
 # Dyadrr: studio di fattibilità
 
-Stato: bozza 0.10, ottobre 2026.
+Stato: bozza 0.11, ottobre 2026.
 
 Questo documento raccoglie le decisioni prese, quelle ancora aperte e i risultati delle prime verifiche sperimentali (§18). È il punto di partenza del repo.
 
-La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). La 0.9 fissa la costruzione del file finale (tagli, TrueHD, coda, unione, sottotitoli persi ai tagli, file temporanei) e chiude la decisione 7: in fase 2 Dyadrr gira in un container separato (§6, §7, §13, §14, §17). La 0.10 fissa le verifiche dopo il merge: cosa si legge del file finale, le tolleranze "entro un pacchetto" per codec, cosa è bloccante e cosa è solo un avviso (§9.5, §12). Le modifiche principali sono elencate in §20.
+La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). La 0.9 fissa la costruzione del file finale (tagli, TrueHD, coda, unione, sottotitoli persi ai tagli, file temporanei) e chiude la decisione 7: in fase 2 Dyadrr gira in un container separato (§6, §7, §13, §14, §17). La 0.10 fissa le verifiche dopo il merge: cosa si legge del file finale, le tolleranze "entro un pacchetto" per codec, cosa è bloccante e cosa è solo un avviso (§9.5, §12). La 0.11 fissa la riga di comando e il report: forma esatta del report e sua versione, eventi di `--progress json`, confronto di `--expect`, richiesta delle scelte e annullamento (§9.4, §10, §11). Le modifiche principali sono elencate in §20.
 
 ---
 
@@ -568,6 +568,8 @@ Se la regola non è soddisfatta il merge si rifiuta con `TOO_FEW_CHECKPOINTS` o 
 2. **Misura iniziale.**
 3. **Punti di conferma:** prima la deriva, poi le contraddizioni, poi i confini del materiale in comune (§4.6) e la copertura; infine il controllo di trasferimento (§4.7), che all'inizio dà solo avvisi.
 4. **Solo in modalità merge:** scelte dell'utente (§10.1, `CHOICE_REQUIRED`), confronto con il report di `--expect` (`INPUT_CHANGED`), poi spazio libero.
+   - Dalla 0.11 il confronto con `--expect` si fa a pezzi, appena ciascun pezzo si conosce: le impronte subito dopo la lettura degli ingressi, prima di misurare (un file cambiato non vale gigabyte di letture); ruoli e S dopo l'analisi, prima di chiedere le scelte; il piano dopo le scelte (§10).
+   - Anche il file finale e la cartella dei temporanei (`OUTPUT_EXISTS`, `OUTPUT_NOT_WRITABLE`, `BAD_ARGUMENTS`) si controllano prima di leggere gli ingressi, e di nuovo prima di scrivere (§6.4).
 
 ### 9.5 Verifiche dopo il merge
 
@@ -678,6 +680,31 @@ La decisione è una **funzione pura**: riceve i fatti dei due file e le misure, 
 
 **Ingressi:** Dyadrr parte da **due MKV già rippati**, non dai dischi. Il ripping resta compito di MakeMKV o di Wayfinderr.
 
+**Il metodo (0.11).**
+- **Argomenti.** `dyadrr <analyze|merge> <a.mkv> <b.mkv> [opzioni]`, opzioni nella forma `--nome valore` o `--nome=valore`. Sono `BAD_ARGUMENTS`: un comando sconosciuto, un numero di file diverso da due, un'opzione sconosciuta o senza valore, un'opzione ripetuta, `--output`, `--temp-dir` o `--expect` con `analyze`, `merge` senza `--output`, `--progress` con un valore diverso da `json`. `--help` e `--version` scrivono su stdout ed escono con 0, senza report: non sono un'analisi.
+- **Il report** si scrive sempre, anche per `BAD_ARGUMENTS`: chi chiama decide solo da lì (§11.1). Le sole eccezioni sono i due casi qui sotto in cui non si può scrivere.
+  - Il percorso è `--report`; senza, `dyadrr-<modalità>-<AAAAMMGG>T<HHMMSS>Z.json` nella cartella corrente, con l'ora UTC (`dyadrr-report-…` se il comando non si riconosce).
+  - Non può coincidere con un ingresso, con il file finale o con il report di `--expect`: è `BAD_ARGUMENTS`, ma senza report, perché scriverlo sostituirebbe quel file. Il messaggio va su stderr, l'uscita è 30. Un report che esiste già si sostituisce.
+  - Si scrive accanto con un nome che inizia con un punto, ignorato dal watcher di Wayfinderr, e poi si rinomina.
+  - Se la sua cartella manca o non è scrivibile, nessun report si può scrivere: Dyadrr lo dice su stderr ed esce con 30 prima di leggere gli ingressi, senza niente su stdout.
+- **Ordine nel merge:** argomenti, programmi esterni (§13), file finale e cartella dei temporanei, report di `--expect`, ingressi, impronte, analisi, ruoli e S, scelte, piano, costruzione (con lo spazio libero), verifiche, rinomina (§9.4).
+- **Le scelte** (§10.1) si chiedono solo se stdin e stderr sono un terminale e non c'è `--progress json` (chi legge righe JSON è un programma, e la domanda le romperebbe). La domanda va su stderr, con l'effetto di ogni valore.
+  - Prima `--edge-mismatch`, poi `--tail`, `--italian` e `--reference-italian-subs`. Dopo ogni risposta il piano si ricalcola: una scelta cambia l'effetto delle altre e può renderne una non necessaria (`--tail` con `--edge-mismatch drop`).
+  - Una risposta che non è uno dei valori si richiede; la fine dell'ingresso (Ctrl-D) è `CHOICE_REQUIRED`. L'origine nel report è `prompt`.
+  - `analyze` non chiede mai: elenca le scelte in sospeso, con l'effetto di ogni valore, ed esce con 0.
+- **`--expect <report>`:**
+  - il report deve essere della stessa versione del formato (§11.3), idoneo, con ingressi, ruoli, S e piano; altrimenti, o se non si legge, è `BAD_ARGUMENTS`;
+  - **impronte:** quelle dei due ingressi (dimensione, data di modifica, hash del primo e dell'ultimo MiB) sono quelle del report, in qualsiasi ordine. I percorsi non contano: in Wayfinderr lo stesso file ha percorsi diversi nei due container (§14);
+  - **ruoli:** il riferimento ha l'impronta del riferimento del report;
+  - **S:** lo S definitivo è lo stesso;
+  - **piano:** è lo stesso, salvo quello che nel report era in sospeso. Le scelte necessarie sono le stesse; una scelta decisa nel report ha lo stesso valore (l'origine può cambiare); ogni valore del piano che nel report non era in sospeso è uguale; quello che lo era è l'effetto, nel report, del valore scelto ora (intervallo dell'italiano, tracce audio prese, PGS del riferimento tenuti);
+  - ogni differenza è `INPUT_CHANGED`, e il report le elenca tutte. Versione di Dyadrr e taratura non si confrontano: se cambiano, cambia S o il piano, ed è quello che conta.
+- **Annullamento:** SIGINT, SIGTERM o SIGHUP interrompono l'analisi o il merge.
+  - mkvmerge, ffmpeg e ffprobe ricevono SIGTERM; la cartella di lavoro si elimina, il file finale non si consegna;
+  - il report dice `cancelled`, con il motivo `CANCELLED`, e si esce con 50;
+  - un secondo segnale fa uscire subito con 50, senza pulizia né report: gli avanzi stanno solo nella cartella dei temporanei e si eliminano all'avvio successivo (§6.4);
+  - un segnale dopo la rinomina arriva tardi: il merge è completo e il report dice `eligible`.
+
 ### 10.1 Scelte dell'utente
 
 Alcuni comportamenti non hanno una risposta giusta per tutti: li decide chi usa Dyadrr, non Dyadrr. Ogni scelta si può fare in tre modi, in quest'ordine di precedenza:
@@ -767,6 +794,28 @@ Alcuni comportamenti non hanno una risposta giusta per tutti: li decide chi usa 
    - comandi mkvmerge eseguiti e relativi avvisi;
    - esito di ogni verifica (§9.5).
 9. **Avvisi**, con codice (§12).
+
+### 11.3 Il metodo (0.11)
+
+- **Versione del formato:** `format`, un intero, oggi **1**. Si alza solo con una modifica incompatibile: un campo tolto o cambiato di significato. Un campo o un evento nuovo non la alza; chi legge ignora quello che non conosce. Le righe di `--progress json` seguono la stessa versione.
+- **Campi,** in quest'ordine:
+  1. intestazione: `format`, `dyadrr` (la versione), `mode` (`analyze`, `merge`, `null` se il comando non si riconosce), `startedAt` e `finishedAt` (ISO 8601, UTC), `durationMs`, `tools` (versioni di mkvmerge, ffprobe e ffmpeg, `null` se non lette), `arguments` (file, `--output`, `--report`, `--original-language`, `--temp-dir`, `--expect`, `--progress`, scelte da opzione e da variabile d'ambiente), `calibration` (versione, tutti i valori, quali sono provvisori);
+  2. `decision` e `reasons`: un solo motivo per un rifiuto, un errore (il codice) o un annullamento (`CANCELLED`); nessuno per una coppia idonea;
+  3. `inputs`: i due file nell'ordine in cui sono passati, come li legge Dyadrr (impronta, durate, integrità, video, tracce, italiano sì o no); `null` per un file non letto;
+  4. `roles`: indici di riferimento e donatore in `inputs`, con il motivo; il controllo del video; lingua originale e lingua di misura; le coppie di tracce provate;
+  5. `measurement`: coppia scelta, ancore con l'esito, diagnosi di velocità, S (dell'ancora, mediana, definitivo, dispersione), deriva, forma della contraddizione, punti di conferma (posizione richiesta e reale, energia, spostamento, scarto, NCC, rapporto, esito), materiale in comune e copertura, ricerche oltre i confini, trasferimento, byte letti; `null` se un controllo strutturale ha già deciso;
+  6. `checks`: tutti i controlli della decisione, con esito, valore, soglia e codice;
+  7. `choices`: tutte le scelte, con l'effetto di ogni valore per quelle necessarie; `null` senza piano;
+  8. `plan`: il piano (§5) senza scelte e avvisi, che stanno in `choices` e `warnings`; `null` per una coppia non idonea. I sottotitoli persi ai tagli si leggono dal donatore nella costruzione (§6.5): stanno in `output`, solo nel merge;
+  9. `expect`: percorso del report confrontato, esito e differenze; `null` senza `--expect`;
+  10. `output`, solo nel merge: percorso del file finale, se è stato consegnato, dimensione e durata, la costruzione (tagli, tracce finali, sottotitoli persi, spazio, comandi eseguiti con i loro avvisi) e le verifiche (§9.5). Dopo `VERIFY_FAILED` ci sono costruzione e verifiche, e il file non è consegnato;
+  11. `warnings`: gli avvisi di decisione, piano, costruzione e verifiche in un solo elenco, ognuno con la fase che l'ha dato (`analysis`, `plan`, `build`, `verify`).
+- **Numeri:** l'energia di un tratto tutto a zero è −∞, che in JSON si scrive `null`.
+- **Avanzamento** (`--progress json`): su stderr, una riga JSON per evento, con `event`, `phase` ed `elapsedMs` (dall'avvio):
+  - `{"event":"phase","phase":…}` all'inizio di ogni fase: `read` (ingressi), `anchors`, `edges` (confini), `checkpoints`, `edge-probes` (ricerche oltre i confini), `transfer`, `plan`, `intermediate`, `merge`, `verify`;
+  - `{"event":"progress",…}` dentro una fase: `done` e `total` (`null` se non si sa prima) per l'analisi, con i punti per esito (`outcomes`) nei punti di conferma; `step`, `steps` e `percent` (`null` finché mkvmerge non lo dice) per intermedio e merge;
+  - `{"event":"end","decision":…,"exitCode":…}` per ultimo, appena scritto il report.
+  - Senza `--progress json` stderr ha solo la domanda delle scelte e, alla fine, una riga leggibile con la decisione e il motivo.
 
 ---
 
@@ -925,6 +974,7 @@ Prima di scrivere codice si verificano su file di prova i meccanismi da cui dipe
 - *Stato (Dyadrr 0.6.0):* piano di inizio e fine provato sugli stessi file: `--sync` di entrambi i segni, intro diversa con `--edge-mismatch` e `ABRUPT_START`, riferimento con la coda tagliata e `--tail`. Flag, capitoli e sottotitoli persi arrivano con la costruzione.
 - *Stato (Dyadrr 0.7.0):* costruzione provata su MKV di 30 s con audio italiano AC3, TrueHD e FLAC e PGS scritti a mano (formato .sup): S positivo con la coda tagliata anche in FLAC, S negativo con il taglio all'inizio del film e TrueHD su un punto di sincronizzazione, tagli sui confini con `--edge-mismatch drop`; ordine, flag default e forced, compressione dei PGS, capitoli, titolo e sottotitoli persi ai tagli, controllati sul file prodotto. Le verifiche dopo il merge arrivano con il loro modulo.
 - *Stato (Dyadrr 0.8.0):* verifiche dopo il merge provate sugli stessi file e su file di rumore rosa con l'inglese e l'italiano che condividono musica ed effetti: tracce, video (anche HEVC HDR10), pacchetti, inizio e fine di AC3, TrueHD e FLAC dopo i tagli, durata con l'eccesso in coda tolto e lasciato, trasferimento a zero sul file finale e `OUTPUT_TRANSFER_OFFSET` con uno S sbagliato di 40 ms.
+- *Stato (Dyadrr 0.9.0):* riga di comando provata su MKV di 60 s di rumore rosa con due tracce italiane: `analyze` con il report completo e `--italian` in sospeso, `merge --expect` fino al file consegnato e verificato, scelte da variabile d'ambiente e chieste in un terminale, `--progress json`, il processo vero fermato con SIGTERM.
 
 **1b. Test sintetici con un taglio a metà film**
 - Si tolgono e si ricuciono parti di una copia, sempre senza ricodifica.
@@ -946,7 +996,7 @@ Prima di scrivere codice si verificano su file di prova i meccanismi da cui dipe
 - `DRIFT`, `TOO_FEW_CHECKPOINTS`, `AMBIGUOUS_MATCH` e gli avvisi si provano con serie di punti sintetiche.
 - `NO_SPACE` con un disco piccolo, `VERIFY_FAILED` con un errore iniettato apposta.
 - Una tabella collega **ogni codice** al test che lo produce.
-- *Stato (Dyadrr 0.2.0):* funzione di decisione e tabella dei codici fatte (`docs/CODICI.md`, sezione Test). Dalla 0.6.0 anche il piano, funzione pura, con le sue serie sintetiche: casi di inizio e fine, scelte con il loro effetto, tracce prese, forced e avvisi del piano. Dalla 0.7.0 `NO_SPACE` con un disco piccolo (spazio libero simulato) e con un disco che si riempie, `MERGE_FAILED` e `MKVMERGE_WARNING` con un mkvmerge finto, `SUBTITLES_DROPPED_AT_CUT` su file veri. `VERIFY_FAILED` arriva con le verifiche. Dalla 0.8.0 `VERIFY_FAILED` con errori iniettati: il risultato della costruzione alterato (un flag, un inizio previsto) e il file costruito cambiato con mkvpropedit.
+- *Stato (Dyadrr 0.2.0):* funzione di decisione e tabella dei codici fatte (`docs/CODICI.md`, sezione Test). Dalla 0.6.0 anche il piano, funzione pura, con le sue serie sintetiche: casi di inizio e fine, scelte con il loro effetto, tracce prese, forced e avvisi del piano. Dalla 0.7.0 `NO_SPACE` con un disco piccolo (spazio libero simulato) e con un disco che si riempie, `MERGE_FAILED` e `MKVMERGE_WARNING` con un mkvmerge finto, `SUBTITLES_DROPPED_AT_CUT` su file veri. `VERIFY_FAILED` arriva con le verifiche. Dalla 0.8.0 `VERIFY_FAILED` con errori iniettati: il risultato della costruzione alterato (un flag, un inizio previsto) e il file costruito cambiato con mkvpropedit. Dalla 0.9.0 `INPUT_CHANGED` con report confermati alterati (S, piano, una scelta) e con un ingresso copiato, `CANCELLED` durante l'analisi e durante il merge, `BAD_ARGUMENTS` per gli argomenti: ogni codice ha un test.
 
 **2. Casi da rifiutare con file reali**
 - Theatrical contro extended, framerate diversi, due film diversi.
@@ -1214,3 +1264,10 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
   - **Tolleranze "entro un pacchetto"** per codec, costanti del metodo in `src/verify.ts` (§9.2, §9.5).
   - **Bloccanti e avvisi:** tutte bloccanti tranne il trasferimento sul file finale, che dà `OUTPUT_TRANSFER_OFFSET` e `OUTPUT_TRANSFER_UNVERIFIED` (§4.7, §9.5, §12). Un file finale che non si legge è `VERIFY_FAILED`.
   - **TrueHD alla fine:** mkvmerge divide solo sui punti di sincronizzazione, quindi il taglio finale può cadere fino a circa 107 ms dopo e (§6.5, §18).
+- **0.11:** riga di comando e report.
+  - **Argomenti e report:** errori degli argomenti, percorso predefinito del report, report scritto sempre (anche per `BAD_ARGUMENTS`), mai al posto di un ingresso o del file finale; `--help` e `--version` senza report (§10).
+  - **Ordine:** file finale e temporanei controllati prima di leggere gli ingressi; `--expect` a pezzi, appena si può (§9.4, §10).
+  - **`--expect`:** impronte in qualsiasi ordine e senza i percorsi, ruoli, S, piano salvo quello che era in sospeso (§10).
+  - **Scelte chieste in un terminale:** solo senza `--progress json`, in un ordine fisso, con il piano ricalcolato dopo ogni risposta (§10, §10.1).
+  - **Annullamento:** segnali, report `cancelled`, secondo segnale (§10).
+  - **Forma esatta del report**, versione del formato 1, eventi di `--progress json` (§11.3).

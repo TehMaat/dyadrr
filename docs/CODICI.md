@@ -34,14 +34,14 @@ mai portare a caricare un file senza italiano.
 
 | Codice | Uscita | Significato |
 |---|---|---|
-| `BAD_ARGUMENTS` | 30 | Parametri o variabili d'ambiente non validi (anche una cartella dei temporanei senza un punto nel percorso o su un altro disco), oppure un valore di taratura fuori dai limiti |
+| `BAD_ARGUMENTS` | 30 | Argomenti della riga di comando, opzioni o variabili d'ambiente non validi ([CLI.md](CLI.md#opzioni)), anche una cartella dei temporanei senza un punto nel percorso o su un altro disco, o un report di `--expect` che non si legge, di un'altra versione del formato o non idoneo; oppure un valore di taratura fuori dai limiti. Con `--report` uguale a un ingresso, al file finale o al report di `--expect` non si scrive nessun report: solo il messaggio su stderr |
 | `INPUT_UNREADABLE` | 30 | File mancante, illeggibile o non MKV, oppure una finestra audio che decodifica meno del 90% dei campioni attesi (per esempio oltre il punto in cui il file è troncato), o una traccia TrueHD senza punto di sincronizzazione entro 1 s da un taglio |
 | `INPUT_TRUNCATED` | 30 | File troncato: la coda non arriva alla durata dichiarata, o una traccia finisce prima dei suoi tag statistici |
 | `INPUT_BUSY` | 30 | File ancora in scrittura: modificato da meno di 30 s ([`inputBusyMs`](TARATURA.md)), con una data nel futuro, o cambiato durante la lettura o tra la lettura degli ingressi e quella dell'audio. Riprovabile |
-| `INPUT_CHANGED` | 30 | Gli ingressi o il piano non coincidono con l'analisi confermata (`--expect`) |
+| `INPUT_CHANGED` | 30 | Gli ingressi (impronte), i ruoli, lo spostamento o il piano non coincidono con l'analisi confermata (`--expect`); il report elenca le differenze |
 | `CHOICE_REQUIRED` | 30 | Manca una scelta necessaria per questa coppia, e Dyadrr non può chiederla ([CLI.md](CLI.md#scelte)) |
 | `OUTPUT_EXISTS` | 30 | Il file finale esiste già o coincide con un ingresso, anche se compare durante il merge |
-| `OUTPUT_NOT_WRITABLE` | 30 | Cartella di uscita mancante o non scrivibile, o cartella dei temporanei che non si può creare |
+| `OUTPUT_NOT_WRITABLE` | 30 | Cartella di uscita mancante o non scrivibile, o cartella dei temporanei che non si può creare. Se è la cartella del report, nessun report: solo il messaggio su stderr |
 | `NO_SPACE` | 30 | Spazio insufficiente prima di cominciare (il riferimento, le tracce italiane due volte e 2 GiB), oppure un disco che si riempie durante il merge. Riprovabile, non è un rifiuto |
 | `TOOL_MISSING` | 30 | mkvmerge, ffprobe o ffmpeg mancanti, o non si possono lanciare |
 | `TOOL_TOO_OLD` | 30 | mkvmerge più vecchio di v57, oppure ffmpeg più vecchio di 6.1 o di cui non si riesce a leggere la versione |
@@ -53,7 +53,7 @@ mai portare a caricare un file senza italiano.
 
 | Codice | Uscita | Significato |
 |---|---|---|
-| `CANCELLED` | 50 | Interrotto con un segnale di stop: processi terminati, temporanei eliminati |
+| `CANCELLED` | 50 | Interrotto con un segnale di stop (SIGINT, SIGTERM, SIGHUP): processi terminati, temporanei eliminati, file finale non consegnato, report `cancelled` |
 
 ## Avvisi
 
@@ -106,15 +106,17 @@ con MKV veri generati al volo (studio §15, 1a e 1b), quelli del piano
 (`test/plan.test.ts`) con ingressi sintetici e, dove si può, anche con i MKV
 della misura, quelli della costruzione (`test/build.test.ts`) con MKV veri e,
 per gli esiti di mkvmerge, con un mkvmerge finto, quelli delle verifiche
-(`test/verify.test.ts`) con MKV veri e, per `VERIFY_FAILED`, errori iniettati. I codici dei
-moduli non ancora scritti indicano il modulo previsto
+(`test/verify.test.ts`) con MKV veri e, per `VERIFY_FAILED`, errori iniettati, quelli
+della riga di comando (`test/cli.test.ts`) con MKV veri, report scritti e
+letti, segnali di stop e il processo vero. Un codice di un modulo non ancora
+scritto indicherebbe il modulo previsto
 ([ARCHITETTURA.md](ARCHITETTURA.md#moduli-previsti)). Il test
 `test/docs.test.ts` controlla che ogni codice sia elencato e che ogni test
 citato esista e usi quel codice.
 
 | Codice | Test |
 |---|---|
-| `NO_ITALIAN_AUDIO` | `test/decision.test.ts` › NO_ITALIAN_AUDIO: nessuno dei due file ha audio italiano; i controlli seguenti sono saltati<br>`test/measure.test.ts` › controlli strutturali falliti: non si legge l'audio |
+| `NO_ITALIAN_AUDIO` | `test/decision.test.ts` › NO_ITALIAN_AUDIO: nessuno dei due file ha audio italiano; i controlli seguenti sono saltati<br>`test/measure.test.ts` › controlli strutturali falliti: non si legge l'audio<br>`test/cli.test.ts` › riga di comando: rifiuto con uscita 20, OUTPUT_EXISTS prima di leggere gli ingressi |
 | `BOTH_ITALIAN_AUDIO` | `test/decision.test.ts` › BOTH_ITALIAN_AUDIO: entrambi i file hanno audio italiano |
 | `NO_COMMON_LANGUAGE` | `test/decision.test.ts` › NO_COMMON_LANGUAGE: nessuna lingua di misura in comune |
 | `DONOR_BETTER_VIDEO` | `test/decision.test.ts` › DONOR_BETTER_VIDEO: risoluzione più alta, o HDR più alto a parità di risoluzione |
@@ -128,13 +130,13 @@ citato esista e usi quel codice.
 | `DRIFT` | `test/decision.test.ts` › DRIFT: lo spostamento cresce nel tempo, e risulta deriva e non contraddizione<br>`test/measure.test.ts` › DRIFT: il donatore va più veloce di 0,3 per mille |
 | `TOO_FEW_CHECKPOINTS` | `test/decision.test.ts` › TOO_FEW_CHECKPOINTS: meno di 20 punti coerenti<br>`test/decision.test.ts` › TOO_FEW_CHECKPOINTS: un buco oltre 15 minuti tra punti coerenti<br>`test/decision.test.ts` › TOO_FEW_CHECKPOINTS: nessun punto coerente nell'ultimo 10% del materiale in comune |
 | `LOW_COVERAGE` | `test/decision.test.ts` › LOW_COVERAGE: il materiale in comune copre troppo poco del video di riferimento<br>`test/measure.test.ts` › code tagliate con --split: confine finale al secondo, LOW_COVERAGE se il materiale in comune non basta |
-| `BAD_ARGUMENTS` | `test/choices.test.ts` › valori non validi sono BAD_ARGUMENTS, da opzione o da variabile<br>`test/calibration.test.ts` › BAD_ARGUMENTS: un valore di taratura fuori dai limiti, mancante o sconosciuto<br>`test/build.test.ts` › CHOICE_REQUIRED, OUTPUT_EXISTS, OUTPUT_NOT_WRITABLE e BAD_ARGUMENTS prima di scrivere qualsiasi cosa |
+| `BAD_ARGUMENTS` | `test/choices.test.ts` › valori non validi sono BAD_ARGUMENTS, da opzione o da variabile<br>`test/cli.test.ts` › BAD_ARGUMENTS: argomenti sbagliati, con il report comunque scritto; --help e --version senza report<br>`test/calibration.test.ts` › BAD_ARGUMENTS: un valore di taratura fuori dai limiti, mancante o sconosciuto<br>`test/build.test.ts` › CHOICE_REQUIRED, OUTPUT_EXISTS, OUTPUT_NOT_WRITABLE e BAD_ARGUMENTS prima di scrivere qualsiasi cosa |
 | `INPUT_UNREADABLE` | `test/inputs.test.ts` › INPUT_UNREADABLE: file mancante, non MKV o senza video<br>`test/audio.test.ts` › INPUT_UNREADABLE: finestra oltre la fine di un file troncato, o a cavallo del troncamento |
 | `INPUT_TRUNCATED` | `test/decision.test.ts` › INPUT_TRUNCATED: un ingresso troncato è un errore, non un rifiuto<br>`test/inputs.test.ts` › INPUT_TRUNCATED: un file troncato a metà, e una traccia più corta dei suoi tag |
 | `INPUT_BUSY` | `test/inputs.test.ts` › INPUT_BUSY: file modificato negli ultimi secondi, o con una data nel futuro<br>`test/audio.test.ts` › INPUT_BUSY: il file è cambiato da quando è stato letto |
-| `INPUT_CHANGED` | previsto: report e riga di comando (`--expect`) |
-| `CHOICE_REQUIRED` | `test/choices.test.ts` › merge senza terminale: una scelta in sospeso è CHOICE_REQUIRED<br>`test/plan.test.ts` › INTRO_MISMATCH: intro diverse, l'italiano dell'intro si tiene o si scarta con --edge-mismatch<br>`test/build.test.ts` › CHOICE_REQUIRED, OUTPUT_EXISTS, OUTPUT_NOT_WRITABLE e BAD_ARGUMENTS prima di scrivere qualsiasi cosa |
-| `OUTPUT_EXISTS` | `test/build.test.ts` › CHOICE_REQUIRED, OUTPUT_EXISTS, OUTPUT_NOT_WRITABLE e BAD_ARGUMENTS prima di scrivere qualsiasi cosa<br>`test/build.test.ts` › rinomina: un file finale comparso durante il merge non si sovrascrive; avanzi di un'interruzione brusca |
+| `INPUT_CHANGED` | `test/cli.test.ts` › INPUT_CHANGED: impronte, S, piano o scelta diversi dall'analisi confermata |
+| `CHOICE_REQUIRED` | `test/choices.test.ts` › merge senza terminale: una scelta in sospeso è CHOICE_REQUIRED<br>`test/cli.test.ts` › CHOICE_REQUIRED senza terminale; in un terminale la scelta si chiede, finché la risposta è valida<br>`test/plan.test.ts` › INTRO_MISMATCH: intro diverse, l'italiano dell'intro si tiene o si scarta con --edge-mismatch<br>`test/build.test.ts` › CHOICE_REQUIRED, OUTPUT_EXISTS, OUTPUT_NOT_WRITABLE e BAD_ARGUMENTS prima di scrivere qualsiasi cosa |
+| `OUTPUT_EXISTS` | `test/build.test.ts` › CHOICE_REQUIRED, OUTPUT_EXISTS, OUTPUT_NOT_WRITABLE e BAD_ARGUMENTS prima di scrivere qualsiasi cosa<br>`test/cli.test.ts` › riga di comando: rifiuto con uscita 20, OUTPUT_EXISTS prima di leggere gli ingressi<br>`test/build.test.ts` › rinomina: un file finale comparso durante il merge non si sovrascrive; avanzi di un'interruzione brusca |
 | `OUTPUT_NOT_WRITABLE` | `test/build.test.ts` › CHOICE_REQUIRED, OUTPUT_EXISTS, OUTPUT_NOT_WRITABLE e BAD_ARGUMENTS prima di scrivere qualsiasi cosa |
 | `NO_SPACE` | `test/build.test.ts` › NO_SPACE: con un disco piccolo ci si ferma prima di scrivere<br>`test/build.test.ts` › MERGE_FAILED: mkvmerge esce con 2, i temporanei si eliminano |
 | `TOOL_MISSING` | `test/tools.test.ts` › TOOL_MISSING: mkvmerge, ffprobe o ffmpeg mancanti |
@@ -142,7 +144,7 @@ citato esista e usi quel codice.
 | `MERGE_FAILED` | `test/build.test.ts` › MERGE_FAILED: mkvmerge esce con 2, i temporanei si eliminano |
 | `VERIFY_FAILED` | `test/verify.test.ts` › VERIFY_FAILED: un risultato della costruzione alterato, o il file cambiato dopo; la cartella di lavoro si elimina |
 | `INTERNAL` | `test/decision.test.ts` › INTERNAL: mancano le misure di una fase che serve<br>`test/plan.test.ts` › INTERNAL: il piano di un donatore senza audio italiano |
-| `CANCELLED` | previsto: report e riga di comando |
+| `CANCELLED` | `test/cli.test.ts` › CANCELLED: un segnale di stop durante il merge o durante l'analisi; temporanei eliminati |
 | `VIDEO_QUALITY_UNCERTAIN` | `test/decision.test.ts` › VIDEO_QUALITY_UNCERTAIN: stessa risoluzione, HDR e codec, bitrate del donatore oltre il margine |
 | `ORIGINAL_LANGUAGE_NOT_COMMON` | `test/decision.test.ts` › ORIGINAL_LANGUAGE_NOT_COMMON: la lingua originale non è in entrambi i file |
 | `MEASURE_MIX_DIFFERS` | `test/decision.test.ts` › MEASURE_MIX_DIFFERS: somiglianza nella fascia bassa ma sufficiente |

@@ -4,9 +4,9 @@
 
 Requisiti: Node 22, ffmpeg (almeno 6.1) con ffprobe e mkvtoolnix (almeno
 v57). Servono anche per `npm test`: i test degli ingressi, delle finestre
-audio, della misura, della costruzione e delle verifiche generano piccoli MKV
-veri (la costruzione usa anche mkvinfo, le verifiche mkvpropedit, che sono in
-mkvtoolnix).
+audio, della misura, della costruzione, delle verifiche e della riga di comando
+generano piccoli MKV veri (la costruzione usa anche mkvinfo, le verifiche
+mkvpropedit, che sono in mkvtoolnix).
 
 ```bash
 sudo apt-get install ffmpeg mkvtoolnix   # Debian e Ubuntu
@@ -74,9 +74,11 @@ la sezione della nuova versione:
   tag a mano.
 
 **Versione del formato del report.** È separata dalla versione di Dyadrr ed è
-un intero: si alza solo con modifiche incompatibili del report (un campo tolto
-o cambiato di significato). Wayfinderr la controlla prima di leggere un
-report. Nasce insieme al report (studio §11).
+un intero (`REPORT_FORMAT` in `src/report.ts`, oggi 1): si alza solo con
+modifiche incompatibili del report o delle righe di `--progress json` (un
+campo tolto o cambiato di significato), mai per un campo nuovo. Wayfinderr la
+controlla prima di leggere un report, `merge --expect` accetta solo report
+della stessa versione (studio §11.3, [docs/REPORT.md](docs/REPORT.md)).
 
 ## Documentazione
 
@@ -88,6 +90,7 @@ documenti che tocca**, nella stessa PR.
 | Qualsiasi PR | versione e [docs/CHANGELOG.md](docs/CHANGELOG.md) |
 | Comandi, opzioni, variabili d'ambiente, scelte | [docs/CLI.md](docs/CLI.md), e il [README](README.md) se è nell'uso rapido |
 | Codici di rifiuto, errore o avviso, codici di uscita | [docs/CODICI.md](docs/CODICI.md) |
+| Campi del report, eventi o fasi di `--progress json` | [docs/REPORT.md](docs/REPORT.md); per una modifica incompatibile anche `REPORT_FORMAT` |
 | Un codice che un test produce per la prima volta | la sezione **Test** di [docs/CODICI.md](docs/CODICI.md) |
 | Valori o limiti di taratura (`src/calibration.json`, `src/calibration.ts`) | [docs/TARATURA.md](docs/TARATURA.md); per i limiti e per i valori che smettono di essere provvisori anche lo studio (§9.2) |
 | File in `src/` aggiunti, rinominati o tolti | [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md) |
@@ -107,6 +110,8 @@ scostarsene, si aggiorna prima lo studio.
   codice a un test che esiste e usa quel codice, o a un modulo previsto;
 - [docs/TARATURA.md](docs/TARATURA.md) non riporta ogni parametro di taratura
   con il valore del file, i limiti del codice e lo stato (provvisorio o no);
+- [docs/REPORT.md](docs/REPORT.md) non riporta la versione del formato, i
+  campi del report e le fasi dell'avanzamento di `src/report.ts`, in ordine;
 - [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md) non elenca esattamente i file
   `.ts` e `.json` di `src/`;
 - [docs/CHANGELOG.md](docs/CHANGELOG.md) non ha la sezione della versione di

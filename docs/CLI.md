@@ -1,16 +1,15 @@
 # Riga di comando
 
-> **Stato:** la riga di comando non esiste ancora. La libreria legge e valida
-> già `--original-language` e le scelte, calcola quali scelte servono per una
-> coppia con l'effetto di ogni valore, costruisce il file finale e lo verifica. Questa
-> pagina descrive l'interfaccia prevista (studio §10) e, per ogni voce, se è
-> già implementata.
+> **Stato:** implementata dalla 0.9.0 (studio §10–11). La forma del report e
+> gli eventi di `--progress json` sono in [REPORT.md](REPORT.md).
 
 ## Comandi
 
 ```
 dyadrr analyze <a.mkv> <b.mkv> [opzioni]
 dyadrr merge   <a.mkv> <b.mkv> --output <file> [opzioni]
+dyadrr --help
+dyadrr --version
 ```
 
 I due file si passano senza ruoli: Dyadrr decide quale è il **donatore** (l'unico
@@ -18,21 +17,39 @@ con audio italiano) e quale il **riferimento** (studio §3.2).
 
 | Comando | Cosa fa | Stato |
 |---|---|---|
-| `analyze` | Misura e controlli. Scrive solo il report, nessun MKV | previsto; misura, decisione e piano sono già nella libreria (`analyzePair`), senza report |
-| `merge` | Analisi, scrittura del file finale, verifica | previsto; la costruzione è già nella libreria (`buildMerge`, `verifyBuild`, poi `commitBuild`), senza report |
+| `analyze` | Misura e controlli. Scrive solo il report, nessun MKV. Non chiede mai le scelte: le elenca, con l'effetto di ogni valore | implementato |
+| `merge` | Analisi, scelte, scrittura del file finale, verifiche, consegna. Il file finale compare solo se tutte le verifiche bloccanti passano | implementato |
+| `--help`, `--version` | Uso e versione su stdout, uscita 0, nessun report | implementato |
 
 ## Opzioni
 
 | Opzione | Comandi | Significato | Stato |
 |---|---|---|---|
-| `--output <file>` | merge | File finale. Se esiste già o coincide con un ingresso, anche se compare durante il merge: `OUTPUT_EXISTS`. Nessuna sovrascrittura. Cartella mancante o non scrivibile: `OUTPUT_NOT_WRITABLE` | nella libreria (`BuildRequest.output`) |
-| `--report <file>` | entrambi | Percorso del report JSON | previsto |
-| `--original-language <codice>` | entrambi | Lingua originale del film (sotto) | lettura e validazione implementate |
-| `--temp-dir <cartella>` | merge | Cartella dei temporanei. Default `.dyadrr/` accanto al file finale, che si toglie quando resta vuota; deve stare sullo stesso disco e in una cartella che inizia con un punto, altrimenti `BAD_ARGUMENTS` | nella libreria (`BuildRequest.tempDir`) |
-| `--expect <report>` | merge | Report di un'analisi confermata: se ingressi, ruoli, spostamento o piano sono cambiati, `INPUT_CHANGED` | previsto |
-| `--progress json` | entrambi | Avanzamento su stderr, una riga JSON per evento | previsto |
+| `--output <file>` | merge, obbligatoria | File finale. Se esiste già o coincide con un ingresso, anche se compare durante il merge: `OUTPUT_EXISTS`. Nessuna sovrascrittura. Cartella mancante o non scrivibile: `OUTPUT_NOT_WRITABLE`. Si controlla prima di leggere gli ingressi | implementato |
+| `--report <file>` | entrambi | Percorso del report JSON (sotto) | implementato |
+| `--original-language <codice>` | entrambi | Lingua originale del film (sotto) | implementato |
+| `--temp-dir <cartella>` | merge | Cartella dei temporanei. Default `.dyadrr/` accanto al file finale, che si toglie quando resta vuota; deve stare sullo stesso disco e in una cartella che inizia con un punto, altrimenti `BAD_ARGUMENTS` | implementato |
+| `--expect <report>` | merge | Report di un'analisi confermata: se ingressi, ruoli, spostamento o piano sono cambiati, `INPUT_CHANGED` (sotto) | implementato |
+| `--progress json` | entrambi | Avanzamento su stderr, una riga JSON per evento ([REPORT.md](REPORT.md#avanzamento)) | implementato |
 
-Le opzioni delle scelte sono nella sezione [Scelte](#scelte).
+Le opzioni delle scelte sono nella sezione [Scelte](#scelte). Le opzioni si
+scrivono `--nome valore` o `--nome=valore`. Sono `BAD_ARGUMENTS`: un comando
+sconosciuto, un numero di file diverso da due, un'opzione sconosciuta, senza
+valore o ripetuta, `--output`, `--temp-dir` o `--expect` con `analyze`, `merge`
+senza `--output`, `--progress` con un valore diverso da `json`.
+
+## Report
+
+- **Percorso:** `--report`; senza, `dyadrr-<modalità>-<AAAAMMGG>T<HHMMSS>Z.json`
+  nella cartella corrente, con l'ora UTC.
+- **Sempre scritto**, anche per `BAD_ARGUMENTS`, con un nome temporaneo che
+  inizia con un punto e poi rinominato. Un report che esiste già si
+  sostituisce.
+- **Mai al posto di un altro file:** se `--report` coincide con un ingresso,
+  con il file finale o con il report di `--expect`, nessun report: messaggio
+  `BAD_ARGUMENTS` su stderr e uscita 30.
+- **Cartella del report mancante o non scrivibile:** nessun report, messaggio
+  `OUTPUT_NOT_WRITABLE` su stderr e uscita 30, prima di leggere gli ingressi.
 
 ## Lingua originale
 
@@ -82,21 +99,53 @@ fa in uno di questi modi, in ordine di precedenza:
 - Un'intro o una coda diversa, o un eccesso in coda, più corti di 1 s non
   contano: nessuna scelta. È la precisione con cui si trovano i confini.
 - `merge` con una scelta necessaria in sospeso:
-  - in un terminale interattivo la chiede (previsto);
-  - altrimenti si ferma prima di scrivere con `CHOICE_REQUIRED` (implementato
-    nella libreria).
+  - se stdin e stderr sono un terminale e non c'è `--progress json`, la
+    chiede su stderr, con l'effetto di ogni valore: prima `--edge-mismatch`,
+    poi `--tail`, `--italian` e `--reference-italian-subs`, ricalcolando il
+    piano dopo ogni risposta. Una risposta non valida si richiede; la fine
+    dell'ingresso (Ctrl-D) è `CHOICE_REQUIRED`;
+  - altrimenti si ferma prima di scrivere con `CHOICE_REQUIRED`.
 - Una scelta indicata ma non necessaria si ignora, e il report lo dice.
 - Un valore non valido è `BAD_ARGUMENTS`, anche se viene da una variabile
   d'ambiente sovrascritta da un'opzione valida.
 - Una variabile d'ambiente vuota vale come non impostata.
 
-**Stato:** lettura, validazione e precedenza implementate; scelte necessarie
-ed effetto di ogni valore implementati nel piano (`src/plan.ts`); richiesta
-interattiva prevista.
+**Stato:** implementato.
+
+## Analisi confermata (`--expect`)
+
+`merge --expect <report>` esegue esattamente il piano approvato con `analyze`
+(studio §10). Il report deve essere della stessa versione del formato e di una
+coppia idonea, altrimenti `BAD_ARGUMENTS`. Poi, appena ogni pezzo si conosce:
+
+1. **impronte** (dimensione, data di modifica, hash del primo e dell'ultimo
+   MiB) dei due ingressi uguali a quelle del report, in qualsiasi ordine e
+   senza guardare i percorsi; prima di misurare;
+2. **ruoli** e **S** definitivo uguali, dopo l'analisi;
+3. **piano** uguale, dopo le scelte: stesse scelte necessarie, una scelta
+   decisa nel report con lo stesso valore, ogni valore che nel report non era
+   in sospeso uguale, e quello che lo era uguale all'effetto, nel report, del
+   valore scelto ora.
+
+Ogni differenza è `INPUT_CHANGED`; il report le elenca tutte (`expect`).
+Versione di Dyadrr e taratura non si confrontano.
+
+## Annullamento
+
+SIGINT, SIGTERM o SIGHUP fermano analisi e merge: mkvmerge, ffmpeg e ffprobe
+ricevono SIGTERM, la cartella di lavoro si elimina, il file finale non si
+consegna, il report dice `cancelled` (`CANCELLED`) e si esce con 50. Un
+secondo segnale fa uscire subito con 50, senza pulizia né report (gli avanzi
+si eliminano al merge successivo). Un segnale dopo la consegna del file arriva
+tardi: il report dice `eligible`. Nel container serve un piccolo init
+(`init: true` in Compose).
 
 ## Uscita
 
-- **stdout:** solo il percorso del report.
-- **stderr:** avanzamento, una riga JSON per evento (con `--progress json`).
+- **stdout:** solo il percorso del report (o l'uso e la versione con
+  `--help` e `--version`).
+- **stderr:** con `--progress json`, una riga JSON per evento, nient'altro;
+  senza, la domanda delle scelte e alla fine una riga leggibile con la
+  decisione e il motivo.
 - **Codice di uscita:** vedi [CODICI.md](CODICI.md#codici-di-uscita). Chi
   chiama decide solo dal campo `decision` del report.

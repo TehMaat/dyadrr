@@ -566,6 +566,8 @@ export function planMerge(input: PlanInput, cal: Calibration): Plan {
 
 export interface PlanOptions {
   tools?: ToolPaths;
+  /** Interrompe la lettura dei livelli: il piano fallisce con l'errore dell'annullamento. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -598,7 +600,10 @@ export async function planPair(
       { trackId: t.id, mix: 'leftRight' as const },
       ...(hasCenter(t) ? [{ trackId: t.id, mix: 'center' as const }] : []),
     ]);
-    const reading = await readAudioWindow(donor, signals, { startMs: from, durationMs: to - from }, { tools: options.tools ?? DEFAULT_TOOLS });
+    const reading = await readAudioWindow(donor, signals, { startMs: from, durationMs: to - from }, {
+      tools: options.tools ?? DEFAULT_TOOLS,
+      signal: options.signal,
+    });
     for (const t of tracks) {
       const energies = reading.windows.filter((w) => w.trackId === t.id).map((w) => energyDbfs(w.samples));
       levels.push({ atMs: cut.atMs, trackId: t.id, levelDbfs: round2(Math.max(...energies)) });

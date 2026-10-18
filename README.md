@@ -7,9 +7,10 @@ solo i pacchetti, con mkvmerge.
 
 Il nome viene da *diade*: due elementi che formano una coppia.
 
-> **Stato:** fase 1, in sviluppo. La riga di comando non è ancora
-> disponibile; cosa è già implementato è indicato in
-> [docs/CLI.md](docs/CLI.md) e nel [CHANGELOG](docs/CHANGELOG.md).
+> **Stato:** fase 1, in sviluppo. La riga di comando funziona dalla 0.9.0;
+> le soglie sono ancora provvisorie, da tarare su coppie reali
+> ([docs/TARATURA.md](docs/TARATURA.md)). Le modifiche sono nel
+> [CHANGELOG](docs/CHANGELOG.md).
 
 ## Come funziona
 
@@ -27,7 +28,11 @@ Il nome viene da *diade*: due elementi che formano una coppia.
 Tutti i dettagli sono nello
 [studio di fattibilità](docs/STUDIO-DI-FATTIBILITA.md).
 
-## Uso previsto
+## Uso
+
+```bash
+npm ci && npm run build      # poi: node dist/bin.js, o npm link per avere `dyadrr`
+```
 
 ```
 dyadrr analyze <a.mkv> <b.mkv> [--original-language <codice>] [--report <file>]
@@ -35,9 +40,14 @@ dyadrr merge   <a.mkv> <b.mkv> --output <file> [--expect <report>] [scelte]
 ```
 
 - `analyze` misura e controlla, e scrive solo il report JSON.
-- `merge` fa l'analisi, scrive il file finale e lo verifica.
+- `merge` fa l'analisi, scrive il file finale e lo verifica; il file compare
+  solo se le verifiche passano.
 - `--original-language` indica la lingua originale del film (`ENG`, `jpn`,
   `fr`…): serve a scegliere la lingua con cui misurare.
+- `--expect <report>` fa eseguire al merge esattamente il piano di un'analisi
+  confermata; `--progress json` scrive l'avanzamento su stderr.
+- Su stdout c'è solo il percorso del report; la decisione sta nel report
+  ([docs/REPORT.md](docs/REPORT.md)) e nel codice di uscita.
 
 ### Scelte
 
@@ -52,8 +62,9 @@ del merge. Una scelta si chiede solo se serve per quella coppia.
 | PGS italiani già nel riferimento | `--reference-italian-subs` | `DYADRR_REFERENCE_ITALIAN_SUBS` | `keep`, `drop` |
 | Audio italiano su intro o code diverse | `--edge-mismatch` | `DYADRR_EDGE_MISMATCH` | `drop`, `keep` |
 
-Il riferimento completo è in [docs/CLI.md](docs/CLI.md); rifiuti, errori e
-codici di uscita in [docs/CODICI.md](docs/CODICI.md).
+Il riferimento completo è in [docs/CLI.md](docs/CLI.md); il report in
+[docs/REPORT.md](docs/REPORT.md); rifiuti, errori e codici di uscita in
+[docs/CODICI.md](docs/CODICI.md).
 
 ## Requisiti
 
