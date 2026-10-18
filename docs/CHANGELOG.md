@@ -4,6 +4,41 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.5.0] - 2026-10-18
+
+### Aggiunto
+- Libreria: misura della coppia (`measurePair`) e analisi completa
+  (`analyzePair`: controlli strutturali, misura, decisione). Senza i controlli
+  strutturali passati l'audio non si legge
+- Correlazione senza dipendenze, con una FFT propria: posizione con la
+  correlazione sbiancata (GCC-PHAT), rifinitura NCC al decimo di
+  millisecondo, somiglianza indipendente da dove cade il picco tra i
+  campioni, unicità sull'NCC fuori da una zona di esclusione di ±25 ms
+- Coppie di tracce nella lingua di misura: tutte provate sulla prima ancora
+  nella stessa lettura, esclusi commenti e audiodescrizioni; a parità due
+  tracce lossless, poi lo stesso codec
+- Ancore al 15/25/35/50% del film, cercate nel donatore entro ±(S_max + 60 s);
+  diagnosi di velocità (1,001 e PAL) quando nessuna ancora corrisponde
+- Confini del materiale in comune, al secondo, e ricerca oltre i confini di
+  un film che continua a un altro spostamento
+- Punti di conferma: finestre mute spostate sul contenuto restando nel loro
+  intervallo, nuova ricerca su tutto l'intervallo per i punti senza
+  corrispondenza, punti aggiunti nei tratti scoperti fino a 60
+- Controllo di trasferimento in 5 punti, sulla traccia italiana principale:
+  L+R, oppure (L − R)/2 quando le tracce non hanno il centrale
+- Taratura (versione 3 del file): `anchorWindowMs` (30 s),
+  `checkpointWindowMs` (10 s, provvisorio), `exclusionZoneMs` (25 ms),
+  `checkpointCount` (30), `maxCheckpointCount` (60), `searchMarginMs` (60 s),
+  con i limiti che legano i numeri di punti
+- Riconoscimento di commenti e audiodescrizioni dal nome, anche in inglese, e
+  traccia italiana principale
+- Studio di fattibilità 0.7: metodo di correlazione, parametri e costanti
+
+### Corretto
+- Lettura delle finestre: con un file il cui primo timestamp è oltre i 2 s
+  di pre-roll, la finestra cominciava tardi di quel tanto, o non aveva
+  campioni (`INPUT_UNREADABLE`)
+
 ## [0.4.0] - 2026-10-18
 
 ### Aggiunto

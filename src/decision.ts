@@ -305,6 +305,24 @@ const REFUSALS: ReadonlySet<string> = new Set(REFUSAL_CODES);
  * un errore interno (`INTERNAL`).
  */
 export function decide(input: DecisionInput, cal: Calibration): DecisionReport {
+  return evaluate(input, cal, false);
+}
+
+/**
+ * Solo i controlli strutturali (§9.4, punto 1): ruoli, lingua di misura,
+ * video, framerate, integrità. Serve a sapere se vale la pena misurare: se
+ * uno fallisce il report è già quello definitivo; se passano tutti la
+ * decisione è `eligible`, ma i controlli delle misure risultano `skipped` e il
+ * giudizio vero lo dà `decide` con le misure.
+ */
+export function checkStructure(
+  input: Pick<DecisionInput, 'files' | 'originalLanguage'>,
+  cal: Calibration,
+): DecisionReport {
+  return evaluate(input, cal, true);
+}
+
+function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean): DecisionReport {
   const v = cal.values;
   const tol = v.toleranceMs;
 
@@ -416,6 +434,7 @@ export function decide(input: DecisionInput, cal: Calibration): DecisionReport {
     }
   }
   pass('integrity');
+  if (structureOnly) return report;
 
   // 2. Misura iniziale: le ancore (§4.4).
 

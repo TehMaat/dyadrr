@@ -7,7 +7,7 @@ test('il file di taratura versionato è completo e dentro i limiti', () => {
   const cal = loadCalibration();
   assert.deepEqual(Object.keys(cal.values).sort(), [...CALIBRATION_NAMES].sort());
   // Le soglie ancora da tarare sono segnate come provvisorie.
-  for (const name of ['nccMin', 'peakRatioMin', 'silenceDbfs', 'measureMixDiffersBand'] as const) {
+  for (const name of ['nccMin', 'peakRatioMin', 'silenceDbfs', 'measureMixDiffersBand', 'checkpointWindowMs'] as const) {
     assert.ok(cal.provisional.includes(name), name);
   }
 });
@@ -36,6 +36,12 @@ test('BAD_ARGUMENTS: un valore di taratura fuori dai limiti, mancante o sconosci
     { minConsistentCheckpoints: 20.5 },
     { silenceDbfs: '-50' },
     { unknownThreshold: 1 },
+    { checkpointCount: 30.5 },
+    { exclusionZoneMs: 300 },
+    // Limiti che legano due parametri: più punti previsti che punti al massimo,
+    // o più punti coerenti richiesti di quanti se ne possono misurare.
+    { checkpointCount: 40, maxCheckpointCount: 30 },
+    { minConsistentCheckpoints: 50, checkpointCount: 30, maxCheckpointCount: 40 },
   ]) {
     assert.throws(() => parseCalibration(withValues(values)), isBadArguments, JSON.stringify(values));
   }

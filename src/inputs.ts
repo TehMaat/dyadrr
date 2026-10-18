@@ -60,6 +60,32 @@ export interface InputTrack extends TrackLanguageFields {
   statistics: TrackStatistics | null;
 }
 
+/** Parole del nome che indicano un commento o un'audiodescrizione (§4.2, §8). */
+const COMMENTARY_NAME = /\b(comment(o|i|ary|aires?)|audio[- ]?descri(zione|ption)|descriptive|(non|ipo) ?vedenti)\b/i;
+
+/**
+ * Una traccia sembra un commento o un'audiodescrizione: dai flag, oppure da
+ * parole nel nome ("commento", "commentary", "audiodescrizione", "non
+ * vedenti", "AD"…). Nei rip da Blu-ray i flag mancano quasi sempre.
+ */
+export function isCommentaryOrDescription(track: Pick<InputTrack, 'commentary' | 'visualImpaired' | 'name'>): boolean {
+  if (track.commentary || track.visualImpaired) return true;
+  const name = track.name ?? '';
+  return COMMENTARY_NAME.test(name) || /\bAD\b/.test(name);
+}
+
+/**
+ * La traccia audio italiana principale (§8): quella già predefinita; altrimenti
+ * la prima che non sembri un commento o un'audiodescrizione; altrimenti la
+ * prima. `null` se non ce n'è nessuna.
+ */
+export function mainItalianTrack<T extends Pick<InputTrack, 'default' | 'commentary' | 'visualImpaired' | 'name'> & TrackLanguageFields>(
+  audio: readonly T[],
+): T | null {
+  const italian = audio.filter(isItalian);
+  return italian.find((t) => t.default) ?? italian.find((t) => !isCommentaryOrDescription(t)) ?? italian[0] ?? null;
+}
+
 export interface InputVideo extends VideoFacts {
   trackId: number;
   /** Profilo Dolby Vision, se `hdr` è `DV`. */

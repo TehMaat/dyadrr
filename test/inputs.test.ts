@@ -6,7 +6,14 @@ import { join } from 'node:path';
 import { loadCalibration } from '../src/calibration.js';
 import { DyadrrError } from '../src/codes.js';
 import { decide } from '../src/decision.js';
-import { hdrFormat, parseTagDuration, readInput, type InputFile } from '../src/inputs.js';
+import {
+  hdrFormat,
+  isCommentaryOrDescription,
+  mainItalianTrack,
+  parseTagDuration,
+  readInput,
+  type InputFile,
+} from '../src/inputs.js';
 import { isItalian } from '../src/languages.js';
 import { TAIL_INITIAL_BYTES } from '../src/matroska.js';
 import { ffmpegSource, mkvmerge, run, settle, tempDir } from './helpers/mkv.js';
@@ -268,4 +275,35 @@ test('INPUT_BUSY: file modificato negli ultimi secondi, o con una data nel futur
   } finally {
     settle(path);
   }
+});
+
+test('commenti e audiodescrizioni dai flag o dal nome; traccia italiana principale (§4.2, §8)', async () => {
+  const track = (name: string | null, flags: { commentary?: boolean; visualImpaired?: boolean; default?: boolean } = {}) => ({
+    name,
+    commentary: flags.commentary ?? false,
+    visualImpaired: flags.visualImpaired ?? false,
+    default: flags.default ?? false,
+  });
+  for (const name of ["Director's Commentary", 'Commento del regista', 'Audiodescrizione', 'Audio Description', 'Descriptive Audio', 'Italiano per non vedenti', 'Italiano AD']) {
+    assert.equal(isCommentaryOrDescription(track(name)), true, name);
+  }
+  for (const name of [null, 'Italiano', 'Surround 5.1', 'Adattamento 2004', 'Dolby Atmos', 'commentarium']) {
+    assert.equal(isCommentaryOrDescription(track(name)), false, String(name));
+  }
+  assert.equal(isCommentaryOrDescription(track(null, { commentary: true })), true);
+  assert.equal(isCommentaryOrDescription(track(null, { visualImpaired: true })), true);
+
+  const ita = (name: string | null, flags = {}) => ({ ...track(name, flags), language: 'ita' });
+  const commento = ita('Commento');
+  const principale = ita('Italiano');
+  assert.equal(mainItalianTrack([{ ...track(null), language: 'eng' }, commento, principale]), principale);
+  const predefinita = ita('Commento', { default: true });
+  assert.equal(mainItalianTrack([principale, predefinita]), predefinita);
+  assert.equal(mainItalianTrack([commento]), commento);
+  assert.equal(mainItalianTrack([{ ...track(null), language: 'eng' }]), null);
+
+  // Sul donatore vero: la prima traccia italiana, non quella per non vedenti.
+  const donor = await read('donor');
+  assert.equal(mainItalianTrack(donor.audio)?.name, 'Italiano');
+  assert.equal(donor.audio.filter((t) => isCommentaryOrDescription(t)).length, 2);
 });

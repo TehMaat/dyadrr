@@ -1,11 +1,17 @@
 {
-  "version": 2,
+  "version": 3,
   "values": {
     "toleranceMs": 10,
     "maxOffsetMs": 180000,
+    "searchMarginMs": 60000,
     "nccMin": 0.5,
     "peakRatioMin": 1.5,
+    "exclusionZoneMs": 25,
     "measureMixDiffersBand": 0.1,
+    "anchorWindowMs": 30000,
+    "checkpointWindowMs": 10000,
+    "checkpointCount": 30,
+    "maxCheckpointCount": 60,
     "silenceDbfs": -50,
     "minConsistentCheckpoints": 20,
     "maxCheckpointGapMs": 900000,
@@ -17,5 +23,5 @@
     "integrityToleranceMs": 1000,
     "inputBusyMs": 30000
   },
-  "provisional": ["nccMin", "peakRatioMin", "measureMixDiffersBand", "silenceDbfs", "integrityToleranceMs"]
+  "provisional": ["nccMin", "peakRatioMin", "measureMixDiffersBand", "checkpointWindowMs", "silenceDbfs", "integrityToleranceMs"]
 }

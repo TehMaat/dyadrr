@@ -30,8 +30,11 @@ export const GAP_COMPENSATION_MS = 2;
 /** Sotto questa frazione dei campioni attesi la finestra è `INPUT_UNREADABLE`. */
 export const MIN_WINDOW_FRACTION = 0.9;
 
-/** Segnale di una traccia: il solo canale centrale, oppure la media di L e R. */
-export type Mix = 'center' | 'leftRight';
+/**
+ * Segnale di una traccia: il solo canale centrale, la media di L e R, oppure
+ * la loro semidifferenza (L − R)/2, che toglie quello che sta al centro (§4.7).
+ */
+export type Mix = 'center' | 'leftRight' | 'side';
 
 /** Canali delle disposizioni standard di ffmpeg (`ffmpeg -layouts`). */
 const LAYOUTS: Readonly<Record<string, string>> = {
@@ -96,6 +99,16 @@ export function analysisMix(a: Pick<InputTrack, 'channelLayout'>, b: Pick<InputT
   return hasCenter(a) && hasCenter(b) ? 'center' : 'leftRight';
 }
 
+/**
+ * Una traccia "ha L e R" se la sua disposizione comprende FL e FR, oppure se
+ * la disposizione è sconosciuta ma i canali sono almeno due (§4.2).
+ */
+export function hasLeftRight(track: Pick<InputTrack, 'channelLayout' | 'channels'>): boolean {
+  const channels = layoutChannels(track.channelLayout);
+  if (channels !== null) return channels.includes('FL') && channels.includes('FR');
+  return (track.channels ?? 0) >= 2;
+}
+
 /** Il filtro `pan` che dà il segnale di analisi di una traccia. */
 export function panFilter(track: Pick<InputTrack, 'id' | 'channelLayout' | 'channels'>, mix: Mix): string {
   const channels = layoutChannels(track.channelLayout);
@@ -105,7 +118,14 @@ export function panFilter(track: Pick<InputTrack, 'id' | 'channelLayout' | 'chan
     }
     return 'pan=mono|c0=FC';
   }
-  if (channels?.includes('FL') && channels.includes('FR')) return 'pan=mono|c0=0.5*FL+0.5*FR';
+  const named = channels?.includes('FL') && channels.includes('FR');
+  if (mix === 'side') {
+    if (!hasLeftRight(track)) {
+      throw new DyadrrError('INTERNAL', `track ${track.id} has no left and right channels (${track.channelLayout ?? 'unknown layout'})`);
+    }
+    return named ? 'pan=mono|c0=0.5*FL-0.5*FR' : 'pan=mono|c0=0.5*c0-0.5*c1';
+  }
+  if (named) return 'pan=mono|c0=0.5*FL+0.5*FR';
   if ((channels?.length ?? track.channels) === 1) return 'pan=mono|c0=c0';
   return 'pan=mono|c0=0.5*c0+0.5*c1';
 }
@@ -167,7 +187,7 @@ const unreadable = (path: string, why: string) => new DyadrrError('INPUT_UNREADA
  * del file (§4.3). Mai dalla fine letta in coda: è quella che la finestra deve
  * controllare, e in un file troncato i tag, scritti in fondo, mancano.
  */
-function trackSpan(input: InputFile, track: InputTrack): { start: number; end: number } {
+export function trackSpan(input: InputFile, track: InputTrack): { start: number; end: number } {
   const start = track.startMs ?? input.startTimeMs ?? 0;
   if (track.statistics?.durationMs != null) return { start, end: start + track.statistics.durationMs };
   if (input.durationMs !== null) return { start, end: (input.startTimeMs ?? 0) + input.durationMs };
@@ -260,6 +280,10 @@ export async function readAudioWindow(
     // Compressione dinamica di AC3 ed E-AC3: il default di ffmpeg è piena (§4.2).
     '-drc_scale', '0',
     '-copyts', '-seek_timestamp', '1',
+    // Il taglio lo fa atrim sui timestamp decodificati. Quello di ffmpeg dopo
+    // -ss, con -copyts, cadrebbe a T − pre-roll + start_time del file: con uno
+    // start_time oltre il pre-roll la finestra comincerebbe tardi.
+    '-noaccurate_seek',
     ...(seekMs > 0 ? ['-ss', seconds(seekMs)] : []),
     '-i', path,
     '-filter_complex', chains.join(';'),

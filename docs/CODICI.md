@@ -98,7 +98,9 @@ errore.
 
 ## Test
 
-Ogni codice e il test che lo produce (studio §15, test 1e). I codici dei
+Ogni codice e il test che lo produce (studio §15, test 1e): i test della
+decisione con serie sintetiche, quelli della misura (`test/measure.test.ts`)
+con MKV veri generati al volo (studio §15, 1a e 1b). I codici dei
 moduli non ancora scritti indicano il modulo previsto
 ([ARCHITETTURA.md](ARCHITETTURA.md#moduli-previsti)). Il test
 `test/docs.test.ts` controlla che ogni codice sia elencato e che ogni test
@@ -106,20 +108,20 @@ citato esista e usi quel codice.
 
 | Codice | Test |
 |---|---|
-| `NO_ITALIAN_AUDIO` | `test/decision.test.ts` › NO_ITALIAN_AUDIO: nessuno dei due file ha audio italiano; i controlli seguenti sono saltati |
+| `NO_ITALIAN_AUDIO` | `test/decision.test.ts` › NO_ITALIAN_AUDIO: nessuno dei due file ha audio italiano; i controlli seguenti sono saltati<br>`test/measure.test.ts` › controlli strutturali falliti: non si legge l'audio |
 | `BOTH_ITALIAN_AUDIO` | `test/decision.test.ts` › BOTH_ITALIAN_AUDIO: entrambi i file hanno audio italiano |
 | `NO_COMMON_LANGUAGE` | `test/decision.test.ts` › NO_COMMON_LANGUAGE: nessuna lingua di misura in comune |
 | `DONOR_BETTER_VIDEO` | `test/decision.test.ts` › DONOR_BETTER_VIDEO: risoluzione più alta, o HDR più alto a parità di risoluzione |
-| `FPS_MISMATCH` | `test/decision.test.ts` › FPS_MISMATCH: framerate diversi nei metadati; 23,976 scritto in modi diversi è uguale<br>`test/decision.test.ts` › FPS_MISMATCH: la diagnosi di velocità trova un rapporto 1,001 |
+| `FPS_MISMATCH` | `test/decision.test.ts` › FPS_MISMATCH: framerate diversi nei metadati; 23,976 scritto in modi diversi è uguale<br>`test/decision.test.ts` › FPS_MISMATCH: la diagnosi di velocità trova un rapporto 1,001<br>`test/measure.test.ts` › FPS_MISMATCH: con un rapporto di 1,001 nessuna ancora corrisponde, la diagnosi di velocità lo trova |
 | `PAL_SPEEDUP` | `test/decision.test.ts` › PAL_SPEEDUP: la diagnosi di velocità trova un rapporto PAL, in un verso o nell'altro |
-| `NO_MATCH` | `test/decision.test.ts` › NO_MATCH: nessuna ancora abbastanza somigliante |
-| `AMBIGUOUS_MATCH` | `test/decision.test.ts` › AMBIGUOUS_MATCH: ancore somiglianti ma non uniche |
-| `OFFSET_TOO_LARGE` | `test/decision.test.ts` › OFFSET_TOO_LARGE: picco sicuro oltre lo spostamento massimo |
-| `CHECKPOINT_CONTRADICTION` | `test/decision.test.ts` › CHECKPOINT_CONTRADICTION: due ancore sicure con spostamenti diversi<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: un salto di due fotogrammi a metà film<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: più salti, oppure rumore<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: il film continua a un altro spostamento oltre il confine |
-| `CHECKPOINT_UNMATCHED` | `test/decision.test.ts` › CHECKPOINT_UNMATCHED: un tratto con contenuto non trova corrispondenza da nessuna parte |
-| `DRIFT` | `test/decision.test.ts` › DRIFT: lo spostamento cresce nel tempo, e risulta deriva e non contraddizione |
+| `NO_MATCH` | `test/decision.test.ts` › NO_MATCH: nessuna ancora abbastanza somigliante<br>`test/measure.test.ts` › canale centrale contro L+R su un remix: la coppia con il centrale, NO_MATCH con il solo L+R |
+| `AMBIGUOUS_MATCH` | `test/decision.test.ts` › AMBIGUOUS_MATCH: ancore somiglianti ma non uniche<br>`test/measure.test.ts` › AMBIGUOUS_MATCH: un contenuto che si ripete corrisponde ovunque |
+| `OFFSET_TOO_LARGE` | `test/decision.test.ts` › OFFSET_TOO_LARGE: picco sicuro oltre lo spostamento massimo<br>`test/measure.test.ts` › OFFSET_TOO_LARGE: spostamento sicuro oltre il massimo, dentro l'intervallo di ricerca |
+| `CHECKPOINT_CONTRADICTION` | `test/decision.test.ts` › CHECKPOINT_CONTRADICTION: due ancore sicure con spostamenti diversi<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: un salto di due fotogrammi a metà film<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: più salti, oppure rumore<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: il film continua a un altro spostamento oltre il confine<br>`test/measure.test.ts` › CHECKPOINT_CONTRADICTION: un taglio a metà film, di 4 s o di pochi fotogrammi |
+| `CHECKPOINT_UNMATCHED` | `test/decision.test.ts` › CHECKPOINT_UNMATCHED: un tratto con contenuto non trova corrispondenza da nessuna parte<br>`test/measure.test.ts` › CHECKPOINT_UNMATCHED: un tratto sostituito a metà film non trova corrispondenza |
+| `DRIFT` | `test/decision.test.ts` › DRIFT: lo spostamento cresce nel tempo, e risulta deriva e non contraddizione<br>`test/measure.test.ts` › DRIFT: il donatore va più veloce di 0,3 per mille |
 | `TOO_FEW_CHECKPOINTS` | `test/decision.test.ts` › TOO_FEW_CHECKPOINTS: meno di 20 punti coerenti<br>`test/decision.test.ts` › TOO_FEW_CHECKPOINTS: un buco oltre 15 minuti tra punti coerenti<br>`test/decision.test.ts` › TOO_FEW_CHECKPOINTS: nessun punto coerente nell'ultimo 10% del materiale in comune |
-| `LOW_COVERAGE` | `test/decision.test.ts` › LOW_COVERAGE: il materiale in comune copre troppo poco del video di riferimento |
+| `LOW_COVERAGE` | `test/decision.test.ts` › LOW_COVERAGE: il materiale in comune copre troppo poco del video di riferimento<br>`test/measure.test.ts` › code tagliate con --split: confine finale al secondo, LOW_COVERAGE se il materiale in comune non basta |
 | `BAD_ARGUMENTS` | `test/choices.test.ts` › valori non validi sono BAD_ARGUMENTS, da opzione o da variabile<br>`test/calibration.test.ts` › BAD_ARGUMENTS: un valore di taratura fuori dai limiti, mancante o sconosciuto |
 | `INPUT_UNREADABLE` | `test/inputs.test.ts` › INPUT_UNREADABLE: file mancante, non MKV o senza video<br>`test/audio.test.ts` › INPUT_UNREADABLE: finestra oltre la fine di un file troncato, o a cavallo del troncamento |
 | `INPUT_TRUNCATED` | `test/decision.test.ts` › INPUT_TRUNCATED: un ingresso troncato è un errore, non un rifiuto<br>`test/inputs.test.ts` › INPUT_TRUNCATED: un file troncato a metà, e una traccia più corta dei suoi tag |
@@ -151,5 +153,5 @@ citato esista e usi quel codice.
 | `LONG_GAP_WITHOUT_ITALIAN` | previsto: piano |
 | `TAIL_EXCESS_KEPT` | previsto: piano |
 | `ABRUPT_START` | previsto: piano |
-| `MANY_INCONCLUSIVE` | `test/decision.test.ts` › MANY_INCONCLUSIVE: più del 10% di punti non conclusivi, copertura comunque sufficiente |
+| `MANY_INCONCLUSIVE` | `test/decision.test.ts` › MANY_INCONCLUSIVE: più del 10% di punti non conclusivi, copertura comunque sufficiente<br>`test/measure.test.ts` › MANY_INCONCLUSIVE: silenzi lunghi danno punti non conclusivi, e punti aggiunti nei tratti scoperti |
 | `MKVMERGE_WARNING` | previsto: costruzione |

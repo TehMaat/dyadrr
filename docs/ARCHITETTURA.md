@@ -26,23 +26,24 @@ Il test `test/docs.test.ts` controlla che questa tabella elenchi tutti i file
 | `src/calibration.ts` | Limiti fissi dei parametri di taratura; lettura e validazione del file (`BAD_ARGUMENTS`) | §9.1–9.2 |
 | `src/tools.ts` | Programmi esterni: lancio (anche con più uscite su pipe separate), versioni per il report, `TOOL_MISSING` e `TOOL_TOO_OLD` (mkvmerge almeno v57, ffmpeg almeno 6.1) | §13 |
 | `src/matroska.ts` | Lettura della coda di un MKV senza programmi esterni: cluster, blocchi, fine di ogni traccia, a finestre da 8 a 256 MiB | §4.8 |
-| `src/inputs.ts` | Ingressi: tracce da mkvmerge -J, framerate, HDR e tag statistici da ffprobe, impronta, integrità; `INPUT_UNREADABLE` e `INPUT_BUSY`. Danno alla decisione i fatti di ogni file (`FileFacts`) e al report i dati di §11.2, punto 2 | §3.1–3.2, §4.8, §10, §11.2 |
-| `src/audio.ts` | Lettura delle finestre audio con ffmpeg: timestamp non ribasati, pre-roll di 2 s, taglio sui timestamp decodificati, inizio reale da `ashowinfo`, buchi oltre 2 ms riempiti; segnale a 8 kHz con passa-basso a 3 kHz, centrale o L+R (`analysisMix`), senza DRC; più tracce nella stessa lettura; energia in dBFS e byte letti. Una finestra con meno del 90% dei campioni attesi è `INPUT_UNREADABLE` | §4.2–4.3, §4.8, §11.2 |
-| `src/decision.ts` | Decisione: funzione pura dalle misure e dalla taratura a decisione, controlli, motivi, avvisi, S definitivo, deriva, forma della contraddizione e copertura | §4.4–4.7, §9.3–9.4, §9.6 |
+| `src/inputs.ts` | Ingressi: tracce da mkvmerge -J, framerate, HDR e tag statistici da ffprobe, impronta, integrità; `INPUT_UNREADABLE` e `INPUT_BUSY`. Danno alla decisione i fatti di ogni file (`FileFacts`) e al report i dati di §11.2, punto 2. Commenti e audiodescrizioni, traccia italiana principale | §3.1–3.2, §4.2, §4.8, §8, §10, §11.2 |
+| `src/audio.ts` | Lettura delle finestre audio con ffmpeg: timestamp non ribasati, pre-roll di 2 s senza il taglio di ffmpeg dopo `-ss`, taglio sui timestamp decodificati, inizio reale da `ashowinfo`, buchi oltre 2 ms riempiti; segnale a 8 kHz con passa-basso a 3 kHz, centrale, L+R (`analysisMix`) o (L − R)/2, senza DRC; più tracce nella stessa lettura; energia in dBFS e byte letti. Una finestra con meno del 90% dei campioni attesi è `INPUT_UNREADABLE` | §4.2–4.3, §4.8, §11.2 |
+| `src/correlation.ts` | Correlazione su campioni, funzioni pure: FFT, ricerca a blocchi con GCC-PHAT nella banda di analisi, rifinitura NCC con parabola, somiglianza con interpolazione sinc, unicità sull'NCC fuori dalla zona di esclusione; stiramento per la diagnosi di velocità | §4.2, §4.4 |
+| `src/measure.ts` | Misura: coppie di tracce (`candidatePairs`), ancore con diagnosi di velocità, confini del materiale in comune, punti di conferma con spostamento sul contenuto e punti aggiunti, ricerche oltre i confini, controllo di trasferimento; dà alla decisione `AnchorMeasure`, `CheckpointMeasure`, `EdgeProbe` e `TransferProbe` (`decisionMeasures`). `analyzePair` unisce controlli strutturali, misura e decisione | §4.2–4.7, §9.2, §11.2 |
+| `src/decision.ts` | Decisione: funzione pura dalle misure e dalla taratura a decisione, controlli, motivi, avvisi, S definitivo, deriva, forma della contraddizione e copertura; `checkStructure` per i soli controlli strutturali, prima di misurare | §4.4–4.7, §9.3–9.4, §9.6 |
 
 ## Moduli previsti
 
 In ordine di sviluppo indicativo (fase 1, studio §15):
 
-1. **Correlazione:** GCC-PHAT e NCC, ancore, punti di conferma, confini,
-   controllo di trasferimento (§4.4–4.7). Legge le finestre con
-   `readAudioWindow` (le coppie possibili nella stessa lettura, §4.2), dà alla
-   decisione le misure (`AnchorMeasure`, `CheckpointMeasure`, `EdgeProbe`,
-   `TransferProbe`) e usa `isConfident` per sapere quando cercare più lontano.
-2. **Piano** di inizio e fine (§5), scelte necessarie e avvisi del piano.
-3. **Costruzione** con mkvmerge: intermedio e unione finale (§6).
-4. **Verifiche** dopo il merge (§9.5).
-5. **Report** e **riga di comando** (§10–11).
+1. **Piano** di inizio e fine (§5), scelte necessarie e avvisi del piano. Parte
+   dai confini del materiale in comune e dallo S definitivo della decisione, e
+   usa `mainItalianTrack` per la traccia principale (§8).
+2. **Costruzione** con mkvmerge: intermedio e unione finale (§6).
+3. **Verifiche** dopo il merge (§9.5).
+4. **Report** e **riga di comando** (§10–11). Il report unisce gli ingressi, la
+   misura (`Measurement`: coppie provate, posizioni richieste e reali, byte
+   letti) e la decisione.
 
 ## Test
 
@@ -50,11 +51,18 @@ In ordine di sviluppo indicativo (fase 1, studio §15):
   `npm test`.
 - `test/docs.test.ts` tiene la documentazione allineata al codice
   (vedi [CONTRIBUTING.md](../CONTRIBUTING.md#documentazione)).
-- `test/inputs.test.ts`, `test/audio.test.ts` e `test/tools.test.ts` usano
-  ffmpeg, ffprobe e mkvtoolnix veri: generano piccoli MKV in una cartella
-  temporanea (`test/helpers/mkv.ts`) e la cancellano alla fine. La CI li
-  installa.
+- `test/inputs.test.ts`, `test/audio.test.ts`, `test/measure.test.ts` e
+  `test/tools.test.ts` usano ffmpeg, ffprobe e mkvtoolnix veri: generano
+  piccoli MKV in una cartella temporanea (`test/helpers/mkv.ts`) e la
+  cancellano alla fine. La CI li installa.
 - `test/audio.test.ts` misura dove cade ogni finestra confrontandola con una
   lettura di riferimento (`test/helpers/correlate.ts`): spostamenti noti con
   `mkvmerge --sync`, finestre dopo i fotogrammi chiave, AC3, E-AC3, FLAC,
   TrueHD e DTS (studio §15, 1d).
+- `test/correlation.test.ts` prova la correlazione su segnali sintetici, senza
+  file: ritardi con il decimale, contenuto ripetitivo, silenzio, stiramento.
+- `test/measure.test.ts` misura coppie di MKV di 120 s generati al volo
+  (studio §15, 1a e 1b): spostamenti con `--sync`, code e tagli con `--split`
+  su intermedi senza video, intro diverse, silenzi, remix, velocità diverse,
+  contenuto ripetitivo. Usa una taratura con finestre e intervallo di ricerca
+  più corti, perché i file durano due minuti.
