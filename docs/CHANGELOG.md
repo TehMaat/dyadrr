@@ -4,6 +4,34 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.6.0] - 2026-10-18
+
+### Aggiunto
+- Libreria: piano di inizio e fine (`planMerge`, funzione pura, e `planPair`).
+  `analyzePair` lo calcola per ogni coppia idonea, con le scelte indicate
+  (`choices`), dallo spostamento definitivo e dai confini del materiale in
+  comune
+- Casi all'inizio e alla fine: il riferimento o il donatore hanno più intro o
+  più coda, intro e code diverse (oltre 1 s fuori dal materiale in comune),
+  punti di taglio, intervallo in cui l'italiano è presente, tratti senza
+  italiano
+- Scelte necessarie per la coppia, con l'effetto di ogni valore: intervallo
+  dell'italiano, tracce prese, PGS italiani del riferimento tenuti, avvisi.
+  `--tail` non serve con code diverse e `--edge-mismatch drop`
+- Tracce italiane: ruolo stimato di ogni traccia audio (principale, commento o
+  audiodescrizione, altra) con il motivo; PGS presi; forced riconosciuti dal
+  flag, dal nome o dai pochi blocchi rispetto alla traccia più grande della
+  stessa lingua, anche nel riferimento
+- Avvisi del piano: `ITALIAN_TRACKS_SKIPPED`, `REFERENCE_HAS_ITALIAN_SUBS`,
+  `ITALIAN_SUBS_NOT_PGS`, `NO_FORCED_ITALIAN_SUBS`, `SDR_SUBS_ON_HDR`,
+  `INTRO_MISMATCH`, `OUTRO_MISMATCH`, `LONG_GAP_WITHOUT_ITALIAN`,
+  `TAIL_EXCESS_KEPT` e `ABRUPT_START`, con il livello dell'italiano letto nei
+  250 ms dopo ogni possibile taglio iniziale
+- Taratura (versione 4 del file): `longGapWithoutItalianMs` (10 min),
+  `abruptStartDbfs` (−40 dBFS) e `forcedSubsFraction` (15%), tutti
+  provvisori, con i loro limiti
+- Studio di fattibilità 0.8: metodo del piano, parametri e costanti
+
 ## [0.5.0] - 2026-10-18
 
 ### Aggiunto

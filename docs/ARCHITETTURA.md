@@ -29,21 +29,22 @@ Il test `test/docs.test.ts` controlla che questa tabella elenchi tutti i file
 | `src/inputs.ts` | Ingressi: tracce da mkvmerge -J, framerate, HDR e tag statistici da ffprobe, impronta, integrità; `INPUT_UNREADABLE` e `INPUT_BUSY`. Danno alla decisione i fatti di ogni file (`FileFacts`) e al report i dati di §11.2, punto 2. Commenti e audiodescrizioni, traccia italiana principale | §3.1–3.2, §4.2, §4.8, §8, §10, §11.2 |
 | `src/audio.ts` | Lettura delle finestre audio con ffmpeg: timestamp non ribasati, pre-roll di 2 s senza il taglio di ffmpeg dopo `-ss`, taglio sui timestamp decodificati, inizio reale da `ashowinfo`, buchi oltre 2 ms riempiti; segnale a 8 kHz con passa-basso a 3 kHz, centrale, L+R (`analysisMix`) o (L − R)/2, senza DRC; più tracce nella stessa lettura; energia in dBFS e byte letti. Una finestra con meno del 90% dei campioni attesi è `INPUT_UNREADABLE` | §4.2–4.3, §4.8, §11.2 |
 | `src/correlation.ts` | Correlazione su campioni, funzioni pure: FFT, ricerca a blocchi con GCC-PHAT nella banda di analisi, rifinitura NCC con parabola, somiglianza con interpolazione sinc, unicità sull'NCC fuori dalla zona di esclusione; stiramento per la diagnosi di velocità | §4.2, §4.4 |
-| `src/measure.ts` | Misura: coppie di tracce (`candidatePairs`), ancore con diagnosi di velocità, confini del materiale in comune, punti di conferma con spostamento sul contenuto e punti aggiunti, ricerche oltre i confini, controllo di trasferimento; dà alla decisione `AnchorMeasure`, `CheckpointMeasure`, `EdgeProbe` e `TransferProbe` (`decisionMeasures`). `analyzePair` unisce controlli strutturali, misura e decisione | §4.2–4.7, §9.2, §11.2 |
+| `src/measure.ts` | Misura: coppie di tracce (`candidatePairs`), ancore con diagnosi di velocità, confini del materiale in comune, punti di conferma con spostamento sul contenuto e punti aggiunti, ricerche oltre i confini, controllo di trasferimento; dà alla decisione `AnchorMeasure`, `CheckpointMeasure`, `EdgeProbe` e `TransferProbe` (`decisionMeasures`). `analyzePair` unisce controlli strutturali, misura, decisione e, per una coppia idonea, il piano | §4.2–4.7, §9.2, §11.2 |
+| `src/plan.ts` | Piano di inizio e fine: casi all'inizio e alla fine, intro e code diverse, punti di taglio, intervallo dell'italiano; scelte necessarie con l'effetto di ogni valore; tracce audio italiane prese con il ruolo stimato, PGS presi e forced (`classifySubtitles`); avvisi del piano. `planMerge` è una funzione pura; `planPair` vi aggiunge il livello dell'italiano nei punti di taglio iniziale (`ABRUPT_START`) | §5, §7, §8, §10.1, §11.2 |
 | `src/decision.ts` | Decisione: funzione pura dalle misure e dalla taratura a decisione, controlli, motivi, avvisi, S definitivo, deriva, forma della contraddizione e copertura; `checkStructure` per i soli controlli strutturali, prima di misurare | §4.4–4.7, §9.3–9.4, §9.6 |
 
 ## Moduli previsti
 
 In ordine di sviluppo indicativo (fase 1, studio §15):
 
-1. **Piano** di inizio e fine (§5), scelte necessarie e avvisi del piano. Parte
-   dai confini del materiale in comune e dallo S definitivo della decisione, e
-   usa `mainItalianTrack` per la traccia principale (§8).
-2. **Costruzione** con mkvmerge: intermedio e unione finale (§6).
-3. **Verifiche** dopo il merge (§9.5).
-4. **Report** e **riga di comando** (§10–11). Il report unisce gli ingressi, la
+1. **Costruzione** con mkvmerge: intermedio e unione finale (§6). Parte dal
+   piano (`Plan`: punti di taglio, tracce prese, forced); ordine delle tracce,
+   flag e sottotitoli persi ai tagli (`SUBTITLES_DROPPED_AT_CUT`) sono suoi.
+2. **Verifiche** dopo il merge (§9.5).
+3. **Report** e **riga di comando** (§10–11). Il report unisce gli ingressi, la
    misura (`Measurement`: coppie provate, posizioni richieste e reali, byte
-   letti) e la decisione.
+   letti), la decisione e il piano, con gli avvisi di decisione e piano in un
+   solo elenco.
 
 ## Test
 
@@ -65,4 +66,7 @@ In ordine di sviluppo indicativo (fase 1, studio §15):
   (studio §15, 1a e 1b): spostamenti con `--sync`, code e tagli con `--split`
   su intermedi senza video, intro diverse, silenzi, remix, velocità diverse,
   contenuto ripetitivo. Usa una taratura con finestre e intervallo di ricerca
-  più corti, perché i file durano due minuti.
+  più corti, perché i file durano due minuti. Sugli stessi file prova anche il
+  piano: tagli, intro diversa, coda in più, livello nel punto di taglio.
+- `test/plan.test.ts` prova il piano su ingressi sintetici, senza file: casi
+  di inizio e fine, scelte e loro effetto, tracce prese, forced, avvisi.

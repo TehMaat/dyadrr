@@ -187,7 +187,10 @@ const unreadable = (path: string, why: string) => new DyadrrError('INPUT_UNREADA
  * del file (§4.3). Mai dalla fine letta in coda: è quella che la finestra deve
  * controllare, e in un file troncato i tag, scritti in fondo, mancano.
  */
-export function trackSpan(input: InputFile, track: InputTrack): { start: number; end: number } {
+export function trackSpan(
+  input: Pick<InputFile, 'startTimeMs' | 'durationMs'>,
+  track: Pick<InputTrack, 'startMs' | 'endMs' | 'statistics'>,
+): { start: number; end: number } {
   const start = track.startMs ?? input.startTimeMs ?? 0;
   if (track.statistics?.durationMs != null) return { start, end: start + track.statistics.durationMs };
   if (input.durationMs !== null) return { start, end: (input.startTimeMs ?? 0) + input.durationMs };

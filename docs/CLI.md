@@ -1,7 +1,8 @@
 # Riga di comando
 
 > **Stato:** la riga di comando non esiste ancora. La libreria legge e valida
-> già `--original-language` e le scelte. Questa pagina descrive l'interfaccia
+> già `--original-language` e le scelte, e calcola quali scelte servono per una
+> coppia con l'effetto di ogni valore. Questa pagina descrive l'interfaccia
 > prevista (studio §10) e, per ogni voce, se è già implementata.
 
 ## Comandi
@@ -16,7 +17,7 @@ con audio italiano) e quale il **riferimento** (studio §3.2).
 
 | Comando | Cosa fa | Stato |
 |---|---|---|
-| `analyze` | Misura e controlli. Scrive solo il report, nessun MKV | previsto; misura e decisione sono già nella libreria (`analyzePair`), senza report |
+| `analyze` | Misura e controlli. Scrive solo il report, nessun MKV | previsto; misura, decisione e piano sono già nella libreria (`analyzePair`), senza report |
 | `merge` | Analisi, scrittura del file finale, verifica | previsto |
 
 ## Opzioni
@@ -71,6 +72,14 @@ fa in uno di questi modi, in ordine di precedenza:
   `analyze` elenca le scelte necessarie con l'effetto di ogni valore, e per
   ognuna il valore deciso e la sua origine (`option`, `env`, `prompt`)
   oppure "in sospeso".
+- L'effetto di un valore è l'intervallo in cui l'italiano è presente, le
+  tracce audio italiane prese, i PGS italiani del riferimento tenuti e gli
+  avvisi che scatterebbero. Quello che dipende da un'altra scelta in sospeso
+  resta in sospeso.
+- `--tail` non serve con code diverse e `--edge-mismatch drop`: il taglio
+  cade già sul confine del materiale in comune, prima della fine del video.
+- Un'intro o una coda diversa, o un eccesso in coda, più corti di 1 s non
+  contano: nessuna scelta. È la precisione con cui si trovano i confini.
 - `merge` con una scelta necessaria in sospeso:
   - in un terminale interattivo la chiede (previsto);
   - altrimenti si ferma prima di scrivere con `CHOICE_REQUIRED` (implementato
@@ -80,7 +89,8 @@ fa in uno di questi modi, in ordine di precedenza:
   d'ambiente sovrascritta da un'opzione valida.
 - Una variabile d'ambiente vuota vale come non impostata.
 
-**Stato:** lettura, validazione e precedenza implementate; richiesta
+**Stato:** lettura, validazione e precedenza implementate; scelte necessarie
+ed effetto di ogni valore implementati nel piano (`src/plan.ts`); richiesta
 interattiva prevista.
 
 ## Uscita

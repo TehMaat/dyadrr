@@ -40,6 +40,9 @@ taratura e ai limiti del codice.
 | Frazione iniziale e finale con un punto coerente | `edgeFraction` | `0.1` | `0.02` – `0.25` | no | §9.3 |
 | Copertura minima | `minCoverage` | `0.9` | `0.5` – `1` | no | §4.6, §9.3 |
 | Soglia di `MANY_INCONCLUSIVE` | `manyInconclusiveFraction` | `0.1` | `0.01` – `0.5` | no | §9.3 |
+| Buco senza italiano all'inizio o alla fine oltre cui scatta `LONG_GAP_WITHOUT_ITALIAN` (ms) | `longGapWithoutItalianMs` | `600000` | `60000` – `1800000` | sì | §5 |
+| Livello dopo il taglio iniziale oltre cui scatta `ABRUPT_START` (dBFS) | `abruptStartDbfs` | `-40` | `-70` – `-10` | sì | §5 |
+| Forced: meno di questa frazione dei blocchi della traccia più grande della stessa lingua | `forcedSubsFraction` | `0.15` | `0.01` – `0.5` | sì | §7 |
 | Margine di bitrate per `VIDEO_QUALITY_UNCERTAIN` | `bitrateMargin` | `0.2` | `0.05` – `1` | no | §3.2 |
 | Differenza relativa massima tra i framerate | `fpsRelativeTolerance` | `0.0001` | `0.000001` – `0.0005` | no | §9.2 |
 | Tolleranza del controllo di integrità (ms) | `integrityToleranceMs` | `1000` | `50` – `5000` | sì | §4.8 |
@@ -55,9 +58,10 @@ Due limiti legano due parametri, e un file che non li rispetta è
 - `minConsistentCheckpoints` non sopra `maxCheckpointCount`: nessuna coppia
   potrebbe passare.
 
-Gli altri parametri di §9.2 (soglie di `LONG_GAP_WITHOUT_ITALIAN` e
-`ABRUPT_START`, riconoscimento dei forced) entrano nel file insieme ai moduli
-che li usano.
+Il massimo di `forcedSubsFraction` resta sotto la metà: una traccia con metà
+dei blocchi della più grande non è "solo forzati". `longGapWithoutItalianMs`
+va tarato insieme a `minCoverage`: con una copertura minima alta, la coppia si
+rifiuta prima che un buco così lungo possa esserci (studio §5).
 
 ## Costanti del metodo
 
@@ -82,6 +86,14 @@ Lo stesso vale per le costanti della correlazione, in `src/measure.ts` (studio
 | Punti del controllo di trasferimento | 5 |
 | Parità tra due coppie di tracce | somiglianze entro 0,02 |
 | Rapporti della diagnosi di velocità | 1,001, 25/24, 25/23,976, nei due versi |
+
+Anche il piano di inizio e fine ha le sue costanti del metodo, in `src/plan.ts`
+(studio §5):
+
+| Costante | Valore |
+|---|---|
+| Intro e code diverse ed eccesso in coda più corti di così non contano (la precisione dei confini) | 1 s |
+| Tratto dopo il taglio iniziale su cui si misura il livello, il più alto tra centrale e L+R | 250 ms |
 
 ## Come si cambia un valore
 
