@@ -1,0 +1,24 @@
+{
+  "name": "dyadrr",
+  "version": "0.0.0",
+  "description": "Unisce l'audio italiano di un rip al video migliore di un altro, senza ricodificare",
+  "license": "MIT",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test \"build/test/**/*.test.js\""
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3"
+  }
+}
