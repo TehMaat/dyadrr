@@ -168,6 +168,8 @@ export interface AudioReading {
 
 export interface ReadWindowOptions {
   tools?: ToolPaths;
+  /** Interrompe ffmpeg: la lettura fallisce con l'errore dell'annullamento. */
+  signal?: AbortSignal;
 }
 
 /** Energia in dBFS: media dei quadrati dei campioni (§4.5). */
@@ -292,7 +294,7 @@ export async function readAudioWindow(
     '-filter_complex', chains.join(';'),
     ...plan.flatMap((_, i) => ['-map', `[o${i}]`, '-f', 'f32le', `pipe:${3 + i}`]),
   ];
-  const result = await runToolPiped(tools, 'ffmpeg', args, plan.length);
+  const result = await runToolPiped(tools, 'ffmpeg', args, plan.length, { signal: options.signal });
   if (result.exitCode !== 0) {
     const last = result.stderr.trim().split('\n').slice(-3).join(' / ');
     throw unreadable(path, `ffmpeg could not decode ${request.startMs}–${endMs} ms (exit code ${result.exitCode}): ${last}`);

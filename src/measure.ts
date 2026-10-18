@@ -19,6 +19,7 @@ import {
   isConfident,
   type AnchorMeasure,
   type CheckpointMeasure,
+  type CheckpointOutcome,
   type DecisionInput,
   type DecisionReport,
   type EdgeProbe,
@@ -134,8 +135,28 @@ export interface Measurement {
   bytesRead: { reference: number; donor: number };
 }
 
+/**
+ * Fasi dell'analisi per l'avanzamento (§11.1): ancore, confini, punti di
+ * conferma, ricerche oltre i confini, trasferimento, piano.
+ */
+export type AnalysisPhase = 'anchors' | 'edges' | 'checkpoints' | 'edge-probes' | 'transfer' | 'plan';
+
+export interface MeasureProgress {
+  phase: AnalysisPhase;
+  /** Prove fatte nella fase finora. */
+  done: number;
+  /** Prove previste; `null` dove non si sanno prima (confini, ricerche oltre i confini, piano). */
+  total: number | null;
+  /** Solo per i punti di conferma: quanti punti per esito, finora. */
+  outcomes?: Record<CheckpointOutcome, number>;
+}
+
 export interface MeasureOptions {
   tools?: ToolPaths;
+  /** Interrompe la lettura in corso: la misura fallisce con l'errore dell'annullamento. */
+  signal?: AbortSignal;
+  /** Ogni passo della misura, per l'avanzamento. */
+  onProgress?: (progress: MeasureProgress) => void;
 }
 
 // ---------------------------------------------------------------- segnali
@@ -174,7 +195,7 @@ const energy = (s: Signal | null) => (s && s.samples.length > 0 ? round2(energyD
 class Side {
   bytes = 0;
 
-  constructor(readonly file: InputFile, private readonly tools: ToolPaths) {}
+  constructor(readonly file: InputFile, private readonly tools: ToolPaths, private readonly signal?: AbortSignal) {}
 
   /** Tratto in cui tutte le tracce hanno audio (§4.3). */
   span(tracks: readonly InputTrack[]): { start: number; end: number } {
@@ -198,7 +219,7 @@ class Side {
       this.file,
       signals.map((s) => ({ trackId: s.track.id, mix: s.mix })),
       { startMs: from, durationMs: to - from },
-      { tools: this.tools },
+      { tools: this.tools, signal: this.signal },
     );
     this.bytes += reading.bytesRead ?? 0;
     return reading.windows.map((w) => ({ startMs: w.startMs, samples: w.samples }));
@@ -302,10 +323,12 @@ export async function measurePair(
   options: MeasureOptions = {},
 ): Promise<Measurement> {
   const tools = options.tools ?? DEFAULT_TOOLS;
-  const ref = new Side(files[roles.reference], tools);
-  const donor = new Side(files[roles.donor], tools);
+  const ref = new Side(files[roles.reference], tools, options.signal);
+  const donor = new Side(files[roles.donor], tools, options.signal);
   const v = cal.values;
   const tol = v.toleranceMs;
+  const progress = (phase: AnalysisPhase, done: number, total: number | null, outcomes?: MeasureProgress['outcomes']) =>
+    options.onProgress?.({ phase, done, total, ...(outcomes ? { outcomes } : {}) });
 
   const pairs = candidatePairs(ref.file, donor.file, measureLanguage);
   if (pairs.length === 0) {
@@ -328,7 +351,8 @@ export async function measurePair(
   let chosen: number | null = null;
   let firstReading: { needles: Map<string, Signal>; hays: Map<string, Signal | null> } | null = null;
 
-  for (const position of positions) {
+  progress('anchors', 0, positions.length);
+  for (const [n, position] of positions.entries()) {
     const active = chosen === null ? pairs.map((_, i) => i) : [chosen];
     const unique = (list: TrackSignal[]) => [...new Map(list.map((s) => [key(s), s])).values()];
     const refSignals = unique(active.map((i) => ({ track: pairs[i]!.reference, mix: pairs[i]!.mix })));
@@ -356,6 +380,7 @@ export async function measurePair(
       perPair[i]!.push({ positionMs: round3(needle.startMs), ...(m ?? { offsetMs: 0, ncc: 0, ratio: 0 }) });
       if (chosen === null) trials.push({ ...pairIds(pairs[i]!), positionMs: round3(needle.startMs), match: m });
     }
+    progress('anchors', n + 1, positions.length);
     if (chosen === null) {
       const confident = active.filter((i) => isConfident(matches.get(i), cal));
       if (confident.length > 0) chosen = bestPair(confident, pairs, (i) => matches.get(i)!.ncc);
@@ -473,7 +498,9 @@ export async function measurePair(
   // strettamente dentro l'intervallo, così ogni prova lo restringe; se intorno
   // è tutto muto, il tratto muto resta fuori dal materiale in comune.
   type Verdict = { kind: 'match' | 'mismatch' | 'silent'; at: number };
+  let edgeTests = 0;
   const boundaryTest = async (side: 'start' | 'end', m: number, len: number, lo: number, hi: number): Promise<Verdict> => {
+    progress('edges', edgeTests++, null);
     const startOf = (at: number) => (side === 'start' ? at : at - len);
     let r = await localCheck(startOf(m), len);
     let at = m;
@@ -556,10 +583,17 @@ export async function measurePair(
   };
 
   const checkpoints: MeasuredCheckpoint[] = [];
+  const checkpointProgress = () => {
+    const outcomes = { consistent: 0, inconclusive: 0, contradictory: 0, unmatched: 0 };
+    for (const c of checkpoints) outcomes[outcome(c)]++;
+    progress('checkpoints', checkpoints.length, Math.max(v.checkpointCount, checkpoints.length), outcomes);
+  };
+  checkpointProgress();
   const slot = (endMs - startMs) / v.checkpointCount;
   for (let i = 0; i < v.checkpointCount; i++) {
     const x = clamp(startMs + (i + 0.5) * slot - Lc / 2, startMs, endMs - Lc);
     checkpoints.push(await measureCheckpoint(x, Math.min(CONTENT_SHIFT_MS, slot / 2), false));
+    checkpointProgress();
   }
 
   // Punti aggiunti nei tratti scoperti (§4.5, punto 7): finché la
@@ -581,6 +615,7 @@ export async function measurePair(
     if (gap === null) break;
     const point = await measureCheckpoint((gap[0] + gap[1]) / 2, Math.min(CONTENT_SHIFT_MS, (gap[1] - gap[0]) / 4), true);
     checkpoints.push(point);
+    checkpointProgress();
     if (outcome(point) !== 'consistent') tried.add(`${gap[0]}-${gap[1]}`);
   }
   checkpoints.sort((a, b) => a.positionMs - b.positionMs);
@@ -591,6 +626,7 @@ export async function measurePair(
   // 4. Oltre i confini (§4.6): il riferimento prima del confine iniziale e dopo
   // quello finale, cercato nel donatore a qualsiasi spostamento.
   const edgeProbes: EdgeProbe[] = [];
+  progress('edge-probes', 0, null);
   for (const side of ['start', 'end'] as const) {
     const outside = side === 'start' ? startMs - refSpan.start : refSpan.end - endMs;
     if (outside < EDGE_WINDOW_MS) continue;
@@ -603,6 +639,7 @@ export async function measurePair(
       const windows = await ref.read([refSignal], x, x + len);
       if (!windows) continue;
       edgeProbes.push({ side, positionMs: round3(windows[0]!.startMs), match: await wideSearch(windows[0]!) });
+      progress('edge-probes', edgeProbes.length, null);
     }
   }
 
@@ -611,8 +648,10 @@ export async function measurePair(
   const italian = mainItalianTrack(donor.file.audio);
   if (italian === null) throw new DyadrrError('INTERNAL', 'the donor has no Italian audio track');
   const transferAt = transferPositions(startMs, endMs, Lc).map((x) => x - S);
+  progress('transfer', 0, transferAt.length);
   const transferProbes = (await transferProbesIn(donor, pair.donor, italian, transferAt, cal))
     .map((probe) => ({ ...probe, positionMs: round3(probe.positionMs + S) }));
+  progress('transfer', transferProbes.length, transferAt.length);
 
   return result({
     anchorOffsetMs: S,
@@ -689,7 +728,7 @@ export async function measureTransfer(
   cal: Calibration,
   options: MeasureOptions = {},
 ): Promise<{ probes: MeasuredTransferProbe[]; bytesRead: number }> {
-  const side = new Side(file, options.tools ?? DEFAULT_TOOLS);
+  const side = new Side(file, options.tools ?? DEFAULT_TOOLS, options.signal);
   const track = (id: number) => {
     const t = file.audio.find((x) => x.id === id);
     if (!t) throw new DyadrrError('INTERNAL', `${file.path}: no audio track with ID ${id}`);
@@ -743,6 +782,7 @@ export async function analyzePair(
   if (report.decision !== 'eligible') return { report, measurement, plan: null };
   // Il piano parte dallo S definitivo, intero, e dai confini del materiale in comune.
   if (!report.offset || !measurement.boundaries) throw new DyadrrError('INTERNAL', 'eligible pair without offset or boundaries');
+  options.onProgress?.({ phase: 'plan', done: 0, total: null });
   const plan = await planPair(
     files[roles.reference],
     files[roles.donor],

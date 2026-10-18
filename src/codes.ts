@@ -114,3 +114,17 @@ export class DyadrrError extends Error {
     this.code = code;
   }
 }
+
+/**
+ * L'annullamento (`CANCELLED`, uscita 50): il motivo con cui si interrompe
+ * l'`AbortSignal` dell'analisi o del merge quando arriva un segnale di stop
+ * (studio §10). Non è un errore: il report dice `cancelled`.
+ */
+export class CancelledError extends Error {
+  readonly code = 'CANCELLED' as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'CancelledError';
+  }
+}

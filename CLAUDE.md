@@ -13,8 +13,8 @@ studio (con una voce nella cronologia, §20).
 - **CHANGELOG:** sezione `## [x.y.z] - AAAA-MM-GG` in cima a
   `docs/CHANGELOG.md`.
 - **Documentazione:** aggiornata nella stessa PR secondo la tabella
-  "Documentazione" di `CONTRIBUTING.md` (CLI, codici, architettura, stato
-  delle voci previste, studio).
+  "Documentazione" di `CONTRIBUTING.md` (CLI, report, codici, architettura,
+  stato delle voci previste, studio).
 - **Test:** `npm test` deve passare; comprende `test/docs.test.ts`, che
   confronta la documentazione con il codice.
 

@@ -8,7 +8,7 @@ import { DyadrrError } from './codes.js';
 import type { Warning } from './decision.js';
 import type { InputFile, InputTrack, TrackType } from './inputs.js';
 import type { Plan, PlannedSubtitleTrack } from './plan.js';
-import { DEFAULT_TOOLS, runTool, runToolStreaming, type ToolName, type ToolPaths, type ToolResult } from './tools.js';
+import { DEFAULT_TOOLS, runTool, runToolStreaming, type RunOptions, type ToolName, type ToolPaths, type ToolResult } from './tools.js';
 
 // Costruzione del file finale (studio §6, §7, §13): dal piano ai comandi di
 // mkvmerge, e di ffmpeg per la coda delle tracce FLAC, eseguiti in una
@@ -560,7 +560,7 @@ export function subtitleOnScreen(packets: readonly Packet[], atMs: number): numb
   return start;
 }
 
-async function probePackets(donor: InputFile, track: InputTrack, fromMs: number, toMs: number, tools: ToolPaths): Promise<Packet[]> {
+async function probePackets(donor: InputFile, track: InputTrack, fromMs: number, toMs: number, tools: ToolPaths, run: RunOptions): Promise<Packet[]> {
   if (track.streamIndex === null) {
     throw new DyadrrError('INPUT_UNREADABLE', `${donor.path}: track ${track.id} has no ffprobe stream to read`);
   }
@@ -569,7 +569,7 @@ async function probePackets(donor: InputFile, track: InputTrack, fromMs: number,
     '-v', 'error', '-select_streams', String(track.streamIndex),
     '-read_intervals', `${seconds(fromMs)}%${seconds(toMs)}`,
     '-show_entries', 'packet=pts_time,data', '-show_data', '-of', 'json', donor.path,
-  ]);
+  ], run);
   try {
     if (result.exitCode !== 0) throw new Error();
     const json = JSON.parse(result.stdout) as { packets?: { pts_time?: string; data?: string }[] };
@@ -590,8 +590,9 @@ async function probePackets(donor: InputFile, track: InputTrack, fromMs: number,
  * Errori: `INPUT_UNREADABLE` (ffprobe fallisce, o una traccia TrueHD senza
  * punto di sincronizzazione dopo il taglio), `TOOL_MISSING`.
  */
-export async function readCutFacts(donor: InputFile, plan: Plan, options: { tools?: ToolPaths } = {}): Promise<CutFacts> {
+export async function readCutFacts(donor: InputFile, plan: Plan, options: { tools?: ToolPaths } & RunOptions = {}): Promise<CutFacts> {
   const tools = options.tools ?? DEFAULT_TOOLS;
+  const run = { signal: options.signal };
   const S = plan.offsetMs;
   const { startCutMs, endCutMs, endBeforeVideo } = cuts(plan);
   const { audio, pgs } = takenTracks(donor, plan);
@@ -601,7 +602,7 @@ export async function readCutFacts(donor: InputFile, plan: Plan, options: { tool
 
   for (const { track } of audio) {
     if (!isTrueHd(track) || !cutAtStart(donor, track, cutDonor)) continue;
-    const packets = await probePackets(donor, track, cutDonor! - TRUEHD_SYNC_SEARCH_MS, cutDonor! + TRUEHD_SYNC_SEARCH_MS, tools);
+    const packets = await probePackets(donor, track, cutDonor! - TRUEHD_SYNC_SEARCH_MS, cutDonor! + TRUEHD_SYNC_SEARCH_MS, tools, run);
     const at = firstTrueHdSync(packets, cutDonor!);
     if (at === null) {
       throw new DyadrrError('INPUT_UNREADABLE', `${donor.path}: TrueHD track ${track.id} has no sync point within ${TRUEHD_SYNC_SEARCH_MS} ms after the cut at ${cutDonor} ms`);
@@ -615,7 +616,7 @@ export async function readCutFacts(donor: InputFile, plan: Plan, options: { tool
   for (const { track } of pgs) {
     for (const { edge, atMs } of edges) {
       if (edge === 'start' && !cutAtStart(donor, track, cutDonor)) continue;
-      const packets = await probePackets(donor, track, atMs - SUBTITLE_LOOKBACK_MS, atMs, tools);
+      const packets = await probePackets(donor, track, atMs - SUBTITLE_LOOKBACK_MS, atMs, tools, run);
       const start = subtitleOnScreen(packets, atMs);
       if (start !== null) subtitlesAtCuts.push({ trackId: track.id, edge, startMs: start });
     }
@@ -758,6 +759,24 @@ async function checkTempDir(outDir: string, tempDir: string | undefined): Promis
   return dir;
 }
 
+/**
+ * Il file finale e la cartella dei temporanei si possono usare (§6.4): il
+ * file non esiste, la sua cartella è scrivibile, i temporanei stanno in una
+ * cartella che inizia con un punto, sullo stesso disco. `buildMerge` lo
+ * controlla prima di scrivere; la riga di comando anche prima dell'analisi,
+ * che costa gigabyte di letture (§10).
+ *
+ * Errori: `OUTPUT_EXISTS`, `OUTPUT_NOT_WRITABLE`, `BAD_ARGUMENTS`.
+ */
+export async function checkBuildTarget(
+  output: string,
+  tempDir?: string,
+): Promise<{ output: string; outDir: string; tempDir: string }> {
+  const resolved = resolve(output);
+  const outDir = await checkOutput(resolved);
+  return { output: resolved, outDir, tempDir: await checkTempDir(outDir, tempDir) };
+}
+
 // ---------------------------------------------------------------- costruzione
 
 /** mkvmerge, con `--split`, può aggiungere "-001" al nome. */
@@ -786,9 +805,7 @@ export async function buildMerge(request: BuildRequest, options: BuildOptions = 
   const tools = options.tools ?? DEFAULT_TOOLS;
   const { reference, donor, plan } = request;
   assertNoPendingChoices(plan.choices);
-  const output = resolve(request.output);
-  const outDir = await checkOutput(output);
-  const tempDir = await checkTempDir(outDir, request.tempDir);
+  const { output, outDir, tempDir } = await checkBuildTarget(request.output, request.tempDir);
   const defaultTempDir = request.tempDir === undefined;
 
   // Gli ingressi non devono essere cambiati dall'analisi.
@@ -809,7 +826,7 @@ export async function buildMerge(request: BuildRequest, options: BuildOptions = 
     );
   }
 
-  const facts = await readCutFacts(donor, plan, { tools });
+  const facts = await readCutFacts(donor, plan, { tools, signal: options.signal });
   try {
     await mkdir(tempDir, { recursive: true });
   } catch (e) {

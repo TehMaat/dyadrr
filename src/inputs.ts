@@ -6,7 +6,7 @@ import { DyadrrError } from './codes.js';
 import type { FileFacts, HdrFormat, VideoFacts } from './decision.js';
 import { isItalian, type TrackLanguageFields } from './languages.js';
 import { TAIL_MAX_BYTES, scanTail, type TailScan } from './matroska.js';
-import { DEFAULT_TOOLS, runTool, type ToolPaths } from './tools.js';
+import { DEFAULT_TOOLS, runTool, type RunOptions, type ToolPaths } from './tools.js';
 
 // Ingressi (studio §3.1–3.2, §4.8, §11.2): dai due MKV ai fatti che servono
 // alla decisione (`FileFacts`) e ai dati del report. La struttura viene da
@@ -152,6 +152,8 @@ export interface ReadInputOptions {
    * durante la lettura.
    */
   ownOutput?: boolean;
+  /** Interrompe mkvmerge e ffprobe: la lettura fallisce con l'errore dell'annullamento. */
+  signal?: AbortSignal;
 }
 
 // ---------------------------------------------------------------- ffprobe
@@ -305,8 +307,8 @@ async function statFile(path: string) {
   }
 }
 
-async function identify(path: string, tools: ToolPaths): Promise<MkvmergeIdentification> {
-  const result = await runTool(tools, 'mkvmerge', ['-J', path]);
+async function identify(path: string, tools: ToolPaths, run: RunOptions): Promise<MkvmergeIdentification> {
+  const result = await runTool(tools, 'mkvmerge', ['-J', path], run);
   let id: MkvmergeIdentification;
   try {
     id = JSON.parse(result.stdout) as MkvmergeIdentification;
@@ -320,8 +322,8 @@ async function identify(path: string, tools: ToolPaths): Promise<MkvmergeIdentif
   return id;
 }
 
-async function probe(path: string, tools: ToolPaths, args: readonly string[]): Promise<Record<string, unknown>> {
-  const result = await runTool(tools, 'ffprobe', ['-v', 'error', '-of', 'json', ...args, path]);
+async function probe(path: string, tools: ToolPaths, args: readonly string[], run: RunOptions): Promise<Record<string, unknown>> {
+  const result = await runTool(tools, 'ffprobe', ['-v', 'error', '-of', 'json', ...args, path], run);
   try {
     if (result.exitCode !== 0) throw new Error();
     return JSON.parse(result.stdout) as Record<string, unknown>;
@@ -371,10 +373,11 @@ export async function readInput(file: string, options: ReadInputOptions): Promis
   }
 
   // 3. Struttura da mkvmerge -J, flussi da ffprobe.
-  const id = await identify(path, tools);
+  const run = { signal: options.signal };
+  const id = await identify(path, tools, run);
   const mkvTracks = (id.tracks ?? []).filter((t) => TRACK_TYPES[t.type] !== undefined);
   const container = id.container?.properties ?? {};
-  const ff = await probe(path, tools, ['-show_streams']);
+  const ff = await probe(path, tools, ['-show_streams'], run);
   const streams = (ff.streams ?? []) as FfprobeStream[];
   const paired = pairStreams(mkvTracks, streams);
 
@@ -419,7 +422,7 @@ export async function readInput(file: string, options: ReadInputOptions): Promis
       '-select_streams', String(videoStream.index),
       '-read_intervals', '%+#1',
       '-show_entries', 'frame=side_data_list',
-    ])
+    ], run)
     : {};
   const firstFrame = ((frames.frames ?? []) as { side_data_list?: FfprobeSideData[] }[])[0];
   const { hdr, dvProfile } = hdrFormat(videoStream?.color_transfer, videoStream?.side_data_list, firstFrame?.side_data_list);

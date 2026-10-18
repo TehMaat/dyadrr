@@ -6,7 +6,7 @@ import { transferResult, type Warning } from './decision.js';
 import { readInput, type InputFile, type InputTrack } from './inputs.js';
 import { measureTransfer, transferPositions, type MeasuredTransferProbe } from './measure.js';
 import type { Plan } from './plan.js';
-import { DEFAULT_TOOLS, runTool, type ToolPaths } from './tools.js';
+import { DEFAULT_TOOLS, runTool, type RunOptions, type ToolPaths } from './tools.js';
 
 // Verifiche dopo il merge (studio §9.5): il file costruito da `buildMerge`,
 // ancora nella cartella di lavoro, deve essere quello previsto prima di essere
@@ -150,14 +150,17 @@ const VIDEO_FIELDS = [
   'sample_aspect_ratio', 'display_aspect_ratio', 'r_frame_rate', 'avg_frame_rate', 'side_data_list',
 ] as const;
 
+/** Programmi e annullamento delle letture. */
+type Run = RunOptions & { tools: ToolPaths };
+
 async function json(
-  tools: ToolPaths,
+  run: Run,
   tool: 'mkvmerge' | 'ffprobe',
   args: readonly string[],
   fail: (why: string) => Error,
   textIds = false,
 ) {
-  const result = await runTool(tools, tool, args);
+  const result = await runTool(run.tools, tool, args, run);
   try {
     if (tool === 'ffprobe' && result.exitCode !== 0) throw new Error();
     // Gli ID dei capitoli sono interi a 64 bit: restano testo.
@@ -167,14 +170,14 @@ async function json(
   }
 }
 
-async function probe(file: InputFile, video: InputTrack, tools: ToolPaths, fail: (why: string) => Error): Promise<Probed> {
-  const id = await json(tools, 'mkvmerge', ['-J', file.path], fail);
+async function probe(file: InputFile, video: InputTrack, run: Run, fail: (why: string) => Error): Promise<Probed> {
+  const id = await json(run, 'mkvmerge', ['-J', file.path], fail);
   const tracks = (id.tracks ?? []) as { id: number; properties?: { codec_private_data?: string } }[];
   const container = (id.container ?? {}) as { properties?: { title?: string } };
-  const chapters = await json(tools, 'ffprobe', ['-v', 'error', '-show_chapters', '-of', 'json', file.path], fail, true);
+  const chapters = await json(run, 'ffprobe', ['-v', 'error', '-show_chapters', '-of', 'json', file.path], fail, true);
   if (video.streamIndex === null) throw fail(`video track ${video.id} cannot be matched to an ffprobe stream`);
-  const stream = await json(tools, 'ffprobe', ['-v', 'error', '-select_streams', String(video.streamIndex), '-show_streams', '-of', 'json', file.path], fail);
-  const frame = await json(tools, 'ffprobe', [
+  const stream = await json(run, 'ffprobe', ['-v', 'error', '-select_streams', String(video.streamIndex), '-show_streams', '-of', 'json', file.path], fail);
+  const frame = await json(run, 'ffprobe', [
     '-v', 'error', '-select_streams', String(video.streamIndex), '-read_intervals', '%+#1',
     '-show_entries', 'frame=side_data_list', '-of', 'json', file.path,
   ], fail);
@@ -192,8 +195,8 @@ async function probe(file: InputFile, video: InputTrack, tools: ToolPaths, fail:
 }
 
 /** Pacchetti di ogni flusso, contati da ffprobe: legge tutto il file. Solo se mancano i tag statistici. */
-async function countPackets(file: InputFile, tools: ToolPaths, fail: (why: string) => Error): Promise<Map<number, number>> {
-  const result = await json(tools, 'ffprobe', [
+async function countPackets(file: InputFile, run: Run, fail: (why: string) => Error): Promise<Map<number, number>> {
+  const result = await json(run, 'ffprobe', [
     '-v', 'error', '-count_packets', '-show_entries', 'stream=index,nb_read_packets', '-of', 'json', file.path,
   ], fail);
   return new Map(((result.streams ?? []) as { index: number; nb_read_packets?: string }[])
@@ -246,6 +249,7 @@ export async function verifyBuild(
 
 async function verify(request: VerifyRequest, build: Build, cal: Calibration, options: VerifyOptions): Promise<Verification> {
   const tools = options.tools ?? DEFAULT_TOOLS;
+  const run: Run = { tools, signal: options.signal };
   const { reference, plan } = request;
   const step = () => options.signal?.throwIfAborted();
   const outputFail = (why: string) => new OutputUnreadable(why);
@@ -254,7 +258,7 @@ async function verify(request: VerifyRequest, build: Build, cal: Calibration, op
   step();
   let out: InputFile;
   try {
-    out = await readInput(build.file, { calibration: cal, tools, ownOutput: true });
+    out = await readInput(build.file, { calibration: cal, tools, ownOutput: true, signal: options.signal });
   } catch (e) {
     if (e instanceof DyadrrError && e.code !== 'TOOL_MISSING') throw outputFail(e.message);
     throw e;
@@ -263,8 +267,8 @@ async function verify(request: VerifyRequest, build: Build, cal: Calibration, op
   const refVideo = reference.tracks.find((t) => t.id === reference.video.trackId)!;
   const outVideo = out.tracks.find((t) => t.id === out.video.trackId)!;
   step();
-  const refProbe = await probe(reference, refVideo, tools, referenceFail);
-  const outProbe = await probe(out, outVideo, tools, outputFail);
+  const refProbe = await probe(reference, refVideo, run, referenceFail);
+  const outProbe = await probe(out, outVideo, run, outputFail);
 
   const checks: VerifyCheck[] = [];
   const add = (name: VerifyCheckName, details: string[], blocking = true) =>
@@ -319,7 +323,7 @@ async function verify(request: VerifyRequest, build: Build, cal: Calibration, op
     const o = outTrack(i);
     if (r.statistics?.frames != null && o.statistics?.frames != null) return [r.statistics.frames, o.statistics.frames];
     step();
-    counts ??= { reference: await countPackets(reference, tools, referenceFail), output: await countPackets(out, tools, outputFail) };
+    counts ??= { reference: await countPackets(reference, run, referenceFail), output: await countPackets(out, run, outputFail) };
     return [
       r.streamIndex === null ? null : counts.reference.get(r.streamIndex) ?? null,
       o.streamIndex === null ? null : counts.output.get(o.streamIndex) ?? null,
@@ -440,7 +444,7 @@ async function verify(request: VerifyRequest, build: Build, cal: Calibration, op
       outTrack(italianIndex).id,
       transferPositions(from, to, cal.values.checkpointWindowMs),
       cal,
-      { tools },
+      run,
     ).catch((err: unknown) => {
       if (err instanceof DyadrrError && err.code !== 'TOOL_MISSING') throw outputFail(err.message);
       throw err;

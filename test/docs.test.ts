@@ -6,6 +6,7 @@ import { join, relative, resolve } from 'node:path';
 import { ERROR_CODES, REFUSAL_CODES, WARNING_CODES, exitCodeFor } from '../src/codes.js';
 import { CHOICES, CHOICE_NAMES } from '../src/choices.js';
 import { CALIBRATION_LIMITS, CALIBRATION_NAMES, loadCalibration } from '../src/calibration.js';
+import { PROGRESS_PHASES, REPORT_FIELDS, REPORT_FORMAT } from '../src/report.js';
 
 // I test girano da build/test/.
 const ROOT = resolve(__dirname, '..', '..');
@@ -107,6 +108,16 @@ test('TARATURA.md riporta ogni parametro con valore, limiti e stato', () => {
     assert.equal(row[4], cal.provisional.includes(name) ? 'sì' : 'no', `provisional flag of ${name}`);
   }
   assert.equal(rows.length - 1, CALIBRATION_NAMES.length, 'one row per parameter (plus the header)');
+});
+
+test('REPORT.md riporta la versione del formato, i campi e le fasi dell\'avanzamento, in ordine', () => {
+  const doc = read('docs/REPORT.md');
+  assert.ok(doc.includes(`Versione del formato: **${REPORT_FORMAT}**`), 'format version');
+  const first = (rows: string[][]) => rows.map((r) => /^`([\w-]+)`$/.exec(r[0] ?? '')?.[1]).filter((c): c is string => c !== undefined);
+  assert.deepEqual(first(tableRows(doc, 'Campi')), [...REPORT_FIELDS]);
+  const progress = tableRows(doc, 'Avanzamento');
+  const phases = progress.slice(progress.findIndex((r) => r[0] === 'Fase') + 1);
+  assert.deepEqual(first(phases), [...PROGRESS_PHASES]);
 });
 
 test('ARCHITETTURA.md elenca esattamente i file di src/', () => {

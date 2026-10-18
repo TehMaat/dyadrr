@@ -4,6 +4,43 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.9.0] - 2026-10-18
+
+### Aggiunto
+- Riga di comando `dyadrr analyze` e `dyadrr merge` (eseguibile `dist/bin.js`):
+  - `merge` analizza, chiede o legge le scelte, costruisce, verifica e
+    consegna il file finale; `--output` e la cartella dei temporanei si
+    controllano prima di leggere gli ingressi;
+  - opzioni `--output`, `--report`, `--original-language`, `--temp-dir`,
+    `--expect`, `--progress json` e le quattro scelte, da opzione o da
+    variabile d'ambiente; `--help` e `--version`;
+  - su stdout solo il percorso del report; codici di uscita 0, 20, 30, 40, 50;
+  - argomenti sbagliati: `BAD_ARGUMENTS`, con il report comunque scritto
+- Report JSON, versione del formato 1 ([REPORT.md](REPORT.md)): intestazione
+  con versioni, argomenti e taratura; decisione e motivo; ingressi; ruoli;
+  misura; controlli; scelte con l'effetto di ogni valore; piano; confronto con
+  `--expect`; costruzione e verifiche; avvisi di tutte le fasi in un solo
+  elenco. Scritto con un nome temporaneo e poi rinominato, mai al posto di un
+  ingresso o del file finale
+- `--progress json`: una riga JSON per evento su stderr, con le fasi
+  dell'analisi (ancore, confini, punti di conferma con i punti per esito,
+  ricerche oltre i confini, trasferimento, piano) e del merge (intermedio,
+  unione con la percentuale, verifiche)
+- Scelte chieste in un terminale interattivo, con l'effetto di ogni valore e
+  il piano ricalcolato dopo ogni risposta; senza terminale `CHOICE_REQUIRED`
+- `--expect <report>`: impronte, ruoli, S e piano dell'analisi confermata,
+  confrontati appena si conoscono; ogni differenza è `INPUT_CHANGED`, con
+  l'elenco nel report
+- Annullamento con SIGINT, SIGTERM o SIGHUP: programmi esterni terminati,
+  temporanei eliminati, report `cancelled` (`CANCELLED`, uscita 50)
+- Libreria: `runCli`, `Report` e il confronto di `--expect` (`src/cli.ts`,
+  `src/report.ts`); `checkBuildTarget`; avanzamento della misura
+  (`MeasureProgress`); ogni lettura con programmi esterni interrompibile con
+  un `AbortSignal`
+- Studio di fattibilità 0.11: forma del report e sua versione, eventi di
+  `--progress json`, confronto di `--expect`, richiesta delle scelte,
+  annullamento
+
 ## [0.8.0] - 2026-10-18
 
 ### Aggiunto
