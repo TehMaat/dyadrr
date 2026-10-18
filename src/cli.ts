@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { access, stat } from 'node:fs/promises';
+import { access, rm, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { buildMerge, checkBuildTarget, commitBuild, discardBuild, type Build, type BuildProgress } from './build.js';
@@ -14,6 +14,7 @@ import {
   type RawChoices,
 } from './choices.js';
 import { DyadrrError, exitCodeFor, type Decision, type ErrorCode } from './codes.js';
+import type { Warning } from './decision.js';
 import { readInput, type InputFile } from './inputs.js';
 import { parseOriginalLanguage } from './languages.js';
 import { analyzePair, type MeasureProgress, type PairAnalysis } from './measure.js';
@@ -34,6 +35,7 @@ import {
   type ProgressPhase,
   type Report,
   type ReportArguments,
+  type ReportInputs,
   type ReportReason,
   type ReportWarning,
 } from './report.js';
@@ -62,6 +64,7 @@ Options:
   --reference-italian-subs keep|drop
                                    Italian PGS already in the reference
   --edge-mismatch drop|keep        Italian audio over a different intro or ending
+  --inputs keep|delete             the two inputs after a verified merge (merge; default: ask, else keep)
   --help, --version
 
 stdout: the path of the report. Exit codes: 0 eligible or merged, 20 refused,
@@ -91,10 +94,22 @@ export interface CliEnvironment {
 
 // ---------------------------------------------------------------- argomenti
 
-const STRING_OPTIONS = ['output', 'report', 'original-language', 'temp-dir', 'expect', 'progress'] as const;
+const STRING_OPTIONS = ['output', 'report', 'original-language', 'temp-dir', 'expect', 'progress', 'inputs'] as const;
 /** Il nome di ogni scelta senza i due trattini (`edge-mismatch`). */
 const choiceOption = (name: ChoiceName) => CHOICES[name].option.slice(2);
-const MERGE_ONLY = ['output', 'temp-dir', 'expect'] as const;
+const MERGE_ONLY = ['output', 'temp-dir', 'expect', 'inputs'] as const;
+
+/**
+ * Cosa fare dei due ingressi dopo un merge riuscito e verificato (§10.2).
+ * Non è una scelta di §10.1: non serve al piano e non dà mai
+ * `CHOICE_REQUIRED`; senza opzione, variabile o risposta gli ingressi si tengono.
+ */
+export const INPUTS_OPTION = {
+  option: '--inputs',
+  env: 'DYADRR_INPUTS',
+  values: ['keep', 'delete'],
+} as const;
+type InputsValue = (typeof INPUTS_OPTION)['values'][number];
 
 interface Arguments {
   mode: Mode;
@@ -106,6 +121,7 @@ interface Arguments {
   expect: string | null;
   progress: 'json' | null;
   choices: RawChoices;
+  inputs: string | null;
 }
 
 const badArguments = (message: string) => new DyadrrError('BAD_ARGUMENTS', `${message} (see dyadrr --help)`);
@@ -156,7 +172,25 @@ function parseArguments(argv: readonly string[]): Arguments {
       const v = values[choiceOption(n)];
       return v === undefined ? [] : [[n, v]];
     })),
+    inputs: values.inputs ?? null,
   };
+}
+
+/** `--inputs` o `DYADRR_INPUTS`, con le regole delle scelte (§10.1): l'opzione vince, un valore non valido è `BAD_ARGUMENTS`. */
+function readInputsChoice(
+  option: string | null,
+  env: Readonly<Record<string, string | undefined>>,
+): { value: InputsValue; origin: 'option' | 'env' } | null {
+  const valid = (value: string, source: string): InputsValue => {
+    if (!(INPUTS_OPTION.values as readonly string[]).includes(value)) {
+      throw new DyadrrError('BAD_ARGUMENTS', `${source}: "${value}" is not valid (expected ${INPUTS_OPTION.values.join(' or ')})`);
+    }
+    return value as InputsValue;
+  };
+  const fromEnv = env[INPUTS_OPTION.env]?.trim();
+  const envValue = fromEnv ? valid(fromEnv, INPUTS_OPTION.env) : null;
+  if (option !== null) return { value: valid(option, INPUTS_OPTION.option), origin: 'option' };
+  return envValue === null ? null : { value: envValue, origin: 'env' };
 }
 
 /**
@@ -224,6 +258,8 @@ interface State {
   verification: Verification | null;
   delivered: boolean;
   sizeBytes: number | null;
+  inputs: ReportInputs | null;
+  inputWarnings: Warning[];
 }
 
 const inputChanged = (differences: string[]) =>
@@ -309,6 +345,8 @@ export async function runCli(argv: readonly string[], io: CliEnvironment): Promi
     verification: null,
     delivered: false,
     sizeBytes: null,
+    inputs: null,
+    inputWarnings: [],
   };
   let decision: Decision = 'eligible';
   let reasons: ReportReason[] = [];
@@ -324,6 +362,7 @@ export async function runCli(argv: readonly string[], io: CliEnvironment): Promi
     const cal = state.calibration;
     const originalLanguage = a.originalLanguage === null ? null : parseOriginalLanguage(a.originalLanguage);
     state.choices = readGivenChoices(a.choices, io.env);
+    const inputsChoice = a.mode === 'merge' ? readInputsChoice(a.inputs, io.env) : null;
     const tools = io.tools ?? DEFAULT_TOOLS;
     state.tools = await checkTools(tools);
     const signal = io.signal;
@@ -415,6 +454,43 @@ export async function runCli(argv: readonly string[], io: CliEnvironment): Promi
       await commitBuild(build);
       state.delivered = true;
       state.sizeBytes = (await stat(build.output)).size;
+
+      // Gli ingressi dopo la consegna (§10.2): si cancellano solo con un consenso esplicito.
+      let choice: Pick<ReportInputs, 'value' | 'origin'> | null = inputsChoice;
+      const askInputs = progressJson ? undefined : io.ask;
+      if (choice === null && askInputs) {
+        const values: readonly string[] = INPUTS_OPTION.values;
+        const question = [
+          `The merge is complete: ${build.output}`,
+          `Delete the two inputs (${INPUTS_OPTION.option})?`,
+          ...inputs.map((f) => `  ${f.path}`),
+          `Choose ${values.join(' or ')}: `,
+        ].join('\n');
+        let answer: string | null;
+        do answer = (await askInputs(question))?.trim() ?? null;
+        while (answer !== null && !signal?.aborted && !values.includes(answer));
+        if (answer !== null && !signal?.aborted) choice = { value: answer as InputsValue, origin: 'prompt' };
+      }
+      choice ??= { value: 'keep', origin: 'default' };
+      const deleted: string[] = [];
+      if (choice.value === 'delete' && !signal?.aborted) {
+        for (const f of inputs) {
+          const notDeleted = (why: string) =>
+            state.inputWarnings.push({ code: 'INPUT_NOT_DELETED', message: `${f.path}: not deleted: ${why}` });
+          try {
+            const st = await stat(f.path);
+            if (st.size !== f.fingerprint.size || st.mtime.toISOString() !== f.fingerprint.modifiedAt) {
+              notDeleted('it changed since it was read');
+              continue;
+            }
+            await rm(f.path);
+            deleted.push(f.path);
+          } catch (e) {
+            notDeleted((e as NodeJS.ErrnoException).code ?? String(e));
+          }
+        }
+      }
+      state.inputs = { ...choice, deleted };
     }
   } catch (e) {
     if (io.signal?.aborted) {
@@ -474,6 +550,7 @@ function assemble(x: {
     ...(state.plan?.warnings ?? []).map((w) => ({ ...w, source: 'plan' as const })),
     ...(state.build?.warnings ?? []).map((w) => ({ ...w, source: 'build' as const })),
     ...(state.verification?.warnings ?? []).map((w) => ({ ...w, source: 'verify' as const })),
+    ...state.inputWarnings.map((w) => ({ ...w, source: 'inputs' as const })),
   ];
   const output = state.build
     ? {
@@ -483,6 +560,7 @@ function assemble(x: {
       durationMs: state.verification?.duration?.declaredMs ?? state.verification?.duration?.endMs ?? null,
       build: state.build,
       verification: state.verification,
+      inputs: state.inputs,
     }
     : null;
   return {

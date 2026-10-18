@@ -7,6 +7,7 @@ import { ERROR_CODES, REFUSAL_CODES, WARNING_CODES, exitCodeFor } from '../src/c
 import { CHOICES, CHOICE_NAMES } from '../src/choices.js';
 import { CALIBRATION_LIMITS, CALIBRATION_NAMES, loadCalibration } from '../src/calibration.js';
 import { PROGRESS_PHASES, REPORT_FIELDS, REPORT_FORMAT } from '../src/report.js';
+import { INPUTS_OPTION } from '../src/cli.js';
 
 // I test girano da build/test/.
 const ROOT = resolve(__dirname, '..', '..');
@@ -67,7 +68,13 @@ test('CLI.md riporta ogni scelta con opzione, variabile d\'ambiente e valori', (
   }
   assert.equal(rows.length - 1, CHOICE_NAMES.length, 'one row per choice (plus the header)');
 
-  const envs = new Set<string>(CHOICE_NAMES.map((n) => CHOICES[n].env));
+  // `--inputs` non è una scelta di §10.1, ma ha la sua variabile (studio §10.2).
+  const inputs = tableRows(doc, 'Ingressi dopo il merge').find((r) => r[0] === `\`${INPUTS_OPTION.option}\``);
+  assert.ok(inputs, `${INPUTS_OPTION.option} missing from CLI.md`);
+  assert.equal(inputs[1], `\`${INPUTS_OPTION.env}\``, `environment variable of ${INPUTS_OPTION.option}`);
+  for (const value of INPUTS_OPTION.values) assert.ok(inputs[2]?.includes(`\`${value}\``), `value ${value} of ${INPUTS_OPTION.option}`);
+
+  const envs = new Set<string>([...CHOICE_NAMES.map((n) => CHOICES[n].env), INPUTS_OPTION.env]);
   for (const doc of ['docs/CLI.md', 'README.md', 'docs/STUDIO-DI-FATTIBILITA.md']) {
     for (const [, name] of read(doc).matchAll(/\b(DYADRR_[A-Z_]+)\b/g)) {
       assert.ok(envs.has(name!), `${doc} mentions ${name}, which does not exist`);

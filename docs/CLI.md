@@ -31,11 +31,12 @@ con audio italiano) e quale il **riferimento** (studio §3.2).
 | `--temp-dir <cartella>` | merge | Cartella dei temporanei. Default `.dyadrr/` accanto al file finale, che si toglie quando resta vuota; deve stare sullo stesso disco e in una cartella che inizia con un punto, altrimenti `BAD_ARGUMENTS` | implementato |
 | `--expect <report>` | merge | Report di un'analisi confermata: se ingressi, ruoli, spostamento o piano sono cambiati, `INPUT_CHANGED` (sotto) | implementato |
 | `--progress json` | entrambi | Avanzamento su stderr, una riga JSON per evento ([REPORT.md](REPORT.md#avanzamento)) | implementato |
+| `--inputs keep\|delete` | merge | Cosa fare dei due ingressi dopo un merge riuscito ([sotto](#ingressi-dopo-il-merge)) | implementato |
 
 Le opzioni delle scelte sono nella sezione [Scelte](#scelte). Le opzioni si
 scrivono `--nome valore` o `--nome=valore`. Sono `BAD_ARGUMENTS`: un comando
 sconosciuto, un numero di file diverso da due, un'opzione sconosciuta, senza
-valore o ripetuta, `--output`, `--temp-dir` o `--expect` con `analyze`, `merge`
+valore o ripetuta, `--output`, `--temp-dir`, `--expect` o `--inputs` con `analyze`, `merge`
 senza `--output`, `--progress` con un valore diverso da `json`.
 
 ## Report
@@ -111,6 +112,30 @@ fa in uno di questi modi, in ordine di precedenza:
 - Una variabile d'ambiente vuota vale come non impostata.
 
 **Stato:** implementato.
+
+## Ingressi dopo il merge
+
+Cosa fare dei due rip di partenza (studio §10.2, decisione 6). In Wayfinderr è
+un'impostazione del pannello Dyadrr (tenerli o cancellarli): li cancella
+Wayfinderr, che passa sempre `--inputs keep`.
+
+| Opzione | Variabile d'ambiente | Valori |
+|---|---|---|
+| `--inputs` | `DYADRR_INPUTS` | `keep` (tienili), `delete` (cancellali) |
+
+- Vale solo per `merge`, e solo dopo un merge riuscito, verificato e
+  consegnato: un rifiuto, un errore o un annullamento non toccano mai gli
+  ingressi.
+- L'opzione vince sulla variabile; un valore non valido è `BAD_ARGUMENTS`,
+  una variabile vuota vale come non impostata. Con `analyze` l'opzione è
+  `BAD_ARGUMENTS`, la variabile si ignora.
+- Senza opzione né variabile: in un terminale (stdin e stderr, senza
+  `--progress json`) si chiede, con i due percorsi; altrimenti, o alla fine
+  dell'ingresso, gli ingressi **si tengono**. Non dà mai `CHOICE_REQUIRED`.
+- Un ingresso si cancella solo se dimensione e data di modifica sono ancora
+  quelle lette all'inizio; se è cambiato o non si può cancellare resta dov'è,
+  con l'avviso `INPUT_NOT_DELETED`. La decisione resta `eligible`.
+- Il report lo dice in `output.inputs` ([REPORT.md](REPORT.md#campi)).
 
 ## Analisi confermata (`--expect`)
 

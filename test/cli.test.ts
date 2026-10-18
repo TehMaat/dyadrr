@@ -216,6 +216,9 @@ test('merge --expect: il piano confermato, la scelta da variabile d\'ambiente, f
   assert.equal(output.verification!.result, 'pass');
   assert.equal(output.verification!.checks.find((c) => c.name === 'transfer')?.result, 'pass');
   assert.ok(existsSync(out));
+  // Senza terminale e senza --inputs gli ingressi si tengono.
+  assert.deepEqual(output.inputs, { value: 'keep', origin: 'default', deleted: [] });
+  assert.ok(existsSync(p('donor.mkv')) && existsSync(p('reference.mkv')));
   // I temporanei predefiniti non restano.
   assert.deepEqual(readdirSync(resolve(out, '..')), ['Film.mkv']);
 });
@@ -239,7 +242,10 @@ test('CHOICE_REQUIRED senza terminale; in un terminale la scelta si chiede, finc
     },
   });
   assert.equal(merged.code, 0, merged.stderr);
-  assert.equal(asked.length, 2);
+  // Dopo la consegna si chiede anche degli ingressi: la fine dell'ingresso li tiene.
+  assert.equal(asked.length, 3);
+  assert.match(asked[2]!, /^The merge is complete: /);
+  assert.deepEqual(merged.report!.output!.inputs, { value: 'keep', origin: 'default', deleted: [] });
   assert.match(asked[0]!, /^A choice is needed: --italian \(Italian audio tracks to take\)\n  all: Italian 0:00:01\.5\d\d – 0:0\d:\d\d\.\d{3}; audio tracks 1, 2;/);
   assert.match(asked[0]!, /\n  main: .*audio tracks 1;.*ITALIAN_TRACKS_SKIPPED\nChoose all or main: $/);
   const italian = merged.report!.choices!.find((c) => c.name === 'italian')!;
@@ -346,6 +352,8 @@ test('BAD_ARGUMENTS: argomenti sbagliati, con il report comunque scritto; --help
   const unknown = await cli(['analyze', 'reference.mkv', '--original-language', 'eng', 'donor.mkv', '--force', '--report', 'bad.json']);
   assert.deepEqual(unknown.report!.arguments.files, ['reference.mkv', 'donor.mkv']);
   await bad(['analyze', 'reference.mkv', 'donor.mkv', '--output', 'x.mkv'], /--output is only for merge/);
+  await bad(['analyze', 'reference.mkv', 'donor.mkv', '--inputs', 'delete'], /--inputs is only for merge/);
+  await bad(['merge', 'reference.mkv', 'donor.mkv', '--output', 'x.mkv', '--inputs', 'erase'], /--inputs: "erase" is not valid/);
   await bad(['merge', 'reference.mkv', 'donor.mkv'], /merge needs --output/);
   await bad(['analyze', 'reference.mkv', 'donor.mkv', '--tail', 'trim', '--tail', 'keep'], /--tail is given more than once/);
   await bad(['analyze', 'reference.mkv', 'donor.mkv', '--progress', 'text'], /--progress "text"/);
@@ -374,6 +382,49 @@ test('BAD_ARGUMENTS: argomenti sbagliati, con il report comunque scritto; --help
   assert.match(help.stdout, /^Usage:\n {2}dyadrr analyze/);
   const version = await cli(['analyze', '--version']);
   assert.match(version.stdout, /^dyadrr \d+\.\d+\.\d+\n$/);
+});
+
+test('INPUT_NOT_DELETED: --inputs delete cancella gli ingressi solo dopo un merge consegnato; chiesto in un terminale', async () => {
+  /** Copie degli ingressi in una cartella nuova: i file dei test restano. */
+  const copies = () => {
+    const d = outDir();
+    for (const name of ['reference.mkv', 'donor.mkv']) {
+      copyFileSync(p(name), join(d, name));
+      settle(join(d, name));
+    }
+    return { d, reference: join(d, 'reference.mkv'), donor: join(d, 'donor.mkv') };
+  };
+
+  // Da opzione: cancellati tutti e due, dopo la consegna.
+  const a = copies();
+  const byOption = await cli(['merge', a.reference, a.donor, '--output', join(a.d, 'Film.mkv'), '--italian', 'main', '--inputs', 'delete']);
+  assert.equal(byOption.code, 0, byOption.stderr);
+  assert.deepEqual(byOption.report!.output!.inputs, { value: 'delete', origin: 'option', deleted: [a.reference, a.donor] });
+  assert.deepEqual(readdirSync(a.d), ['Film.mkv']);
+
+  // Un rifiuto non tocca gli ingressi, nemmeno con --inputs delete.
+  const refused = await cli(['merge', 'reference.mkv', 'reference.mkv', '--output', join(outDir(), 'Film.mkv'), '--inputs', 'delete']);
+  assert.equal(refused.code, 20);
+  assert.ok(existsSync(p('reference.mkv')));
+
+  // Chiesto in un terminale: un ingresso sparito nel frattempo resta un avviso, il merge è consegnato.
+  const b = copies();
+  const asked: string[] = [];
+  const byPrompt = await cli(['merge', b.reference, b.donor, '--output', join(b.d, 'Film.mkv'), '--italian', 'all'], {
+    ask: async (q) => {
+      asked.push(q);
+      rmSync(b.reference);
+      return 'delete';
+    },
+  });
+  assert.equal(byPrompt.code, 0, byPrompt.stderr);
+  assert.equal(asked.length, 1);
+  assert.match(asked[0]!, /^The merge is complete: .*Film\.mkv\nDelete the two inputs \(--inputs\)\?\n {2}.*reference\.mkv\n {2}.*donor\.mkv\nChoose keep or delete: $/);
+  assert.equal(byPrompt.report!.decision, 'eligible');
+  assert.deepEqual(byPrompt.report!.output!.inputs, { value: 'delete', origin: 'prompt', deleted: [b.donor] });
+  assert.deepEqual(warnings(byPrompt).filter((w) => w.startsWith('inputs:')), ['inputs:INPUT_NOT_DELETED']);
+  assert.match(byPrompt.report!.warnings.find((w) => w.code === 'INPUT_NOT_DELETED')!.message, /reference\.mkv: not deleted: ENOENT/);
+  assert.deepEqual(readdirSync(b.d), ['Film.mkv']);
 });
 
 test('riga di comando: rifiuto con uscita 20, OUTPUT_EXISTS prima di leggere gli ingressi', async () => {
