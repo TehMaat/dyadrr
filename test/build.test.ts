@@ -21,6 +21,7 @@ import { DyadrrError } from '../src/codes.js';
 import { readInput, type InputFile } from '../src/inputs.js';
 import { planMerge, startCuts, type Plan } from '../src/plan.js';
 import { DEFAULT_TOOLS } from '../src/tools.js';
+import { verifyBuild } from '../src/verify.js';
 import { run, runAsync, settle, tempDir } from './helpers/mkv.js';
 import { writeSup } from './helpers/pgs.js';
 
@@ -155,6 +156,18 @@ function blockTimes(path: string, trackId: number): number[] {
 
 const layout = (b: Build) => b.tracks.map((t) => `${t.source[0]}${t.sourceTrackId}`);
 
+/**
+ * Le verifiche dopo il merge (§9.5): passano tutte quelle bloccanti. L'italiano
+ * e l'inglese sono toni diversi, quindi il trasferimento non correla mai.
+ */
+async function verified(pl: Plan, b: Build) {
+  const v = await verifyBuild({ reference, plan: pl, measureTrackId: 1 }, b, cal);
+  assert.deepEqual(v.checks.map((c) => [c.name, c.result]), [
+    ['layout', 'pass'], ['video', 'pass'], ['reference-tracks', 'pass'], ['italian-tracks', 'pass'], ['duration', 'pass'], ['transfer', 'fail'],
+  ], JSON.stringify(v.checks));
+  return v;
+}
+
 // ---------------------------------------------------------------- test puri
 
 test('comandi: tempi di --split, dump di ffprobe, punti di sincronizzazione TrueHD, sottotitolo a schermo', () => {
@@ -214,6 +227,12 @@ test('costruzione con S > 0 e --tail trim: ordine, flag, compressione, capitoli,
   // Video, audio italiano (principale per primo), audio del riferimento, PGS
   // italiani (forced per primi), sottotitoli del riferimento.
   assert.deepEqual(layout(build), ['r0', 'd1', 'd2', 'd3', 'r1', 'd5', 'd6', 'r2', 'r3']);
+  // Le verifiche: alla fine AC3 e FLAC finiscono sul pacchetto a cavallo del
+  // taglio, TrueHD sul primo punto di sincronizzazione dopo.
+  const v = await verified(pl, build);
+  assert.deepEqual(v.warnings.map((w) => w.code), ['OUTPUT_TRANSFER_UNVERIFIED']);
+  assert.deepEqual(v.italian.map((x) => [x.codec, x.toleranceMs]), [['AC-3', 33], ['TrueHD', 108], ['FLAC', 97]]);
+  for (const x of v.italian) assert.ok(x.endMs! >= x.expectedEndMs && x.endMs! <= x.expectedEndMs + x.toleranceMs, JSON.stringify(x));
   await commitBuild(build);
   assert.ok(existsSync(out));
   assert.deepEqual(readdirSync(join(out, '..')), ['Film.mkv'], 'the temporary folder is removed');
@@ -267,6 +286,11 @@ test('SUBTITLES_DROPPED_AT_CUT: con S < 0 si taglia all\'inizio del film; TrueHD
   ]);
   // Il PGS italiano del riferimento si scarta.
   assert.deepEqual(layout(build), ['r0', 'd1', 'd2', 'd3', 'r1', 'd5', 'd6', 'r2']);
+  // TrueHD comincia esattamente dove previsto; AC3 e FLAC entro un pacchetto.
+  const v = await verified(pl, build);
+  const late = v.italian.map((x) => x.startMs! - x.expectedStartMs);
+  assert.equal(late[1], 0);
+  for (const [i, x] of v.italian.entries()) assert.ok(late[i]! >= 0 && late[i]! < x.toleranceMs, JSON.stringify(x));
   await commitBuild(build);
 
   const blocks = firstBlocks(out);
@@ -304,6 +328,7 @@ test('--edge-mismatch drop: tagli sui confini, anche prima della fine del video;
     [6, 'start', 2000],
   ]);
   assert.deepEqual(build.warnings.map((w) => [w.code, w.value]), [['SUBTITLES_DROPPED_AT_CUT', 3]]);
+  await verified(pl, build);
   await commitBuild(build);
 
   const { input } = await final(out);

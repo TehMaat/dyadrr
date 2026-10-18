@@ -103,6 +103,21 @@ E la costruzione, in `src/build.ts` (studio §6.5, §7, §13):
 | Ricerca del punto di sincronizzazione TrueHD dopo un taglio | 1 s |
 | Tratto prima di un taglio in cui si cerca un sottotitolo a schermo | 30 s |
 
+E le verifiche dopo il merge, in `src/verify.ts` (studio §9.5): quanto l'inizio
+e la fine di una traccia audio italiana possono scostarsi da quelli previsti,
+"entro un pacchetto" del codec. Il controllo di trasferimento sul file finale
+usa invece i parametri di quello nel donatore (`checkpointWindowMs`,
+`nccMin`, `peakRatioMin`, `toleranceMs`).
+
+| Costante | Valore |
+|---|---|
+| AC-3, E-AC-3 | 32 ms |
+| DTS, anche HD e X | 11 ms |
+| TrueHD (alla fine mkvmerge divide solo sui punti di sincronizzazione) | 107 ms |
+| FLAC | 96 ms |
+| Altri codec | 100 ms |
+| Arrotondamento dei timestamp, in più su ogni confronto di tempi | 1 ms |
+
 ## Come si cambia un valore
 
 1. Si modifica `src/calibration.json` e si alza il suo `version`.

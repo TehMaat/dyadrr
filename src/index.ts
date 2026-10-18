@@ -11,3 +11,4 @@ export * from './correlation.js';
 export * from './measure.js';
 export * from './plan.js';
 export * from './build.js';
+export * from './verify.js';

@@ -607,34 +607,12 @@ export async function measurePair(
   }
 
   // 5. Controllo di trasferimento (§4.7): nel donatore, italiano contro lingua
-  // di misura sui canali non centrali, vicino allo spostamento zero. Lo
-  // spostamento è come S: posizione nella lingua di misura − posizione
-  // nell'italiano.
+  // di misura, al centro di intervalli uguali del materiale in comune.
   const italian = mainItalianTrack(donor.file.audio);
   if (italian === null) throw new DyadrrError('INTERNAL', 'the donor has no Italian audio track');
-  const mix = transferMix(pair.donor, italian);
-  const transferSignals: TrackSignal[] = [{ track: pair.donor, mix }, { track: italian, mix }];
-  if (mix === 'side') transferSignals.push({ track: pair.donor, mix: 'leftRight' }, { track: italian, mix: 'leftRight' });
-  const transferProbes: MeasuredTransferProbe[] = [];
-  for (let i = 0; i < TRANSFER_PROBES; i++) {
-    const x = clamp(startMs + ((i + 0.5) * (endMs - startMs)) / TRANSFER_PROBES - Lc / 2, startMs, endMs - Lc);
-    const d = x - S;
-    const w = await donor.read(transferSignals, d - LOCAL_SEARCH_MS, d + Lc + LOCAL_SEARCH_MS);
-    if (!w) {
-      transferProbes.push({ positionMs: round3(x), match: null, mix });
-      continue;
-    }
-    let used = mix;
-    let needle = slice(w[0]!, d, d + Lc);
-    let hay = w[1]!;
-    // (L − R)/2 è muto se la traccia è un mono su due canali: si torna a L+R.
-    if (mix === 'side' && energy(needle) < v.silenceDbfs) {
-      used = 'leftRight';
-      needle = slice(w[2]!, d, d + Lc);
-      hay = w[3]!;
-    }
-    transferProbes.push({ positionMs: round3(needle.startMs + S), match: search([needle], hay, cal)[0]!, mix: used });
-  }
+  const transferAt = transferPositions(startMs, endMs, Lc).map((x) => x - S);
+  const transferProbes = (await transferProbesIn(donor, pair.donor, italian, transferAt, cal))
+    .map((probe) => ({ ...probe, positionMs: round3(probe.positionMs + S) }));
 
   return result({
     anchorOffsetMs: S,
@@ -643,6 +621,82 @@ export async function measurePair(
     edgeProbes,
     transfer: { measureTrackId: pair.donor.id, italianTrackId: italian.id, probes: transferProbes },
   });
+}
+
+/**
+ * Posizioni del controllo di trasferimento (§4.7): l'inizio di una finestra
+ * lunga `windowMs` al centro di ognuno di `TRANSFER_PROBES` intervalli uguali
+ * tra `fromMs` e `toMs`.
+ */
+export function transferPositions(fromMs: number, toMs: number, windowMs: number): number[] {
+  return Array.from({ length: TRANSFER_PROBES }, (_, i) =>
+    clamp(fromMs + ((i + 0.5) * (toMs - fromMs)) / TRANSFER_PROBES - windowMs / 2, fromMs, toMs - windowMs));
+}
+
+/**
+ * Il controllo di trasferimento in un file (§4.7): in ogni posizione, la
+ * finestra della lingua di misura cercata nell'italiano vicino allo
+ * spostamento zero (±1 s), sui canali non centrali. Lo spostamento è come S:
+ * posizione nella lingua di misura − posizione nell'italiano. Posizioni sulla
+ * linea del tempo del file.
+ */
+async function transferProbesIn(
+  side: Side,
+  measure: InputTrack,
+  italian: InputTrack,
+  positions: readonly number[],
+  cal: Calibration,
+): Promise<MeasuredTransferProbe[]> {
+  const len = cal.values.checkpointWindowMs;
+  const mix = transferMix(measure, italian);
+  const signals: TrackSignal[] = [{ track: measure, mix }, { track: italian, mix }];
+  if (mix === 'side') signals.push({ track: measure, mix: 'leftRight' }, { track: italian, mix: 'leftRight' });
+  const probes: MeasuredTransferProbe[] = [];
+  for (const x of positions) {
+    const w = await side.read(signals, x - LOCAL_SEARCH_MS, x + len + LOCAL_SEARCH_MS);
+    if (!w) {
+      probes.push({ positionMs: round3(x), match: null, mix });
+      continue;
+    }
+    let used = mix;
+    let needle = slice(w[0]!, x, x + len);
+    let hay = w[1]!;
+    // (L − R)/2 è muto se la traccia è un mono su due canali: si torna a L+R.
+    if (mix === 'side' && energy(needle) < cal.values.silenceDbfs) {
+      used = 'leftRight';
+      needle = slice(w[2]!, x, x + len);
+      hay = w[3]!;
+    }
+    probes.push({ positionMs: round3(needle.startMs), match: search([needle], hay, cal)[0]!, mix: used });
+  }
+  return probes;
+}
+
+/**
+ * Il controllo di trasferimento nel file finale (§9.5): la traccia della
+ * lingua di misura del riferimento contro l'italiano principale, che lì
+ * devono correlare a spostamento circa zero. Posizioni sulla linea del tempo
+ * del file.
+ *
+ * Errori: quelli della lettura delle finestre (`INPUT_UNREADABLE`,
+ * `INPUT_BUSY`, `TOOL_MISSING`).
+ */
+export async function measureTransfer(
+  file: InputFile,
+  measureTrackId: number,
+  italianTrackId: number,
+  positions: readonly number[],
+  cal: Calibration,
+  options: MeasureOptions = {},
+): Promise<{ probes: MeasuredTransferProbe[]; bytesRead: number }> {
+  const side = new Side(file, options.tools ?? DEFAULT_TOOLS);
+  const track = (id: number) => {
+    const t = file.audio.find((x) => x.id === id);
+    if (!t) throw new DyadrrError('INTERNAL', `${file.path}: no audio track with ID ${id}`);
+    return t;
+  };
+  const probes = await transferProbesIn(side, track(measureTrackId), track(italianTrackId), positions, cal);
+  return { probes, bytesRead: side.bytes };
 }
 
 /** Le misure nella forma che la decisione si aspetta; quelle non fatte restano assenti. */

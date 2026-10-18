@@ -1,10 +1,10 @@
 # Dyadrr: studio di fattibilità
 
-Stato: bozza 0.9, ottobre 2026.
+Stato: bozza 0.10, ottobre 2026.
 
 Questo documento raccoglie le decisioni prese, quelle ancora aperte e i risultati delle prime verifiche sperimentali (§18). È il punto di partenza del repo.
 
-La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). La 0.9 fissa la costruzione del file finale (tagli, TrueHD, coda, unione, sottotitoli persi ai tagli, file temporanei) e chiude la decisione 7: in fase 2 Dyadrr gira in un container separato (§6, §7, §13, §14, §17). Le modifiche principali sono elencate in §20.
+La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). La 0.9 fissa la costruzione del file finale (tagli, TrueHD, coda, unione, sottotitoli persi ai tagli, file temporanei) e chiude la decisione 7: in fase 2 Dyadrr gira in un container separato (§6, §7, §13, §14, §17). La 0.10 fissa le verifiche dopo il merge: cosa si legge del file finale, le tolleranze "entro un pacchetto" per codec, cosa è bloccante e cosa è solo un avviso (§9.5, §12). Le modifiche principali sono elencate in §20.
 
 ---
 
@@ -286,7 +286,7 @@ S viene misurato sulla lingua di misura e applicato alla traccia italiana. Funzi
   - Uno sfasamento costante diverso da zero dà l'avviso `ITALIAN_TRANSFER_OFFSET`, con il valore.
   - Nessuna correlazione da nessuna parte dà l'avviso `ITALIAN_UNVERIFIED`.
   - All'inizio sono solo avvisi; diventano bloccanti se la fase 1 li dimostra affidabili.
-- **Seconda misura indipendente:** lo stesso confronto, fatto sul file finale tra italiano e lingua di misura del riferimento, controlla S in modo indipendente. È inserito anche tra le verifiche dopo il merge (§9.5).
+- **Seconda misura indipendente:** lo stesso confronto, fatto sul file finale tra italiano e lingua di misura del riferimento, controlla S in modo indipendente. È inserito anche tra le verifiche dopo il merge (§9.5), con i suoi avvisi: `OUTPUT_TRANSFER_OFFSET` e `OUTPUT_TRANSFER_UNVERIFIED`.
 
 ### 4.8 Integrità degli ingressi
 
@@ -429,7 +429,7 @@ Nella 0.9:
 - **Tagli al millisecondo.** I punti di taglio del piano (§5) si arrotondano al ms: `--sync` e `--split` vogliono interi.
 - **Taglio iniziale in c**, sulla linea del tempo del riferimento (l'inizio del film o il confine iniziale, §5): due passate di `--sync`. La prima sposta ogni traccia di S − c, così c cade sullo zero e mkvmerge scarta i pacchetti che cominciano prima; la seconda la sposta di c. Vale per tutti i codec, FLAC compreso, e per i PGS. Con c = 0 la seconda passata serve solo per TrueHD. Una traccia che comincia dopo c non perde niente. Senza taglio iniziale c'è una sola passata, di S.
 - **TrueHD** (§6.1): la prima passata porta a zero il primo punto di sincronizzazione dal taglio in poi. Il punto si riconosce dai dati, un pacchetto con la firma `F8 72 6F BA` (major sync) nei byte 4–7, letto con ffprobe entro 1 s dal taglio; il primo che si legge non conta, perché dopo una ricerca ffmpeg gli dà il tempo dei pacchetti che lo precedono. mkvmerge segna questi pacchetti come fotogrammi chiave, ma la firma vale anche per i file di altri programmi. Senza un punto entro 1 s: `INPUT_UNREADABLE`.
-- **Taglio finale in e:** `--split parts:00:00:00-e` sull'intermedio, che tiene i timestamp e taglia sul primo pacchetto da e in poi, escluso. Le tracce FLAC vanno in un file a parte, con `ffmpeg -copyts -c copy -to e`. Un PGS con un sottotitolo a schermo in e, se e cade prima della fine del video, si taglia all'inizio di quel sottotitolo (§7). Ogni punto di taglio diverso è un file.
+- **Taglio finale in e:** `--split parts:00:00:00-e` sull'intermedio, che tiene i timestamp e taglia sul primo pacchetto da e in poi, escluso. Per TrueHD sul primo punto di sincronizzazione da e in poi, perché mkvmerge divide solo sui fotogrammi chiave, che per TrueHD sono i punti di sincronizzazione: la traccia può finire fino a circa 107 ms dopo e (0.10, §18). Le tracce FLAC vanno in un file a parte, con `ffmpeg -copyts -c copy -to e`. Un PGS con un sottotitolo a schermo in e, se e cade prima della fine del video, si taglia all'inizio di quel sottotitolo (§7). Ogni punto di taglio diverso è un file.
 - **Intermedi:** senza video, capitoli, tag, allegati e titolo, con le tracce nell'ordine finale. `--compression <traccia>:none` si ripete a ogni passata per i PGS non compressi nell'originale, perché ogni passata di mkvmerge li comprimerebbe. Ogni file si elimina appena non serve più.
 - **Unione finale** (§6.2): gli intermedi con `--no-chapters --no-global-tags --no-track-tags --no-attachments`; `--default-track-flag` e `--forced-display-flag` per ogni traccia.
   - Default: la traccia video principale del riferimento, l'audio italiano principale e il primo PGS italiano forced che non sia un commento. Le altre tracce video, se ci sono, no.
@@ -549,6 +549,8 @@ Costanti del metodo sono anche quelle del piano (§5): la precisione sotto la qu
 
 E quelle della costruzione (§6.5): il margine di spazio libero (2 GiB, §13), la ricerca del punto di sincronizzazione TrueHD dopo un taglio (1 s) e il tratto prima di un taglio in cui si cerca un sottotitolo a schermo (30 s, §7). Stanno in `src/build.ts`.
 
+E quelle delle verifiche dopo il merge (§9.5): le tolleranze "entro un pacchetto" per codec e l'arrotondamento al millisecondo. Dicono quanto può scostarsi un file costruito bene, non quando una coppia è idonea. Stanno in `src/verify.ts`. Il controllo di trasferimento sul file finale usa invece i parametri di quello nel donatore (finestre, θ_ncc, θ_rapporto, tolleranza per punto).
+
 ### 9.3 Copertura dei punti coerenti
 
 Il vecchio "80% dei punti" misurava solo quanto del film è muto: aggiungere punti non cambia quella percentuale. La regola nuova chiede che i punti coerenti siano abbastanza e ben distribuiti:
@@ -578,6 +580,30 @@ Prima della rinomina finale si controlla che:
 - il controllo di trasferimento (§4.7) sul file finale, tra italiano e lingua di misura del riferimento, dia uno spostamento circa zero. All'inizio è solo un avviso.
 
 Se una verifica bloccante fallisce, il file temporaneo viene eliminato ed esce l'errore `VERIFY_FAILED`.
+
+**Il metodo (0.10).**
+- **Quando:** dopo la costruzione, sul file ancora nella cartella di lavoro (§6.4); se le verifiche bloccanti passano, la rinomina. Se una fallisce, o se il file finale non si riesce a leggere, la cartella di lavoro si elimina ed esce `VERIFY_FAILED` (uscita 40), con l'esito di ogni verifica per il report (§11.2, punto 8).
+- **Cosa si legge.** Il file finale come un ingresso (§4.8): tracce da mkvmerge -J, flussi e tag statistici da ffprobe, ultimi cluster; senza l'attesa di `INPUT_BUSY`, perché l'ha appena scritto Dyadrr. In più, del file finale e del riferimento: dati del codec video (CodecPrivate) e titolo da mkvmerge -J; capitoli, metadati del flusso video e side data del primo fotogramma da ffprobe. Niente si legge per intero, salvo il conteggio dei pacchetti quando il riferimento non ha i tag statistici (sotto).
+- **Le verifiche**, tutte bloccanti tranne il trasferimento. Si fanno tutte, così il report dice tutto quello che non torna; il trasferimento solo se le altre passano. Se numero o tipi delle tracce non tornano, quelle che confrontano traccia per traccia risultano `skipped`.
+  1. **Tracce** (`layout`): numero, ordine, tipo, codec, lingua, nome, flag default e forced e compressione dei PGS esattamente come nel risultato della costruzione (§6.5). Le tracce del riferimento sono tutte, tranne i PGS italiani scartati con `--reference-italian-subs drop`. Titolo e capitoli sono quelli del riferimento: stessi UID, inizi e titoli. La fine di un capitolo non si confronta: se il file non la scrive, ffprobe la ricava dalla durata del file, che con l'eccesso in coda cambia.
+  2. **Video** (`video`): stessi dati del codec; stessi metadati del flusso secondo ffprobe (codec, profilo, livello, dimensioni, formato dei pixel, colore e curva, framerate, side data come la configurazione Dolby Vision) e del primo fotogramma (HDR10, HDR10+); stesso livello HDR e profilo Dolby Vision (§3.2); stesso numero di fotogrammi; primo e ultimo timestamp entro un fotogramma (1000/fps ms).
+  3. **Tracce del riferimento** (`reference-tracks`): lo stesso numero di pacchetti. Viene dai tag statistici (`NUMBER_OF_FRAMES`), che mkvmerge riscrive nel file finale contando i pacchetti. Se una traccia del riferimento non li ha, si contano i pacchetti dei due file con ffprobe (`-count_packets`), che li legge per intero: costa una lettura in più, ma un riferimento senza tag statistici è raro.
+  4. **Italiano** (`italian-tracks`): ogni traccia audio italiana inizia e finisce dove previsto dalla costruzione, entro la tolleranza del suo codec. L'inizio è il `minimum_timestamp` di mkvmerge -J; la fine quella letta negli ultimi cluster, o, se la traccia finisce prima del tratto letto, quella dei tag statistici che mkvmerge ha appena scritto. Per i PGS non si verifica: dipende da dove cadono i sottotitoli.
+  5. **Durata** (`duration`): la fine più alta negli ultimi cluster e la durata dichiarata (contata dal primo timestamp del file o da zero, come in §4.8) cadono tra la più alta delle fini del riferimento e delle fini previste dell'italiano meno la tolleranza, e la più alta delle stesse fini più la tolleranza, con 1 ms di arrotondamento. La fine del riferimento è la più alta delle sue tracce tenute negli ultimi cluster.
+  6. **Trasferimento** (`transfer`, solo avvisi): come §4.7, ma nel file finale e senza spostamento: 5 punti al centro di 5 intervalli uguali del materiale in comune, ristretto al tratto in cui c'è l'italiano principale; la traccia della lingua di misura del riferimento usata nella misura (la coppia scelta, §4.2) contro l'italiano principale, con lo stesso segnale (L+R o (L − R)/2), la ricerca vicina (±1 s) e la lunghezza delle finestre dei punti di conferma; la mediana dei picchi sicuri. Oltre la tolleranza per punto scatta `OUTPUT_TRANSFER_OFFSET` con il valore: S è sbagliato di tanto, oppure l'italiano era già sfasato nel donatore (`ITALIAN_TRANSFER_OFFSET`). Nessun picco sicuro: `OUTPUT_TRANSFER_UNVERIFIED`. Diventano bloccanti solo se la fase 1 li dimostra affidabili, come quelli di §4.7.
+- **"Entro un pacchetto" (tolleranze).** Il tratto più lungo che un taglio può togliere o lasciare a una traccia, più 1 ms per l'arrotondamento dei timestamp di Matroska:
+
+  | Codec | Tolleranza | Perché |
+  |---|---|---|
+  | AC-3, E-AC-3 | 32 ms | 1536 campioni a 48 kHz |
+  | DTS (anche HD e X) | 11 ms | 512 campioni a 48 kHz |
+  | TrueHD | 107 ms | All'inizio la costruzione taglia su un punto di sincronizzazione ed è esatta; alla fine mkvmerge divide solo sui punti di sincronizzazione, che sui Blu-ray possono distare fino a circa 107 ms (§6.5, §18) |
+  | FLAC | 96 ms | Blocchi fino a 4608 campioni a 48 kHz (§6.1) |
+  | Altri (AAC, Opus, PCM…) | 100 ms | Nessun pacchetto audio comune dura di più |
+
+  Una traccia senza taglio non si sposta di nulla; una tagliata comincia dopo il taglio e finisce intorno al taglio finale, al più di un pacchetto (§6.1, §6.5). Una tolleranza più stretta darebbe `VERIFY_FAILED` falsi; una più larga non nasconde gli errori che contano, che sono di secondi o di uno S sbagliato, e uno S sbagliato lo cerca il trasferimento.
+- **Costanti del metodo:** le tolleranze per codec e l'arrotondamento, in `src/verify.ts` (§9.2).
+- **Da verificare sui rip di MakeMKV** (fase 1): che i tag statistici del riferimento contino davvero i pacchetti, e la dimensione dei blocchi FLAC.
 
 ### 9.6 Regole della decisione
 
@@ -809,6 +835,7 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
 | `ABRUPT_START` | Taglio iniziale con audio sopra soglia |
 | `MANY_INCONCLUSIVE` | Più del 10% di punti non conclusivi |
 | `MKVMERGE_WARNING` | Avvisi di mkvmerge (codice 1) |
+| `OUTPUT_TRANSFER_OFFSET`, `OUTPUT_TRANSFER_UNVERIFIED` | Controllo di trasferimento sul file finale (§4.7, §9.5) |
 
 **Codici di uscita:** numeri che Node non usa mai da solo (Node usa 1, 3–7, 9, 10, 12–14 e i valori sopra 128 per i segnali). Un crash di Node esce con 1, e sembrerebbe un rifiuto.
 
@@ -897,6 +924,7 @@ Prima di scrivere codice si verificano su file di prova i meccanismi da cui dipe
 - *Stato (Dyadrr 0.5.0):* misura provata su MKV di 120 s generati al volo, in AC3: spostamenti con `--sync` di entrambi i segni (S esatto al decimo di ms, letto dai timestamp dei file prodotti), code tagliate con `--split` su intermedi senza video, intro diverse, silenzi all'inizio e alla fine, `OFFSET_TOO_LARGE`, deriva, velocità 1,001, contenuto ripetitivo, centrale contro L+R su un remix e scelta della coppia.
 - *Stato (Dyadrr 0.6.0):* piano di inizio e fine provato sugli stessi file: `--sync` di entrambi i segni, intro diversa con `--edge-mismatch` e `ABRUPT_START`, riferimento con la coda tagliata e `--tail`. Flag, capitoli e sottotitoli persi arrivano con la costruzione.
 - *Stato (Dyadrr 0.7.0):* costruzione provata su MKV di 30 s con audio italiano AC3, TrueHD e FLAC e PGS scritti a mano (formato .sup): S positivo con la coda tagliata anche in FLAC, S negativo con il taglio all'inizio del film e TrueHD su un punto di sincronizzazione, tagli sui confini con `--edge-mismatch drop`; ordine, flag default e forced, compressione dei PGS, capitoli, titolo e sottotitoli persi ai tagli, controllati sul file prodotto. Le verifiche dopo il merge arrivano con il loro modulo.
+- *Stato (Dyadrr 0.8.0):* verifiche dopo il merge provate sugli stessi file e su file di rumore rosa con l'inglese e l'italiano che condividono musica ed effetti: tracce, video (anche HEVC HDR10), pacchetti, inizio e fine di AC3, TrueHD e FLAC dopo i tagli, durata con l'eccesso in coda tolto e lasciato, trasferimento a zero sul file finale e `OUTPUT_TRANSFER_OFFSET` con uno S sbagliato di 40 ms.
 
 **1b. Test sintetici con un taglio a metà film**
 - Si tolgono e si ricuciono parti di una copia, sempre senza ricodifica.
@@ -918,7 +946,7 @@ Prima di scrivere codice si verificano su file di prova i meccanismi da cui dipe
 - `DRIFT`, `TOO_FEW_CHECKPOINTS`, `AMBIGUOUS_MATCH` e gli avvisi si provano con serie di punti sintetiche.
 - `NO_SPACE` con un disco piccolo, `VERIFY_FAILED` con un errore iniettato apposta.
 - Una tabella collega **ogni codice** al test che lo produce.
-- *Stato (Dyadrr 0.2.0):* funzione di decisione e tabella dei codici fatte (`docs/CODICI.md`, sezione Test). Dalla 0.6.0 anche il piano, funzione pura, con le sue serie sintetiche: casi di inizio e fine, scelte con il loro effetto, tracce prese, forced e avvisi del piano. Dalla 0.7.0 `NO_SPACE` con un disco piccolo (spazio libero simulato) e con un disco che si riempie, `MERGE_FAILED` e `MKVMERGE_WARNING` con un mkvmerge finto, `SUBTITLES_DROPPED_AT_CUT` su file veri. `VERIFY_FAILED` arriva con le verifiche.
+- *Stato (Dyadrr 0.2.0):* funzione di decisione e tabella dei codici fatte (`docs/CODICI.md`, sezione Test). Dalla 0.6.0 anche il piano, funzione pura, con le sue serie sintetiche: casi di inizio e fine, scelte con il loro effetto, tracce prese, forced e avvisi del piano. Dalla 0.7.0 `NO_SPACE` con un disco piccolo (spazio libero simulato) e con un disco che si riempie, `MERGE_FAILED` e `MKVMERGE_WARNING` con un mkvmerge finto, `SUBTITLES_DROPPED_AT_CUT` su file veri. `VERIFY_FAILED` arriva con le verifiche. Dalla 0.8.0 `VERIFY_FAILED` con errori iniettati: il risultato della costruzione alterato (un flag, un inizio previsto) e il file costruito cambiato con mkvpropedit.
 
 **2. Casi da rifiutare con file reali**
 - Theatrical contro extended, framerate diversi, due film diversi.
@@ -1071,6 +1099,7 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
 | `--split parts:` sull'intermedio, 0.9 | `parts:00:00:00-e` tiene i timestamp, anche con uno spostamento positivo, e taglia sul primo pacchetto da e in poi, escluso. Con una sola parte il nome del file resta quello dato. ❌ Un file con una traccia FLAC non si divide ("Splitting tracks of this type is not supported") |
 | ffmpeg `-copyts -c copy -to` su FLAC, 0.9 | ✅ Tiene lo spostamento; l'ultimo pacchetto è l'ultimo che comincia prima del taglio |
 | PGS ai tagli, 0.9 | Al taglio iniziale si perde il sottotitolo a schermo e resta il blocco che lo toglie; al taglio finale resta il sottotitolo senza il blocco che lo toglie. ffprobe dà i blocchi decompressi anche dai PGS con zlib |
+| `--split parts:` su TrueHD, 0.10 (mkvmerge v82) | Il taglio cade sul primo punto di sincronizzazione da e in poi: mkvmerge divide solo sui fotogrammi chiave. Nella prova, con un punto ogni 13 ms, la traccia finisce 4 ms dopo e. Sui Blu-ray i punti possono distare fino a circa 107 ms |
 | Unione finale, 0.9 | ✅ Flag default e forced, ordine, `--compression <traccia>:none`, capitoli e titolo del solo riferimento come previsti (§6.2). Un avviso in `--gui-mode` è una riga `#GUI#warning`, con codice di uscita 1 |
 | Tempo di calcolo della correlazione, 0.7 | Un'ancora (30 s contro 8,5 min) circa 2 s in Node, tre coppie insieme circa 4 s; una ricerca ampia di un punto (10 s contro 8 min) circa 1,4 s |
 
@@ -1180,3 +1209,8 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
   - **Sottotitoli persi ai tagli:** dai blocchi PGS dei 30 s prima del taglio (§7).
   - **Costanti del metodo:** margine di spazio 2 GiB, ricerca del punto di sincronizzazione TrueHD 1 s, 30 s per i sottotitoli a schermo (§9.2, §13).
   - **Decisione 7 chiusa:** container separato con profilo Compose, protocollo a file job come il runner MakeMKV, volumi, immagine propria multi-architettura; motivi del repo pubblico rivisti (§14, §17).
+- **0.10:** verifiche dopo il merge.
+  - **Cosa si legge e si confronta:** il file finale come un ingresso, più dati del codec, metadati video, titolo e capitoli; tracce, video, pacchetti delle tracce del riferimento (dai tag statistici, contati se mancano), inizio e fine dell'italiano, durata (§9.5).
+  - **Tolleranze "entro un pacchetto"** per codec, costanti del metodo in `src/verify.ts` (§9.2, §9.5).
+  - **Bloccanti e avvisi:** tutte bloccanti tranne il trasferimento sul file finale, che dà `OUTPUT_TRANSFER_OFFSET` e `OUTPUT_TRANSFER_UNVERIFIED` (§4.7, §9.5, §12). Un file finale che non si legge è `VERIFY_FAILED`.
+  - **TrueHD alla fine:** mkvmerge divide solo sui punti di sincronizzazione, quindi il taglio finale può cadere fino a circa 107 ms dopo e (§6.5, §18).

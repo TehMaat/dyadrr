@@ -2,7 +2,7 @@
 
 > **Stato:** la riga di comando non esiste ancora. La libreria legge e valida
 > già `--original-language` e le scelte, calcola quali scelte servono per una
-> coppia con l'effetto di ogni valore e costruisce il file finale. Questa
+> coppia con l'effetto di ogni valore, costruisce il file finale e lo verifica. Questa
 > pagina descrive l'interfaccia prevista (studio §10) e, per ogni voce, se è
 > già implementata.
 
@@ -19,7 +19,7 @@ con audio italiano) e quale il **riferimento** (studio §3.2).
 | Comando | Cosa fa | Stato |
 |---|---|---|
 | `analyze` | Misura e controlli. Scrive solo il report, nessun MKV | previsto; misura, decisione e piano sono già nella libreria (`analyzePair`), senza report |
-| `merge` | Analisi, scrittura del file finale, verifica | previsto; la costruzione è già nella libreria (`buildMerge`, poi `commitBuild`), senza verifiche né report |
+| `merge` | Analisi, scrittura del file finale, verifica | previsto; la costruzione è già nella libreria (`buildMerge`, `verifyBuild`, poi `commitBuild`), senza report |
 
 ## Opzioni
 

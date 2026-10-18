@@ -54,6 +54,8 @@ export const WARNING_CODES = [
   'ABRUPT_START',
   'MANY_INCONCLUSIVE',
   'MKVMERGE_WARNING',
+  'OUTPUT_TRANSFER_OFFSET',
+  'OUTPUT_TRANSFER_UNVERIFIED',
 ] as const;
 
 export type RefusalCode = (typeof REFUSAL_CODES)[number];
