@@ -1,10 +1,10 @@
 # Dyadrr: studio di fattibilità
 
-Stato: bozza 0.8, ottobre 2026.
+Stato: bozza 0.9, ottobre 2026.
 
 Questo documento raccoglie le decisioni prese, quelle ancora aperte e i risultati delle prime verifiche sperimentali (§18). È il punto di partenza del repo.
 
-La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). Le modifiche principali sono elencate in §20.
+La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). La 0.9 fissa la costruzione del file finale (tagli, TrueHD, coda, unione, sottotitoli persi ai tagli, file temporanei) e chiude la decisione 7: in fase 2 Dyadrr gira in un container separato (§6, §7, §13, §14, §17). Le modifiche principali sono elencate in §20.
 
 ---
 
@@ -356,11 +356,11 @@ Le situazioni di inizio e di fine si combinano liberamente.
 
 ## 6. Costruzione del file finale
 
-Si usa solo mkvmerge, sempre in modalità `--gui-mode` per leggerne l'avanzamento e gli avvisi, come fa Wayfinderr.
+Si usa mkvmerge, sempre in modalità `--gui-mode` per leggerne l'avanzamento e gli avvisi, come fa Wayfinderr. ffmpeg serve solo per la coda delle tracce FLAC, che mkvmerge non sa dividere (§6.1), e sempre senza ricodificare.
 
 **Strumenti:**
 - mkvtoolnix **almeno v57**, la prima versione che gestisce correttamente Dolby Vision;
-- ffmpeg/ffprobe, solo per l'analisi;
+- ffmpeg/ffprobe per l'analisi; nella costruzione ffprobe legge i pacchetti nei punti di taglio e ffmpeg taglia la coda delle tracce FLAC;
 - versioni fissate nell'immagine e scritte nel report.
 
 ### 6.1 File intermedio con le sole tracce italiane
@@ -372,7 +372,7 @@ Prima si costruisce un file che contiene **solo** l'audio e i PGS italiani del d
 
   Il risultato è che la decodifica con ffmpeg, se non riempie i piccoli buchi nei timestamp, suona **tutta** la traccia in anticipo, fino a circa 107 ms (nelle prove 50–67 ms). Lettori e transcoder basati su ffmpeg probabilmente fanno lo stesso: va provato in fase 1.
 
-  **Regola:** sulle tracce italiane non ancora spostate si taglia con `--split parts:t-`, dove t è il primo punto di sincronizzazione dopo |S|. La parte tagliata riparte da zero, quindi poi si sposta di S + t, cioè della differenza t − |S| (tra 0 e circa 107 ms). Anche questo fa parte della costruzione dell'intermedio. Così si perdono al massimo circa 107 ms di italiano all'inizio, e nelle prove l'errore è tornato a zero.
+  **Regola:** si taglia sul primo punto di sincronizzazione t dopo |S|, nel donatore. Una prima passata sposta la traccia di −t, così t cade sullo zero e mkvmerge scarta solo quello che viene prima; una seconda la sposta di S + t, cioè della differenza t − |S| (tra 0 e circa 107 ms). Anche questo fa parte della costruzione dell'intermedio. Così si perdono al massimo circa 107 ms di italiano all'inizio, e nelle prove l'errore è tornato a zero. Fino alla 0.8 il taglio era `--split parts:t-`, che dà lo stesso risultato ma non vale per un taglio fuori dallo zero né insieme a una traccia FLAC (0.9, §18).
 - **Taglio finale (se si toglie l'eccesso, `--tail trim`):** `--split parts:` sull'intermedio, alla fine del video di riferimento. Il taglio cade sul primo pacchetto dopo il punto scelto, quindi può superarlo al massimo di un pacchetto.
   - Su un file che contiene anche il video il taglio **non funziona**: mkvmerge divide solo sui fotogrammi chiave del video.
   - **mkvmerge non sa dividere le tracce FLAC.** Per FLAC le alternative sono un remux con ffmpeg (`-c copy -copyts -to <fine>`, che non ricodifica) oppure lasciare sempre l'eccesso. Senza `-copyts` ffmpeg riporta la traccia a zero e perde lo spostamento già applicato (lo stesso problema di §4.3).
@@ -404,6 +404,11 @@ Prima si costruisce un file che contiene **solo** l'audio e i PGS italiani del d
 | 1 | Riuscito con avvisi ("il file potrebbe essere a posto o no") | Accetta, copia ogni avviso nel report (`MKVMERGE_WARNING`) e verifica comunque |
 | 2 | Fallito | Errore `MERGE_FAILED`, il file temporaneo viene eliminato |
 
+Nella 0.9:
+- vale per ogni passata di mkvmerge, intermedi compresi: un `MKVMERGE_WARNING` per avviso;
+- anche un crash (il processo finisce per un segnale) è `MERGE_FAILED`, e così ffmpeg che fallisce nel taglio delle FLAC;
+- un errore che dice che il disco è pieno ("No space left on device") è invece `NO_SPACE`: riprovabile, come lo spazio che manca prima di cominciare (§12, §13).
+
 ### 6.4 File temporanei e nome del file finale
 
 - **Uscita esplicita.** Il file finale si indica con `--output`. Se esiste già, o se è uno dei due ingressi (stesso file fisico), Dyadrr si ferma con l'errore `OUTPUT_EXISTS`. Nessuna opzione di sovrascrittura.
@@ -412,6 +417,29 @@ Prima si costruisce un file che contiene **solo** l'audio e i PGS italiani del d
   - un rename tra dischi diversi fallisce.
 - **Rinomina atomica** al nome finale solo dopo la verifica.
 - **Avanzi di un'interruzione brusca:** restano solo nella cartella temporanea, e si eliminano all'avvio successivo.
+
+**Il metodo (0.9).**
+- **Cartella di lavoro:** `<temporanei>/job-<host>-<processo>-<casuale>/`. All'avvio si eliminano quelle di questo host il cui processo non c'è più, e quelle con il numero del processo nuovo che non ha creato lui: in un container un processo riparte spesso con lo stesso numero. Quelle di un altro host, cioè di un altro container sulla stessa cartella, restano.
+- **`--temp-dir`:** basta che una cartella del percorso inizi con un punto. Lo stesso disco si controlla sulla cartella, o sulla prima che esiste risalendo il percorso, prima di crearla.
+- **Rinomina:** con un link fisico, che non sovrascrive mai: se nel frattempo il file finale è comparso, `OUTPUT_EXISTS`. Su un filesystem senza link fisici, una rinomina dopo aver controllato che il nome sia libero. Poi si eliminano la cartella di lavoro e, se resta vuota, `.dyadrr/`.
+- **Cartella di uscita** mancante o non scrivibile: `OUTPUT_NOT_WRITABLE`, prima di scrivere qualsiasi cosa.
+
+### 6.5 Metodo della costruzione (0.9)
+
+- **Tagli al millisecondo.** I punti di taglio del piano (§5) si arrotondano al ms: `--sync` e `--split` vogliono interi.
+- **Taglio iniziale in c**, sulla linea del tempo del riferimento (l'inizio del film o il confine iniziale, §5): due passate di `--sync`. La prima sposta ogni traccia di S − c, così c cade sullo zero e mkvmerge scarta i pacchetti che cominciano prima; la seconda la sposta di c. Vale per tutti i codec, FLAC compreso, e per i PGS. Con c = 0 la seconda passata serve solo per TrueHD. Una traccia che comincia dopo c non perde niente. Senza taglio iniziale c'è una sola passata, di S.
+- **TrueHD** (§6.1): la prima passata porta a zero il primo punto di sincronizzazione dal taglio in poi. Il punto si riconosce dai dati, un pacchetto con la firma `F8 72 6F BA` (major sync) nei byte 4–7, letto con ffprobe entro 1 s dal taglio; il primo che si legge non conta, perché dopo una ricerca ffmpeg gli dà il tempo dei pacchetti che lo precedono. mkvmerge segna questi pacchetti come fotogrammi chiave, ma la firma vale anche per i file di altri programmi. Senza un punto entro 1 s: `INPUT_UNREADABLE`.
+- **Taglio finale in e:** `--split parts:00:00:00-e` sull'intermedio, che tiene i timestamp e taglia sul primo pacchetto da e in poi, escluso. Le tracce FLAC vanno in un file a parte, con `ffmpeg -copyts -c copy -to e`. Un PGS con un sottotitolo a schermo in e, se e cade prima della fine del video, si taglia all'inizio di quel sottotitolo (§7). Ogni punto di taglio diverso è un file.
+- **Intermedi:** senza video, capitoli, tag, allegati e titolo, con le tracce nell'ordine finale. `--compression <traccia>:none` si ripete a ogni passata per i PGS non compressi nell'originale, perché ogni passata di mkvmerge li comprimerebbe. Ogni file si elimina appena non serve più.
+- **Unione finale** (§6.2): gli intermedi con `--no-chapters --no-global-tags --no-track-tags --no-attachments`; `--default-track-flag` e `--forced-display-flag` per ogni traccia.
+  - Default: la traccia video principale del riferimento, l'audio italiano principale e il primo PGS italiano forced che non sia un commento. Le altre tracce video, se ci sono, no.
+  - Forced: i PGS italiani riconosciuti come forced (§7), anche senza il flag nell'originale; per tutte le altre tracce il flag dell'originale.
+  - I PGS italiani del riferimento scartati con `--reference-italian-subs drop` si tolgono con `--subtitle-tracks !<tracce>`.
+- **mkvmerge** sempre con `--gui-mode` e `--flush-on-close` e con `LC_ALL=C.UTF-8`, come Wayfinderr: l'avanzamento viene dalle righe `#GUI#progress`, avvisi ed errori da `#GUI#warning` e `#GUI#error`.
+- **Prima di scrivere** (§9.4): scelte (`CHOICE_REQUIRED`), file finale (`OUTPUT_EXISTS`, `OUTPUT_NOT_WRITABLE`), cartella dei temporanei (`BAD_ARGUMENTS`), ingressi cambiati dall'analisi (`INPUT_BUSY`), spazio libero (`NO_SPACE`, §13).
+- **Annullamento** (§10): mkvmerge e ffmpeg ricevono SIGTERM e la cartella di lavoro si elimina.
+- **Risultato:** ogni traccia del file finale, in ordine, con origine, lingua, nome, flag e compressione, e per l'audio italiano inizio e fine attesi; i tagli, i sottotitoli persi e i comandi eseguiti con i loro avvisi. Servono alle verifiche (§9.5) e al report (§11.2, punto 8). Il file resta nella cartella di lavoro finché le verifiche non lo approvano.
+- **Costanti del metodo:** il margine di spazio (2 GiB), la ricerca del punto di sincronizzazione TrueHD (1 s) e quanto si guarda indietro per un sottotitolo a schermo (30 s), in `src/build.ts` (§9.2).
 
 ---
 
@@ -423,6 +451,9 @@ Prima si costruisce un file che contiene **solo** l'audio e i PGS italiani del d
   - possono restare pezzi orfani del sottotitolo tagliato, che i decoder scartano.
 
   Il report conta i sottotitoli persi. Ripararli vorrebbe dire modificare i PGS, che è fuori ambito.
+- **Al taglio finale** (0.9): un sottotitolo a schermo nel punto di taglio perde il blocco che lo toglie, e resterebbe a schermo fino alla fine del video.
+  - Se il taglio cade sulla fine del video (`--tail trim`) non conta: finisce con il video.
+  - Se cade prima (code diverse con `--edge-mismatch drop`), quel sottotitolo si toglie tutto e si conta tra i persi.
 - **Conteggio:** un sottotitolo è almeno due blocchi (uno che lo mostra e uno che lo toglie). Il report conta i **sottotitoli**, non i blocchi.
 - **Geometria:** i PGS sono disegnati su una tela 1920×1080, anche sui dischi UHD. Un PGS italiano da un 1080p sopra un video 2160p viene scalato dal lettore.
 - **Luminosità su HDR.** I PGS di un Blu-ray SDR sono pensati per SDR. Sopra un video HDR10 o Dolby Vision alcuni lettori li mostrano **molto più luminosi** del dovuto. Gli strumenti che lo correggono riscrivono la palette, cosa che P1 vieta.
@@ -449,6 +480,8 @@ Prima si costruisce un file che contiene **solo** l'audio e i PGS italiani del d
 - **Forced:** il flag, poi il nome ("forced", "forzati"), poi i blocchi, confrontati con la traccia più grande **della stessa lingua**. Senza tag statistici il terzo criterio si salta. Lo stesso vale per i sottotitoli del riferimento: `NO_FORCED_ITALIAN_SUBS` guarda i suoi forced non italiani.
 - **`SDR_SUBS_ON_HDR`:** si prende almeno un PGS italiano, il video del donatore è SDR e quello del riferimento no.
 - **PGS italiani del riferimento:** le tracce del riferimento in italiano e in PGS. `REFERENCE_HAS_ITALIAN_SUBS` scatta anche con `--reference-italian-subs` in sospeso.
+
+**Sottotitoli persi ai tagli (0.9).** Per ogni PGS preso e ogni taglio si leggono con ffprobe i blocchi dei 30 s prima del punto di taglio. Un sottotitolo è a schermo se, dopo l'ultima composizione che toglie tutto (nessun oggetto), ce n'è una che mostra qualcosa; il suo inizio è la prima di queste. Al più uno per traccia e per taglio. `SUBTITLES_DROPPED_AT_CUT` scatta una volta, con il numero dei sottotitoli persi; il report li elenca con traccia, taglio e inizio. Un sottotitolo che resta a schermo più di 30 s sfugge.
 
 ---
 
@@ -513,6 +546,8 @@ I parametri dei moduli non ancora scritti entrano nel file insieme ai moduli che
 Anche le costanti della correlazione sono costanti del metodo: ricerca vicina ±1 s, rifinitura ±2 ms, banda della correlazione sbiancata, posizioni delle ancore, spostamento sul contenuto (60 s, a passi di 250 ms), finestre brevi (2 s), precisione (1 s) e numero massimo di prove dei confini, ricerche oltre i confini (3 per lato), punti del trasferimento (5), parità tra coppie (0,02) e rapporti della diagnosi di velocità (§4.2, §4.4–4.7). Dicono dove e come cercare, non quando una coppia è idonea; stanno in `src/measure.ts` e si cambiano con una PR che aggiorna questi paragrafi. Lunghezza delle finestre, zona di esclusione, numero di punti e margine di ricerca stanno invece in `calibration.json`: cambiano quanto è severo il giudizio, e vanno tarati con le soglie.
 
 Costanti del metodo sono anche quelle del piano (§5): la precisione sotto la quale intro e code diverse ed eccesso in coda non contano (1 s, quella dei confini) e il tratto su cui si misura il livello dopo un taglio (250 ms). Stanno in `src/plan.ts`.
+
+E quelle della costruzione (§6.5): il margine di spazio libero (2 GiB, §13), la ricerca del punto di sincronizzazione TrueHD dopo un taglio (1 s) e il tratto prima di un taglio in cui si cerca un sottotitolo a schermo (30 s, §7). Stanno in `src/build.ts`.
 
 ### 9.3 Copertura dei punti coerenti
 
@@ -792,12 +827,14 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
 - **Nessuna scheda grafica:** il video non viene mai decodificato né codificato.
 - **Programmi esterni:** mkvmerge almeno v57, ffmpeg e ffprobe. Dyadrr controlla le versioni prima di cominciare (`TOOL_TOO_OLD`) e si ferma se un programma manca (`TOOL_MISSING`); le versioni finiscono nel report (§11.2).
   - **ffmpeg almeno 6.1.** Il metodo di lettura delle finestre (§4.3) è provato su ffmpeg 6.1.1 (Ubuntu 24.04) e 7.0.2 (§18), e legge alcuni messaggi di ffmpeg (`ashowinfo`, statistiche di lettura) il cui formato è garantito solo sulle versioni provate. La versione si legge da `ffmpeg -version`; per le build da git ("N-…"), che non hanno un numero di versione, da libavformat (almeno 60.16, quella di ffmpeg 6.1).
-  - **ffprobe:** basta che ci sia; serve solo per i metadati.
+  - **ffprobe:** basta che ci sia; serve per i metadati e, nella costruzione, per i pacchetti nei punti di taglio (§6.5).
 - **Processore:** carico leggero. Correlare alcuni minuti di audio a 8 kHz richiede secondi.
 - **Disco:** è il vero limite.
   - **Analisi:** legge alcuni GB, per i motivi di §4.3.
   - **Merge:** legge l'intero riferimento e scrive l'intero file finale.
-- **Spazio libero necessario**, sul disco del file finale: dimensione del riferimento + tracce italiane scelte × 2 (l'intermedio c'è sempre, §6.1) + un margine (per esempio 2 GiB, come Wayfinderr). Le dimensioni delle tracce vengono dai tag statistici; se mancano (§3.2), si stima per eccesso con la dimensione intera del donatore.
+- **Spazio libero necessario**, sul disco del file finale: dimensione del riferimento + tracce italiane scelte × 2 (l'intermedio c'è sempre, §6.1) + un margine di 2 GiB, come Wayfinderr (costante del metodo, 0.9). Le dimensioni delle tracce vengono dai tag statistici; se mancano (§3.2), si stima per eccesso con la dimensione intera del donatore.
+  - Bastano due copie delle tracce italiane anche con le due passate del taglio iniziale e il taglio finale: ogni intermedio si elimina appena il successivo è scritto (§6.5).
+  - Lo spazio si controlla prima di scrivere qualsiasi cosa. Se il disco si riempie lo stesso durante il merge (un altro programma che scrive), è `NO_SPACE` (§6.3).
 - **Ingombro totale** durante il lavoro: i due rip più il file finale, cioè 2,5–3 volte un film.
 
 ---
@@ -805,19 +842,37 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
 ## 14. Architettura e repo
 
 - **Repo separato `dyadrr`.** Ha una vita propria (fase sperimentale, soglie da tarare) e non pesa sulle versioni di Wayfinderr, dove ogni PR verso `main` alza la versione.
-- **TypeScript/Node, libreria + riga di comando.** La logica sta nella libreria. Wayfinderr la usa **lanciando la riga di comando come processo figlio** (proposta; l'alternativa del container separato è la decisione aperta 7), come fa già con mkvmerge: si annulla terminando il processo, l'avanzamento arriva come righe, il report come file JSON. Così:
+- **TypeScript/Node, libreria + riga di comando.** La logica sta nella libreria; il contratto è la riga di comando con il report JSON (§11): si annulla con un segnale di stop, l'avanzamento arriva come righe, il report come file JSON.
+- **In fase 2 Dyadrr gira in un container separato** (decisione 7, chiusa nella 0.9), con un profilo Compose e un'immagine propria. Wayfinderr gli passa i lavori con un protocollo a file job (sotto), come fa già con il runner MakeMKV. Così:
   - un crash o un esaurimento di memoria di Dyadrr non fa cadere gli upload;
-  - il contratto (§11) resta identico in tutti i casi.
+  - ffmpeg e mkvtoolnix hanno le versioni fissate e provate con Dyadrr (§16), indipendenti da quelle del backend, che le prende dai pacchetti di Alpine;
+  - chi non usa il merge non scarica né avvia niente;
+  - il contratto (§11) resta identico: nel container il runner lancia la riga di comando.
 - **Formato del pacchetto:** se in futuro il backend volesse importare la libreria direttamente, servono un punto d'ingresso compatibile CommonJS e nessun `await` al livello principale, perché il backend di Wayfinderr compila in CommonJS.
-- **Immagine Docker:**
-  - stessa base del backend (Node 22 su Alpine), con ffmpeg ≥ 6.1 e mkvtoolnix ≥ v57 a versioni fissate;
+- **Container separato** (decisione 7):
+  - **Servizio** `dyadrr` nel `docker-compose.yml` di Wayfinderr, con un profilo Compose (`profiles: ["merge"]`) come il servizio `makemkv`, e `init: true` (§10).
+  - **Protocollo a file job** su una cartella condivisa, come quello del runner MakeMKV (§19). La cartella sta dentro la cartella di lavoro di Wayfinderr (`.wayfinderr/` nella cartella sorvegliata, ignorata dal watcher), in `dyadrr/jobs/`:
+    - `<id>.job`: comando (`analyze` o `merge`), ingressi, uscita e opzioni, una riga `chiave=valore` ciascuno. Wayfinderr lo scrive con un altro nome e poi lo rinomina, così non si legge mai a metà;
+    - `<id>.run`: il runner ha preso il lavoro, rinominando il `.job`. Un lavoro alla volta;
+    - `<id>.log`: le righe di avanzamento (`--progress json`, §11.1), mentre il lavoro va avanti;
+    - `<id>.json`: il report (§11), scritto con un nome temporaneo e poi rinominato;
+    - `<id>.exit`: il codice di uscita (§12), quando il lavoro è finito;
+    - `<id>.cancel`: lo scrive Wayfinderr per fermare il lavoro. Il runner manda a Dyadrr il segnale di stop, e il report dice "annullato" (§10);
+    - `dyadrr.alive`: secondi dall'epoch, riscritti dal runner ogni pochi secondi, per sapere se il container è attivo.
+  - **Percorsi:** nel job sono relativi alle cartelle montate, come nel runner MakeMKV: ogni container aggiunge il suo percorso di quella cartella.
+  - **Runner:** sta nell'immagine di Dyadrr e lancia la riga di comando con gli argomenti del job. Il protocollo è l'unica cosa nuova oltre al contratto di §11.
+  - **Volumi:** la cartella sorvegliata (`MAKEMKV_OUTPUT_DIR`) in scrittura, con gli stessi permessi del backend: lì stanno i job, gli ingressi trattenuti (decisione 4), il file finale (decisione 5) e i temporanei `.dyadrr/`, sullo stesso disco del file finale (§6.4). Gli altri ingressi possibili, per esempio i download, in sola lettura.
+- **Immagine Docker** propria, costruita in questo repo:
+  - Node 22 su Alpine, come il backend, con ffmpeg ≥ 6.1 e mkvtoolnix ≥ v57 a versioni fissate;
   - un piccolo init per i segnali;
-  - amd64 e arm64, come le immagini di Wayfinderr.
+  - amd64 e arm64, come le immagini di Wayfinderr, pubblicata su GitHub Container Registry con gli stessi tag (`latest`, `sha-…`, versione);
+  - la suite della fase 1 si ripete sull'immagine (§15, fase 2).
 - **Windows:** con Docker Desktop le cartelle Windows montate sono lente per file di decine di GB, e lo sono sia l'analisi (alcuni GB) sia il merge. Se diventa un problema, si tengono i file di prova nel filesystem di WSL2.
 - **Licenza MIT**, come Wayfinderr, che così può includere Dyadrr senza vincoli. ffmpeg e mkvtoolnix sono GPL ma vengono lanciati come programmi esterni, quindi non vincolano la licenza di Dyadrr.
-- **Repo pubblico (consigliato):**
-  - Wayfinderr è pubblico e le sue immagini si scaricano senza login. Un Dyadrr privato incluso nell'immagine pubblica del backend sarebbe comunque distribuito a tutti.
-  - Restare privato avrebbe senso solo con un container separato con immagine propria. Servirebbero però credenziali nella CI e nella build, e chi compila Wayfinderr in locale non potrebbe più farlo.
+- **Repo pubblico (consigliato, motivi rivisti nella 0.9):**
+  - con il container separato Dyadrr non sta più nell'immagine del backend, ma la sua immagine la scarica ogni installazione di Wayfinderr che attiva il merge, senza login: deve essere pubblica, e con lei il codice che contiene. Un repo privato non nasconderebbe niente;
+  - chi compila Wayfinderr in locale può costruire anche l'immagine di Dyadrr;
+  - nessuna credenziale nella CI e nella build.
 
 ---
 
@@ -841,6 +896,7 @@ Prima di scrivere codice si verificano su file di prova i meccanismi da cui dipe
 - Si verificano segno di S, piano di inizio e fine, flag, capitoli e sottotitoli persi, al millisecondo.
 - *Stato (Dyadrr 0.5.0):* misura provata su MKV di 120 s generati al volo, in AC3: spostamenti con `--sync` di entrambi i segni (S esatto al decimo di ms, letto dai timestamp dei file prodotti), code tagliate con `--split` su intermedi senza video, intro diverse, silenzi all'inizio e alla fine, `OFFSET_TOO_LARGE`, deriva, velocità 1,001, contenuto ripetitivo, centrale contro L+R su un remix e scelta della coppia.
 - *Stato (Dyadrr 0.6.0):* piano di inizio e fine provato sugli stessi file: `--sync` di entrambi i segni, intro diversa con `--edge-mismatch` e `ABRUPT_START`, riferimento con la coda tagliata e `--tail`. Flag, capitoli e sottotitoli persi arrivano con la costruzione.
+- *Stato (Dyadrr 0.7.0):* costruzione provata su MKV di 30 s con audio italiano AC3, TrueHD e FLAC e PGS scritti a mano (formato .sup): S positivo con la coda tagliata anche in FLAC, S negativo con il taglio all'inizio del film e TrueHD su un punto di sincronizzazione, tagli sui confini con `--edge-mismatch drop`; ordine, flag default e forced, compressione dei PGS, capitoli, titolo e sottotitoli persi ai tagli, controllati sul file prodotto. Le verifiche dopo il merge arrivano con il loro modulo.
 
 **1b. Test sintetici con un taglio a metà film**
 - Si tolgono e si ricuciono parti di una copia, sempre senza ricodifica.
@@ -862,7 +918,7 @@ Prima di scrivere codice si verificano su file di prova i meccanismi da cui dipe
 - `DRIFT`, `TOO_FEW_CHECKPOINTS`, `AMBIGUOUS_MATCH` e gli avvisi si provano con serie di punti sintetiche.
 - `NO_SPACE` con un disco piccolo, `VERIFY_FAILED` con un errore iniettato apposta.
 - Una tabella collega **ogni codice** al test che lo produce.
-- *Stato (Dyadrr 0.2.0):* funzione di decisione e tabella dei codici fatte (`docs/CODICI.md`, sezione Test). Dalla 0.6.0 anche il piano, funzione pura, con le sue serie sintetiche: casi di inizio e fine, scelte con il loro effetto, tracce prese, forced e avvisi del piano. `NO_SPACE`, `VERIFY_FAILED` e `SUBTITLES_DROPPED_AT_CUT` arrivano con i rispettivi moduli.
+- *Stato (Dyadrr 0.2.0):* funzione di decisione e tabella dei codici fatte (`docs/CODICI.md`, sezione Test). Dalla 0.6.0 anche il piano, funzione pura, con le sue serie sintetiche: casi di inizio e fine, scelte con il loro effetto, tracce prese, forced e avvisi del piano. Dalla 0.7.0 `NO_SPACE` con un disco piccolo (spazio libero simulato) e con un disco che si riempie, `MERGE_FAILED` e `MKVMERGE_WARNING` con un mkvmerge finto, `SUBTITLES_DROPPED_AT_CUT` su file veri. `VERIFY_FAILED` arriva con le verifiche.
 
 **2. Casi da rifiutare con file reali**
 - Theatrical contro extended, framerate diversi, due film diversi.
@@ -929,6 +985,7 @@ Verifica a occhio su ogni lettore che usi davvero (app della TV, Plex o Jellyfin
 - **Voce di menu** (decisione aperta 11): oggi la voce Rips c'è sempre e, a funzione spenta, mostra come attivarla. Nasconderla quando il merge è spento richiede che il menu legga lo stato dal backend.
 - **Concorrenza:** un merge alla volta, in coda con i rip. In alternativa, lo spazio va contato insieme a quello riservato dai lavori in corso: oggi il controllo di spazio del ripper conta solo sé stesso.
 - **Lingua:** Dyadrr lavora solo con l'italiano. Il merge si attiva solo se `RIP_LANGUAGE` è `it`.
+- **Container Dyadrr** (decisione 7, §14): il servizio con il suo profilo nel `docker-compose.yml`, il runner dei job nell'immagine di Dyadrr, il lato Wayfinderr del protocollo e i volumi.
 - **Prima di attivarlo:** si ripete la suite della fase 1 sull'immagine dove Dyadrr girerà davvero, con le sue versioni di ffmpeg e mkvtoolnix.
 
 ### Fase 3: abbinamento automatico (idea, da discutere)
@@ -964,7 +1021,7 @@ La conferma resta sempre all'utente.
 
 ## 17. Decisioni aperte
 
-Le decisioni 1, 2, 8, 9 e 10 sono chiuse nella 0.3. La numerazione resta quella della 0.2.
+Le decisioni 1, 2, 8, 9 e 10 sono chiuse nella 0.3, la 7 nella 0.9. La numerazione resta quella della 0.2.
 
 1. ~~**Eccesso italiano in coda**~~ → **scelta dell'utente** (`--tail`, §10.1). Con FLAC `trim` richiede un remux con ffmpeg (§6.1).
 2. ~~**Tracce audio italiane**~~ → **scelta dell'utente** (`--italian`, §10.1).
@@ -974,7 +1031,7 @@ Le decisioni 1, 2, 8, 9 e 10 sono chiuse nella 0.3. La numerazione resta quella 
    - cosa si fa se il donatore era già stato caricato?
 5. **Nome del file finale e upload:** stesso nome del riferimento, che sul server **sostituisce** quello già caricato, oppure caricamento accanto?
 6. **Pulizia dopo il merge:** cosa fare dei due rip di partenza.
-7. **Dove gira in fase 2:** processo figlio dentro il container del backend, oppure container separato con profilo Compose (avevi chiesto se si potesse fare in un container a parte). Il contratto è lo stesso. Nel container separato servono un protocollo a file job su una cartella condivisa, come quello del runner MakeMKV (§19), i volumi giusti e un'immagine multi-architettura propria.
+7. ~~**Dove gira in fase 2**~~ → **container separato** con un profilo Compose (§14). Il contratto è lo stesso della riga di comando. Servono un protocollo a file job su una cartella condivisa, come quello del runner MakeMKV (§19), i volumi giusti (la cartella sorvegliata in scrittura) e un'immagine multi-architettura propria, costruita in questo repo.
 8. ~~**Repo pubblico o privato**~~ → **licenza MIT**; repo pubblico consigliato (§14).
 9. ~~**PGS italiani già presenti nel riferimento**~~ → **scelta dell'utente** (`--reference-italian-subs`, §10.1).
 10. ~~**Audio italiano fuori dal materiale in comune**~~ → **scelta dell'utente** (`--edge-mismatch`, §10.1).
@@ -1010,6 +1067,11 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
 | Unicità di un motivo ripetuto esattamente, 0.7 | ❌ Rapporto 2,0 sulla correlazione sbiancata: lo spettro a righe, sbiancato, dà un picco che sembra unico. ✅ 1,0 sull'NCC (§4.4) |
 | Somiglianza a mezzo campione dal picco, 0.7 | ❌ NCC 0,90 sui campioni, per un segnale identico. ✅ 1,00 con il donatore interpolato (sinc a finestra, §4.4) |
 | Correlazione (0.7) su MKV di 120 s in AC3 generati al volo (ancore 10 s, punti 3 s, S_max 5 s), ffmpeg 6.1.1 e 7.0.2 | ✅ `--sync` di +1537 e −263 ms: S esatto, dispersione 0, trasferimento 0. Coda tagliata a 100 s: confine a 99,1 s. Intro diversa fino a 5 s: confine a 4,5 s. 4 s tolti a 60 s: confine a 61,4 s e salto unico di 4032 ms oltre il confine. Circa 100 ms tolti: salto unico di 144 ms. 20 s sostituiti: punti senza corrispondenza. 30 s di silenzio: 3 punti su 20 non conclusivi. Remix con lo stesso centrale: NCC 0,9995 sul centrale, 0,02 su L+R. Velocità 0,3‰: deriva di 1125 ms all'ora. Velocità 1,001: somiglianza 0,45–0,48 con ancore da 10 s, sotto 0,35 con ancore da 30 s; la diagnosi trova 1/1,001. Motivo di 1,5 s ripetuto: rapporto 1,0 |
+| `--sync` negativo su TrueHD, 0.9 (mkvmerge v82, ffmpeg 6.1.1) | ❌ mkvmerge tiene i pacchetti dallo zero anche se non sono un punto di sincronizzazione; ffprobe li scarta e dà al primo punto di sincronizzazione il tempo del primo pacchetto scartato (7 ms prima, nella prova). ✅ Con lo zero sul punto di sincronizzazione (−t, poi S + t) il primo blocco è un punto di sincronizzazione e i timestamp seguenti sono quelli del donatore spostati di S, entro 1 ms. mkvmerge segna i punti di sincronizzazione come fotogrammi chiave; nei dati hanno la firma `F8 72 6F BA` |
+| `--split parts:` sull'intermedio, 0.9 | `parts:00:00:00-e` tiene i timestamp, anche con uno spostamento positivo, e taglia sul primo pacchetto da e in poi, escluso. Con una sola parte il nome del file resta quello dato. ❌ Un file con una traccia FLAC non si divide ("Splitting tracks of this type is not supported") |
+| ffmpeg `-copyts -c copy -to` su FLAC, 0.9 | ✅ Tiene lo spostamento; l'ultimo pacchetto è l'ultimo che comincia prima del taglio |
+| PGS ai tagli, 0.9 | Al taglio iniziale si perde il sottotitolo a schermo e resta il blocco che lo toglie; al taglio finale resta il sottotitolo senza il blocco che lo toglie. ffprobe dà i blocchi decompressi anche dai PGS con zlib |
+| Unione finale, 0.9 | ✅ Flag default e forced, ordine, `--compression <traccia>:none`, capitoli e titolo del solo riferimento come previsti (§6.2). Un avviso in `--gui-mode` è una riga `#GUI#warning`, con codice di uscita 1 |
 | Tempo di calcolo della correlazione, 0.7 | Un'ancora (30 s contro 8,5 min) circa 2 s in Node, tre coppie insieme circa 4 s; una ricerca ampia di un punto (10 s contro 8 min) circa 1,4 s |
 
 ---
@@ -1109,3 +1171,12 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
   - **Sottotitoli:** PGS presi, forced riconosciuti per lingua anche nel riferimento, condizioni di `SDR_SUBS_ON_HDR` e `REFERENCE_HAS_ITALIAN_SUBS` (§7).
   - **Tracce audio:** ruolo stimato con il motivo, `ITALIAN_TRACKS_SKIPPED` per traccia (§8).
   - **Taratura:** `longGapWithoutItalianMs` (10 min), `abruptStartDbfs` (−40 dBFS), `forcedSubsFraction` (15%), tutti provvisori, con i limiti; precisione e tratto del livello sono costanti del metodo (§9.2, decisione 12).
+- **0.9:** costruzione del file finale e decisione 7.
+  - **Taglio iniziale:** sempre con due passate di `--sync`, anche fuori dallo zero e con FLAC; per TrueHD lo zero cade sul punto di sincronizzazione, riconosciuto dalla firma nei dati, al posto di `--split parts:t-` (§6.1, §6.5, §18).
+  - **Taglio finale:** `--split parts:` per ogni punto di taglio, ffmpeg per FLAC; un PGS con un sottotitolo a cavallo di un taglio prima della fine del video si taglia all'inizio del sottotitolo (§6.5, §7).
+  - **Unione finale:** default sulla traccia video principale, forced dei PGS riconosciuti come forced, compressione a ogni passata, intermedi senza titolo (§6.5).
+  - **Esito:** ogni passata di mkvmerge, crash compresi; un disco che si riempie è `NO_SPACE`, non `MERGE_FAILED` (§6.3).
+  - **Temporanei:** cartelle di lavoro per host e processo, avanzi eliminati all'avvio, rinomina con un link fisico che non sovrascrive (§6.4).
+  - **Sottotitoli persi ai tagli:** dai blocchi PGS dei 30 s prima del taglio (§7).
+  - **Costanti del metodo:** margine di spazio 2 GiB, ricerca del punto di sincronizzazione TrueHD 1 s, 30 s per i sottotitoli a schermo (§9.2, §13).
+  - **Decisione 7 chiusa:** container separato con profilo Compose, protocollo a file job come il runner MakeMKV, volumi, immagine propria multi-architettura; motivi del repo pubblico rivisti (§14, §17).

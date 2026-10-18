@@ -59,7 +59,8 @@ codici di uscita in [docs/CODICI.md](docs/CODICI.md).
 
 - Node 22
 - mkvtoolnix, almeno v57
-- ffmpeg almeno 6.1 e ffprobe (solo per l'analisi)
+- ffmpeg almeno 6.1 e ffprobe (per l'analisi; nel merge solo per leggere i
+  punti di taglio e per la coda delle tracce FLAC, sempre senza ricodificare)
 
 Nessuna scheda grafica: il video non viene mai decodificato.
 
