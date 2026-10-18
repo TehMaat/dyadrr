@@ -232,7 +232,7 @@ const unreadable = (path: string, why: string) => new DyadrrError('INPUT_UNREADA
 
 const MiB = 1024 * 1024;
 
-async function fingerprint(path: string, size: number, modifiedMs: number): Promise<Fingerprint> {
+async function fingerprint(path: string, size: number, modified: Date): Promise<Fingerprint> {
   const handle = await open(path, 'r');
   try {
     const hash = async (position: number) => {
@@ -248,7 +248,7 @@ async function fingerprint(path: string, size: number, modifiedMs: number): Prom
     };
     return {
       size,
-      modifiedAt: new Date(modifiedMs).toISOString(),
+      modifiedAt: modified.toISOString(),
       firstMiBSha256: await hash(0),
       lastMiBSha256: await hash(Math.max(0, size - MiB)),
     };
@@ -328,7 +328,7 @@ export async function readInput(file: string, options: ReadInputOptions): Promis
   // 2. Impronta (§11.2).
   let print: Fingerprint;
   try {
-    print = await fingerprint(path, before.size, before.mtimeMs);
+    print = await fingerprint(path, before.size, before.mtime);
   } catch (e) {
     throw unreadable(path, `cannot be read (${(e as NodeJS.ErrnoException).code ?? String(e)})`);
   }

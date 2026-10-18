@@ -171,6 +171,9 @@ test('durata dei tag statistici', () => {
 });
 
 test("impronta: dimensione, data di modifica e hash del primo e dell'ultimo MiB", async () => {
+  // Una data con frazioni di millisecondo: la data dell'impronta è quella di Node, non troncata.
+  const modified = (Date.now() - 3_600_000 + 0.9) / 1000;
+  utimesSync(files.reference!, modified, modified);
   const ref = await read('reference');
   const bytes = readFileSync(files.reference!);
   const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
