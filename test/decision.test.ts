@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { loadCalibration } from '../src/calibration.js';
 import { DyadrrError } from '../src/codes.js';
 import {
+  checkStructure,
   decide,
   type AnchorMeasure,
   type CheckpointMeasure,
@@ -393,4 +394,19 @@ test('INTERNAL: mancano le misure di una fase che serve', () => {
   // Dopo un rifiuto strutturale le misure non servono.
   const { anchors: __, ...withoutAnchors } = base({ files: [reference(), reference()] });
   assert.deepEqual(reasons(decide(withoutAnchors, cal)), ['NO_ITALIAN_AUDIO']);
+});
+
+test('solo i controlli strutturali: dicono se vale la pena misurare', () => {
+  const ok = checkStructure({ files: [reference(), donor()], originalLanguage: null }, cal);
+  assert.equal(ok.decision, 'eligible');
+  assert.deepEqual(ok.roles, { reference: 0, donor: 1 });
+  assert.equal(ok.measureLanguage?.language, 'eng');
+  for (const name of ['roles', 'measure-language', 'video', 'framerate', 'integrity']) assert.equal(result(ok, name), 'pass');
+  assert.ok(ok.checks.slice(5).every((c) => c.result === 'skipped'));
+
+  // Un rifiuto strutturale è già il report definitivo, uguale a quello di decide.
+  const better = { ...donor(), video: { ...reference().video, width: 7680, height: 4320 } };
+  const refused = checkStructure({ files: [reference(), better], originalLanguage: null }, cal);
+  assert.deepEqual(refused, decide({ files: [reference(), better], originalLanguage: null }, cal));
+  assert.deepEqual(reasons(refused), ['DONOR_BETTER_VIDEO']);
 });

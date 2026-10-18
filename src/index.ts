@@ -7,3 +7,5 @@ export * from './tools.js';
 export * from './matroska.js';
 export * from './inputs.js';
 export * from './audio.js';
+export * from './correlation.js';
+export * from './measure.js';

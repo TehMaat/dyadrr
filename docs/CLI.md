@@ -16,7 +16,7 @@ con audio italiano) e quale il **riferimento** (studio §3.2).
 
 | Comando | Cosa fa | Stato |
 |---|---|---|
-| `analyze` | Misura e controlli. Scrive solo il report, nessun MKV | previsto |
+| `analyze` | Misura e controlli. Scrive solo il report, nessun MKV | previsto; misura e decisione sono già nella libreria (`analyzePair`), senza report |
 | `merge` | Analisi, scrittura del file finale, verifica | previsto |
 
 ## Opzioni

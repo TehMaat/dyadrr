@@ -17,12 +17,27 @@ export const CALIBRATION_LIMITS = {
   toleranceMs: { min: 1, max: 30 },
   /** Spostamento massimo S_max, in ms. §9.1: mai oltre 300 s. */
   maxOffsetMs: { min: 1000, max: 300_000 },
+  /**
+   * Margine oltre S_max dell'intervallo di ricerca ampio, ±(S_max + margine),
+   * in ms (§4.4): un picco poco oltre S_max dà `OFFSET_TOO_LARGE` e non `NO_MATCH`.
+   */
+  searchMarginMs: { min: 1000, max: 120_000 },
   /** θ_ncc: somiglianza minima del picco (§4.4). */
   nccMin: { min: 0.2, max: 0.99 },
   /** θ_rapporto: unicità minima del picco (§4.4). */
   peakRatioMin: { min: 1.05, max: 10 },
+  /** Zona di esclusione intorno al picco per l'unicità, in ms per lato (§4.4). */
+  exclusionZoneMs: { min: 5, max: 250 },
   /** Ampiezza della fascia sopra θ_ncc in cui scatta `MEASURE_MIX_DIFFERS`. */
   measureMixDiffersBand: { min: 0, max: 0.5 },
+  /** Lunghezza del tratto di riferimento di ogni ancora, in ms (§4.4). */
+  anchorWindowMs: { min: 10_000, max: 120_000 },
+  /** Lunghezza delle finestre dei punti di conferma, dei confini e del trasferimento, in ms (§4.5–4.7). */
+  checkpointWindowMs: { min: 2000, max: 60_000 },
+  /** Punti di conferma previsti (§4.5). */
+  checkpointCount: { min: 10, max: 100, integer: true },
+  /** Punti di conferma al massimo, compresi quelli aggiunti nei tratti scoperti (§4.5, punto 7). */
+  maxCheckpointCount: { min: 10, max: 200, integer: true },
   /** E_min: sotto questa energia la finestra è non conclusiva (§4.5). */
   silenceDbfs: { min: -90, max: -20 },
   /** Punti coerenti minimi (§9.3). */
@@ -89,6 +104,16 @@ export function parseCalibration(raw: unknown): Calibration {
     }
     if (limit.integer && !Number.isInteger(value)) throw bad(`${name} must be an integer`);
     parsed[name] = value;
+  }
+
+  // Limiti che legano due parametri.
+  if (parsed.maxCheckpointCount < parsed.checkpointCount) {
+    throw bad(`maxCheckpointCount = ${parsed.maxCheckpointCount} is below checkpointCount = ${parsed.checkpointCount}`);
+  }
+  if (parsed.minConsistentCheckpoints > parsed.maxCheckpointCount) {
+    throw bad(
+      `minConsistentCheckpoints = ${parsed.minConsistentCheckpoints} is above maxCheckpointCount = ${parsed.maxCheckpointCount}: no pair could pass`,
+    );
   }
 
   if (!Array.isArray(provisional)) throw bad('provisional must be a list of parameters');

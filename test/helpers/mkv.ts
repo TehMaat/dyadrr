@@ -1,5 +1,5 @@
 // Piccoli MKV generati al volo con ffmpeg e mkvmerge per i test degli ingressi.
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { mkdtempSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,6 +8,16 @@ export const tempDir = () => mkdtempSync(join(tmpdir(), 'dyadrr-test-'));
 
 export function run(cmd: string, args: readonly string[]): string {
   return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+}
+
+/** Come `run`, senza bloccare: così più file si generano in parallelo. */
+export function runAsync(cmd: string, args: readonly string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) reject(new Error(`${cmd} ${args.join(' ')}: ${stderr || error.message}`));
+      else resolve(stdout);
+    });
+  });
 }
 
 export interface SourceAudio {
@@ -54,4 +64,26 @@ export function settle(path: string): string {
   const past = new Date(Date.now() - 3_600_000);
   utimesSync(path, past, past);
   return path;
+}
+
+/** Timestamp dei pacchetti audio di un file, in ms. */
+export function packetTimes(path: string): number[] {
+  return run('ffprobe', ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'packet=pts_time', '-of', 'csv=p=0', path])
+    .trim().split('\n').map((l) => Number(l) * 1000);
+}
+
+/**
+ * Lo spostamento vero tra due file, dai loro timestamp: la differenza media
+ * tra gli ultimi pacchetti audio, che sono gli stessi nei due file. Con un
+ * --sync negativo mkvmerge scarta i pacchetti prima dello zero e, per TrueHD,
+ * ricalcola i timestamp: lo spostamento vero può differire da quello
+ * richiesto per l'arrotondamento al millisecondo (§15, 1a).
+ */
+export function realShift(original: string, shifted: string): number {
+  const a = packetTimes(original);
+  const b = packetTimes(shifted);
+  const n = Math.min(a.length, b.length);
+  const last = (list: number[]) => list.slice(list.length - n);
+  const [x, y] = [last(a), last(b)];
+  return y.reduce((sum, t, i) => sum + t - x[i]!, 0) / n;
 }

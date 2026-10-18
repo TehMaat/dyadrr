@@ -18,7 +18,7 @@ import { loadCalibration } from '../src/calibration.js';
 import { DyadrrError } from '../src/codes.js';
 import { readInput, type InputFile } from '../src/inputs.js';
 import { locate } from './helpers/correlate.js';
-import { mkvmerge, run, settle, tempDir } from './helpers/mkv.js';
+import { mkvmerge, realShift, run, settle, tempDir } from './helpers/mkv.js';
 
 // Lettura delle finestre audio (studio §4.3, §15 punto 1d) su MKV veri,
 // generati al volo. Sorgente: 12 s di video di prova (un fotogramma chiave
@@ -92,6 +92,8 @@ before(() => {
       settle(mkvmerge(p(`${codec}-${suffix}.mkv`), ['--sync', `0:${shift}`, '--sync', `1:${shift}`, p(`${codec}.mkv`)]));
     }
   }
+  // Tutto spostato oltre il pre-roll: start_time di 6,5 s.
+  settle(mkvmerge(p('late-file.mkv'), ['--sync', '0:6500', '--sync', '1:6500', p('flac.mkv')]));
   // Solo l'audio spostato: la traccia parte dopo lo zero, il video no.
   settle(mkvmerge(p('late-audio.mkv'), ['--sync', '1:700', p('ac3.mkv')]));
 
@@ -175,28 +177,6 @@ test('finestre 0–100 ms dopo i fotogrammi chiave: errore sotto il millisecondo
   assert.ok(errors.flac.every((e) => Math.abs(e) < 0.01), errors.flac.join(' '));
 });
 
-/** Timestamp dei pacchetti audio di un file, in ms. */
-function packetTimes(path: string): number[] {
-  return run('ffprobe', ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'packet=pts_time', '-of', 'csv=p=0', path])
-    .trim().split('\n').map((l) => Number(l) * 1000);
-}
-
-/**
- * Lo spostamento vero tra due file, dai loro timestamp: la differenza media
- * tra gli ultimi pacchetti audio, che sono gli stessi nei due file. Con un
- * --sync negativo mkvmerge scarta i pacchetti prima dello zero e, per TrueHD,
- * ricalcola i timestamp: lo spostamento vero può differire da quello
- * richiesto per l'arrotondamento al millisecondo (§15, 1a).
- */
-function realShift(original: string, shifted: string): number {
-  const a = packetTimes(original);
-  const b = packetTimes(shifted);
-  const n = Math.min(a.length, b.length);
-  const last = (list: number[]) => list.slice(list.length - n);
-  const [x, y] = [last(a), last(b)];
-  return y.reduce((sum, t, i) => sum + t - x[i]!, 0) / n;
-}
-
 test('spostamenti noti con --sync, positivi e negativi, letti dai timestamp dei file prodotti', async () => {
   await Promise.all(CODECS.flatMap((codec) => (['plus', 'minus'] as const).map(async (suffix) => {
     const shifted = await read(`${codec}-${suffix}`);
@@ -236,6 +216,19 @@ test('una traccia che non parte da zero: la finestra comincia al suo primo campi
 
   // Una finestra tutta prima della traccia è una richiesta sbagliata.
   await assert.rejects(window('late-audio', 0, 500), code('INTERNAL'));
+});
+
+test('start_time oltre il pre-roll: la finestra comincia comunque all\'istante richiesto', async () => {
+  const file = await read('late-file');
+  assert.equal(file.startTimeMs, 6500);
+  const truth = await window('flac', 0, SECONDS * 1000);
+  for (const startMs of [9000, 12_345]) {
+    const w = await window('late-file', startMs, 1000);
+    assert.equal(w.startMs, startMs);
+    assert.equal(w.samples.length, ANALYSIS_RATE);
+    const { ms, ncc } = offsetFromTruth(w, truth, 6500);
+    assert.ok(ncc > 0.99 && Math.abs(ms - 6500) < 0.01, `${startMs}: ${ms} ms, ncc ${ncc}`);
+  }
 });
 
 test('canale centrale contro L+R, anche dalla stessa traccia e da più tracce nella stessa lettura', async () => {

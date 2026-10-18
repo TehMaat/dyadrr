@@ -3,8 +3,8 @@
 ## Sviluppo
 
 Requisiti: Node 22, ffmpeg (almeno 6.1) con ffprobe e mkvtoolnix (almeno
-v57). Servono anche per `npm test`: i test degli ingressi e delle finestre
-audio generano piccoli MKV veri.
+v57). Servono anche per `npm test`: i test degli ingressi, delle finestre
+audio e della misura generano piccoli MKV veri.
 
 ```bash
 sudo apt-get install ffmpeg mkvtoolnix   # Debian e Ubuntu

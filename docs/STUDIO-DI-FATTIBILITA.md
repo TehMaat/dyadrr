@@ -1,10 +1,10 @@
 # Dyadrr: studio di fattibilità
 
-Stato: bozza 0.6, ottobre 2026.
+Stato: bozza 0.7, ottobre 2026.
 
 Questo documento raccoglie le decisioni prese, quelle ancora aperte e i risultati delle prime verifiche sperimentali (§18). È il punto di partenza del repo.
 
-La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). Le modifiche principali sono elencate in §20.
+La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). Le modifiche principali sono elencate in §20.
 
 ---
 
@@ -143,14 +143,17 @@ I ruoli li **decide Dyadrr**, senza opzione per imporli:
   - "Hanno il canale centrale" le tracce con più di un canale la cui disposizione (`channel_layout` di ffprobe) comprende FC: 3.0, 5.1, 7.1 e simili. Una traccia mono non conta: il suo unico canale è il mix completo, non il dialogo.
   - L+R è la media di FL e FR. Una traccia mono dà il suo unico canale; una disposizione sconosciuta dà la media dei primi due canali.
 - Nella prova del remix sintetico (§18), il downmix mono completo ha perso la corrispondenza in tutte le finestre, mentre il canale centrale l'ha tenuta in tutte.
+- Il controllo di trasferimento (§4.7) usa i canali non centrali: L+R, oppure (L − R)/2, la semidifferenza di FL e FR, che toglie quello che sta al centro.
 - AC3 ed E-AC3 si decodificano **senza compressione dinamica** (DRC). Ogni decoder applica la sua, e falserebbe il confronto.
-- **Ricerca grossolana** con una correlazione "sbiancata" (GCC-PHAT), più robusta con la musica. **Rifinitura** con la correlazione normalizzata classica (NCC) e interpolazione parabolica.
+- **Ricerca grossolana** con una correlazione "sbiancata" (GCC-PHAT), più robusta con la musica. **Rifinitura** con la correlazione normalizzata classica (NCC) e interpolazione parabolica. I dettagli sono in §4.4.
 
 **La coppia di tracce**
-- Si escludono le tracce marcate come commento o audiodescrizione, o con nomi che lo indicano.
+- Si escludono le tracce marcate come commento o audiodescrizione, o con nomi che lo indicano (le stesse parole di §8, anche in inglese: "commentary", "audio description", "descriptive"). Se in un file restano solo tracce così, si usano comunque.
 - Nei rip da Blu-ray questi flag di solito mancano, perché il disco non li riporta. Per questo non si sceglie la coppia "guardando i metadati".
-- Si misura **ogni coppia possibile** nella lingua di misura (in genere al massimo 3×2) sulla prima ancora (§4.4) e si tiene quella con la corrispondenza migliore. A parità si preferiscono due tracce lossless, poi lo stesso codec.
-- Il costo è di pochi secondi, perché le coppie si decodificano nella stessa lettura.
+- Si misura **ogni coppia possibile** nella lingua di misura (in genere al massimo 3×2) sulla prima ancora (§4.4) e si tiene quella con la corrispondenza migliore: tra le coppie con un picco sicuro, la somiglianza più alta. A parità (somiglianze entro 0,02) si preferiscono due tracce lossless, poi lo stesso codec, poi l'ordine delle tracce.
+- Se sulla prima ancora nessuna coppia ha un picco sicuro (per esempio cade in un silenzio), si misurano tutte le coppie anche sulle ancore successive, finché una lo ha. Senza nessun picco sicuro si tiene la coppia più somigliante, per il report e per la diagnosi di velocità.
+- Dopo la scelta, ancore, confini e punti usano solo quella coppia. Il report elenca tutte le coppie provate, con la loro confidenza (§11.2).
+- Il costo è di pochi secondi, perché le coppie si decodificano nella stessa lettura e ogni tratto del donatore si trasforma una volta sola per tutte le coppie che lo usano.
 
 ### 4.3 Come si leggono le finestre di audio
 
@@ -172,7 +175,7 @@ Con questa regola, nelle prove l'errore di lettura delle finestre è sceso sotto
 **Il metodo, provato a mano (0.6).** Una lettura è un solo processo ffmpeg per finestra, con tutte le tracce che servono di quel file (§4.2):
 
 ```
-ffmpeg -nostdin -v verbose -drc_scale 0 -copyts -seek_timestamp 1 -ss <T − 2 s> -i <file>
+ffmpeg -nostdin -v verbose -drc_scale 0 -copyts -seek_timestamp 1 -noaccurate_seek -ss <T − 2 s> -i <file>
   -filter_complex "[0:<flusso>]pan=mono|c0=FC,
                    aresample=8000:cutoff=0.75:min_comp=0.002:min_hard_comp=0.002:max_soft_comp=0,
                    atrim=start=<T>:end=<T + durata>,asetnsamples=n=8000:p=0,ashowinfo@s0[o0];
@@ -180,7 +183,7 @@ ffmpeg -nostdin -v verbose -drc_scale 0 -copyts -seek_timestamp 1 -ss <T − 2 s
   -map [o0] -f f32le pipe:3  -map [o1] -f f32le pipe:4
 ```
 
-- **Timestamp.** `-copyts` tiene i timestamp della traccia Matroska; `-seek_timestamp 1` fa cercare T sulla stessa linea del tempo, senza aggiungere lo `start_time`. `atrim` taglia sui timestamp decodificati, al campione. `ashowinfo` scrive su stderr il timestamp di ogni blocco in uscita, in unità di 1/8000 s: quello del primo blocco è l'**inizio reale** della finestra. Di solito è T; è più tardi se la traccia comincia dopo T o se la decodifica è partita dopo T. Non si dà mai per scontato.
+- **Timestamp.** `-copyts` tiene i timestamp della traccia Matroska; `-seek_timestamp 1` fa cercare T sulla stessa linea del tempo, senza aggiungere lo `start_time`. `atrim` taglia sui timestamp decodificati, al campione. `-noaccurate_seek` toglie il taglio che ffmpeg fa da sé dopo `-ss`: con `-copyts` cadrebbe a T − 2 s **più lo `start_time` del file**, e con uno `start_time` oltre il pre-roll la finestra comincerebbe tardi, o non avrebbe campioni (corretto nella 0.7: nelle prove della 0.6 gli `start_time` erano sotto i 2 s e il pre-roll lo nascondeva, §18). `ashowinfo` scrive su stderr il timestamp di ogni blocco in uscita, in unità di 1/8000 s: quello del primo blocco è l'**inizio reale** della finestra. Di solito è T; è più tardi se la traccia comincia dopo T o se la decodifica è partita dopo T. Non si dà mai per scontato.
 - **Ritardo del codec dichiarato (CodecDelay).** Se la traccia Matroska dichiara un ritardo del codec, ffmpeg lo sottrae dai timestamp, arrotondato al millisecondo, come prescrive Matroska: è la linea del tempo su cui un lettore suona la traccia. Gli AC3 ed E-AC3 scritti da ffmpeg dichiarano 5,33 ms, e una traccia che per mkvmerge comincia a 700 ms dà il primo campione a 695 ms. S non cambia: mkvmerge sposta i blocchi e lascia il ritardo dichiarato com'è. Sui rip di MakeMKV va controllato (§15, fase 0).
 - **Continuità.** Il PCM in uscita non ha timestamp: il campione n deve cadere davvero all'inizio reale + n/8000 s. Per questo `aresample` riempie di silenzio i buchi nei timestamp e toglie le sovrapposizioni, ma solo oltre 2 ms, senza mai stirare il segnale (`max_soft_comp=0`). Sotto i 2 ms non tocca nulla: i timestamp di Matroska sono al millisecondo, e con i codec il cui pacchetto non dura un numero intero di ms (TrueHD 0,83 ms, DTS 10,67 ms) l'arrotondamento da solo dà scarti fino a 1 ms. Con la soglia a 1 ms, nelle prove, `aresample` toglieva e aggiungeva campioni nel DTS e la somiglianza con l'originale scendeva da 0,975 a 0,88. Senza compensazione, un buco di 50 ms sposta di 50 ms tutto quello che segue.
 - **Passa-basso.** È il filtro del ricampionamento stesso: `cutoff=0.75` della metà di 8 kHz, cioè 3 kHz. Il filtro è a fase lineare e `aresample` ne compensa il ritardo nei timestamp: nelle prove l'errore su FLAC è 0,000 ms.
@@ -200,27 +203,43 @@ Per ridurli: il pezzo da cercare si prende sempre dal riferimento e la ricerca a
 ### 4.4 Misura iniziale: le ancore
 
 1. **Ancore multiple.** Si cerca un tratto di 30 s del riferimento al 15%, 25%, 35% e 50% della durata: sempre oltre lo spostamento massimo S_max (180 s di partenza, §9.2), e mai in un punto solo. Si accetta la prima ancora che passa la soglia, e una seconda ancora deve dare lo stesso S entro la tolleranza.
-2. **Intervallo di ricerca simmetrico**, ±(S_max + 60 s), **indipendente dalle durate dei file**.
+   - **Posizioni:** dal primo timestamp del video di riferimento, al 15%, 25%, 35% e 50% della sua durata, ma mai prima di S_max + 60 s (così nel donatore c'è posto per ogni S) né oltre la fine delle tracce. Posizioni uguali contano una volta.
+   - **Quante:** ci si ferma a due ancore sicure, oppure alla prima se il suo |S| supera S_max (la decisione si ferma lì, punto 4). Altrimenti si misurano tutte e quattro.
+   - **Lunghezza:** 30 s (`anchorWindowMs`, §9.2).
+2. **Intervallo di ricerca simmetrico**, ±(S_max + 60 s), **indipendente dalle durate dei file**. I 60 s sono il margine `searchMarginMs` (§9.2): servono perché un picco poco oltre S_max dia `OFFSET_TOO_LARGE` e non `NO_MATCH`.
    - La differenza di durata non dice quanto vale S: un'intro in più da una parte e una coda in più dall'altra possono compensarsi.
    - La differenza di durata si usa solo come indizio e si riporta nel report.
 3. **Confidenza: due numeri.**
    - **Somiglianza:** il valore NCC del picco, normalizzato tra −1 e 1. Deve superare una soglia θ_ncc. Se la supera solo di poco (fascia in §9.2, provvisoria), si va avanti con l'avviso `MEASURE_MIX_DIFFERS`.
-   - **Unicità:** il rapporto tra il picco e il valore più alto **fuori da una zona di esclusione** intorno al picco (circa ±25 ms). Deve superare una soglia θ_rapporto. Senza zona di esclusione, il "secondo picco" sarebbe il campione accanto e il rapporto sarebbe sempre circa 1.
+   - **Unicità:** il rapporto tra il picco e il valore più alto **fuori da una zona di esclusione** intorno al picco (±25 ms, `exclusionZoneMs`). Deve superare una soglia θ_rapporto. Senza zona di esclusione, il "secondo picco" sarebbe il campione accanto e il rapporto sarebbe sempre circa 1.
+
+   **Come si misura un picco (0.7).**
+   - **Pezzo e tratto di ricerca.** Il pezzo è la finestra del riferimento, con il suo inizio reale (§4.3); il tratto è la finestra del donatore che copre l'intervallo di ricerca. Le letture si limitano al tratto in cui le tracce hanno audio. Si provano tutti gli spostamenti in cui il pezzo sta per intero nel tratto.
+   - **Posizione grossolana:** il massimo della correlazione sbiancata (GCC-PHAT), nella banda da 20 Hz a 3 kHz. Fuori dalla banda i pesi sono zero: sopra il passa-basso della lettura c'è solo rumore, e sbiancarlo lo porterebbe al livello del segnale.
+   - **Rifinitura:** NCC ai campioni entro ±2 ms dalla posizione grossolana, e parabola sui tre valori intorno al massimo: lo spostamento ha il decimale.
+   - **Somiglianza:** NCC allo spostamento rifinito, con il tratto del donatore interpolato tra un campione e l'altro (sinc a finestra). Senza interpolazione, a mezzo campione dal picco l'NCC di un segnale fino a 3 kHz campionato a 8 kHz scende fino al 10% (0,90 invece di 1 nelle prove, §18): la somiglianza dipenderebbe da dove cade il picco rispetto ai campioni.
+   - **Unicità:** sull'NCC, non sulla correlazione sbiancata. Il secondo valore è il massimo dell'NCC su tutti gli spostamenti fuori dalla zona di esclusione, con la stessa parabola del picco. Un contenuto che si ripete esattamente ha uno spettro a righe, e sbiancarlo darebbe un picco "unico" che non lo è: nelle prove il rapporto sulla correlazione sbiancata era 2,0, sull'NCC 1,0 (§18). È l'errore nel verso pericoloso, quello che accetta un allineamento sbagliato di un periodo. Il rapporto vale al massimo 1000, 1 se fuori dalla zona non c'è niente da confrontare, 0 se la somiglianza è nulla.
+   - **S** = istante reale del pezzo − istante del donatore in cui il pezzo comincia, con il decimale (§4.1).
+   - **Calcolo:** FFT scritta in TypeScript, nessuna dipendenza. Le due correlazioni si calcolano a blocchi (overlap-save), insieme in una sola trasformata inversa, così la memoria non cresce con l'intervallo di ricerca. Un'ancora (30 s contro 8,5 min) richiede circa 2 s.
 4. **Esiti:**
    - somiglianza sotto soglia su tutte le ancore: `NO_MATCH`;
    - somiglianza alta ma unicità bassa (per esempio musica ripetitiva): `AMBIGUOUS_MATCH`;
    - un picco sicuro con |S| > S_max: `OFFSET_TOO_LARGE`;
    - due ancore sicure con S diversi oltre la tolleranza: `CHECKPOINT_CONTRADICTION` (lo spostamento cambia a metà film); se una sola ancora passa la soglia, la conferma la danno i punti di conferma (§4.5).
 5. **Diagnosi di velocità (facoltativa).** Se nessuna ancora trova corrispondenza, si ripete la ricerca ricampionando in memoria il tratto da cercare ai rapporti tipici: 1,001 (24 contro 23,976) e i rapporti PAL. È solo diagnosi e nessun file viene convertito, quindi P5 resta. Una corrispondenza trovata così dà `FPS_MISMATCH` o `PAL_SPEEDUP` con il rapporto misurato. Senza questa diagnosi, le differenze di velocità risultano solo come `NO_MATCH`.
+   - **Come (0.7):** sul tratto della prima ancora, già letto, con la coppia più somigliante. Il pezzo si stira in memoria (interpolazione cubica) a 1,001, 25/24 e 25/23,976, in tutti e due i versi; il primo picco sicuro dà il rapporto, riportato come durata nel donatore ÷ durata nel riferimento.
 
 ### 4.5 Punti di conferma
 
-1. **Dove.** N punti (30 di partenza), distribuiti solo **dentro il materiale in comune** (§4.6).
+1. **Dove.** N punti (30 di partenza, `checkpointCount`), distribuiti solo **dentro il materiale in comune** (§4.6): ogni finestra al centro di uno di N intervalli uguali. Finestre di 10 s (`checkpointWindowMs`, **provvisorio**): con 30 punti si leggono circa 6 minuti di film nel riferimento e 7 nel donatore (finestra, pre-roll e la ricerca vicina), meno di un'ancora nel donatore (8,5 minuti); finestre più corte costano meno ma tengono peggio con mix diversi. Lo dirà la fase 1.
 2. **Prima di correlare si controlla il donatore.** Se la finestra è quasi muta o povera di contenuto (energia sotto una soglia E_min), la si sposta fino a ±60 s in cerca di contenuto. Se non si trova nulla, il punto è **non conclusivo**. Questo esito si decide dall'energia, **mai** dall'assenza di una corrispondenza.
+   - **Quale finestra (0.7):** quella del donatore allo spostamento S delle ancore, lunga quanto il pezzo del riferimento.
+   - **Quanto si sposta:** fino a 60 s, ma restando nel suo intervallo, cioè al più metà della distanza dai punti vicini. Così lo spostamento non ammucchia i punti e la distribuzione di §9.3 resta quella prevista. Si sceglie il tratto con energia sopra E_min più vicino, a passi di 250 ms, in una sola lettura del donatore; poi si rilegge il riferimento nella posizione nuova. Il report riporta posizione richiesta e reale.
+   - **Ricerca vicina:** il picco si cerca entro ±1 s dallo spostamento delle ancore. Il rapporto si misura fuori dalla zona di esclusione dentro questo ±1 s.
 3. **Esiti** di un punto con contenuto:
    - **coerente:** corrispondenza sicura entro la tolleranza da S;
    - **contraddittorio:** corrispondenza sicura a un altro spostamento;
-   - **senza corrispondenza:** c'è contenuto ma nessun picco sicuro. Si cerca di nuovo su tutto l'intervallo ±(S_max + 60 s). Se si trova un picco sicuro altrove il punto diventa contraddittorio; se non si trova niente resta senza corrispondenza, ed è **bloccante** come un contraddittorio.
+   - **senza corrispondenza:** c'è contenuto ma nessun picco sicuro. Si cerca di nuovo su tutto l'intervallo ±(S_max + 60 s), centrato sullo zero come per le ancore. Se si trova un picco sicuro altrove il punto diventa contraddittorio; se non si trova niente resta senza corrispondenza, ed è **bloccante** come un contraddittorio.
 
    Senza questo quarto esito, una scena in più nel donatore verso la fine del film passerebbe per "non conclusiva", e il merge riuscirebbe con l'italiano fuori sincrono per tutto l'ultimo tratto.
 4. **S definitivo** = mediana degli spostamenti dei punti coerenti, riportata con la sua dispersione.
@@ -231,16 +250,27 @@ Per ridurli: il pezzo da cercare si prende sempre dal riferimento e la ricerca a
    - rumore.
 
    Un salto di 1–2 fotogrammi indica di solito un master diverso o una giunzione nel rip (§16), non una versione diversa del film.
-7. **Più punti dove servono.** Se troppi punti sono non conclusivi, se ne aggiungono nei tratti scoperti, fino a un massimo (per esempio 60). Il report distingue i punti previsti da quelli aggiunti.
+7. **Più punti dove servono.** Se troppi punti sono non conclusivi, se ne aggiungono nei tratti scoperti, fino a un massimo (60, `maxCheckpointCount`). Il report distingue i punti previsti da quelli aggiunti.
+   - **Quando (0.7):** finché i punti coerenti non soddisfano la regola di §9.3 (quanti, buco massimo, primo e ultimo 10%), e solo se non ci sono punti contraddittori o senza corrispondenza: con quelli la decisione è già un rifiuto. Non per abbassare la quota di non conclusivi: l'avviso `MANY_INCONCLUSIVE` deve dire com'è il film, non quanti punti si sono aggiunti.
+   - **Dove:** uno alla volta, a metà del buco più lungo tra due punti coerenti, o tra un confine e il primo punto coerente. Un punto aggiunto si sposta sul contenuto al più di un quarto del buco. Un buco in cui il punto aggiunto non risulta coerente non si riprova; un buco più corto di una finestra non si divide.
+8. **Dove ci si ferma.** Con un punto contraddittorio o senza corrispondenza le misure finiscono lì: la decisione rifiuta prima di arrivare ai confini e al trasferimento (§9.6).
 
 ### 4.6 Confini del materiale in comune
 
 P2 ammette intro e code **diverse**, non solo in più. Bisogna quindi sapere dove comincia e dove finisce il tratto allineato con S.
 
 - **Ricerca dei confini.** Si fa prima dei punti di conferma: si parte dalle ancore coerenti (§4.4) e si va indietro verso l'inizio, poi avanti verso la fine, a metà per volta con finestre brevi (le finestre mute si spostano come in §4.5). La precisione è di circa 1 s.
+- **Il metodo (0.7):**
+  - **"In comune"** vuol dire che il tratto del riferimento ha nel donatore un picco sicuro vicino a S (±1 s, la ricerca vicina di §4.5). Uno spostamento poco diverso, come un salto di qualche fotogramma o una deriva, resta dentro il materiale in comune: lo trovano i punti di conferma, che ne danno la forma (§4.5, punti 5 e 6).
+  - **Dove si cerca:** l'inizio tra il primo istante in cui entrambe le tracce della coppia hanno audio, con S, e la prima ancora coerente; la fine tra la fine dell'ultima ancora coerente e l'ultimo istante comune.
+  - **Prima l'estremo:** di solito il materiale in comune arriva fin lì, e basta una prova. Altrimenti si dimezza l'intervallo finché è più corto di 1 s.
+  - **Finestre:** lunghe come quelle dei punti di conferma finché l'intervallo è più lungo di loro, poi brevi, di 2 s. Una prova sbagliata all'inizio, quando l'intervallo è largo, sposterebbe il confine di metà intervallo: lì servono le finestre più robuste.
+  - **Finestre mute:** si spostano sul contenuto più vicino, entro 60 s e strettamente dentro l'intervallo (a più di 0,5 s dai suoi estremi), così ogni prova lo restringe. Se intorno è tutto muto, il tratto muto resta fuori dal materiale in comune. Al massimo 50 prove per confine: la metà per volta ne usa una dozzina, il tetto garantisce che la ricerca finisca.
+  - **Precisione:** circa 1 s. Una finestra a cavallo del confine può ancora trovare il picco, quindi il confine può cadere fino a una finestra breve (2 s) dentro il materiale diverso. Nelle prove (§18): coda tagliata a 100 s, confine a 99,1 s; intro diversa fino a 5 s, confine a 4,5 s; 4 s tolti a 60 s, confine a 61,4 s.
 - **Prima del confine iniziale e oltre quello finale** si cerca nel donatore una corrispondenza con qualsiasi altro spostamento:
   - se c'è, il film continua a un altro spostamento, cioè c'è una modifica a metà film, e il merge si rifiuta;
   - se non c'è, la coda è davvero diversa.
+  - **Come (0.7):** se il riferimento ha almeno 2 s oltre il confine, fino a 3 finestre per lato, lunghe come quelle dei punti di conferma (o meno, se il tratto è più corto): la prima accanto al confine, le altre distribuite fino all'inizio o alla fine della traccia. Ognuna si cerca su tutto l'intervallo ±(S_max + 60 s).
 - **Report:** inizio e fine del materiale in comune, e il tratto effettivamente verificato (dal primo all'ultimo punto coerente).
 - **Copertura** = lunghezza del materiale in comune ÷ durata del video di riferimento, misurata.
 
@@ -251,6 +281,8 @@ S viene misurato sulla lingua di misura e applicato alla traccia italiana. Funzi
 - **Di solito è vero.** Ma un doppiaggio adattato da un altro master può avere uno sfasamento costante di qualche fotogramma, e una traccia etichettata "ita" può essere in realtà un commento.
 - **Come si controlla:** il doppiaggio italiano condivide musica ed effetti con la versione originale. Quindi, dentro il donatore, italiano e lingua di misura correlano a spostamento circa zero sui canali **non centrali**.
 - **Cosa si fa:** si misura in 3–5 punti, senza costi di lettura aggiuntivi rilevanti.
+  - **Come (0.7):** 5 punti, al centro di 5 intervalli uguali del materiale in comune, nella posizione corrispondente del donatore. Si confronta la traccia italiana principale (§8) con la traccia di misura della coppia scelta, nella stessa lettura, con la ricerca vicina (±1 s). Lo spostamento si misura come S: posizione nella lingua di misura − posizione nell'italiano; quello corretto per l'italiano sarebbe S più questo valore.
+  - **Segnale:** L+R se entrambe le tracce hanno il centrale, perché lì il dialogo non c'è. Altrimenti (L − R)/2: in una traccia stereo il dialogo sta al centro, cioè uguale in L e R, e la differenza lo toglie, mentre musica ed effetti stereo restano. Se (L − R)/2 è muto (un mono su due canali) si torna a L+R per quel punto, letto nella stessa lettura; L+R anche se una delle due tracce non ha L e R.
   - Uno sfasamento costante diverso da zero dà l'avviso `ITALIAN_TRANSFER_OFFSET`, con il valore.
   - Nessuna correlazione da nessuna parte dà l'avviso `ITALIAN_UNVERIFIED`.
   - All'inizio sono solo avvisi; diventano bloccanti se la fase 1 li dimostra affidabili.
@@ -444,8 +476,10 @@ I valori **provvisori** sono fissati prima della taratura sulle coppie reali (§
 | Tolleranza per punto | ±10 ms | 1–30 ms |
 | θ_ncc, θ_rapporto (ancore e punti) | 0,5 e 1,5, **provvisori** | 0,2–0,99 e 1,05–10 |
 | E_min (soglia di "silenzio") | −50 dBFS, **provvisorio** | da −90 a −20 dBFS |
-| Lunghezza della finestra, zona di esclusione | 30 s per le ancore, finestre di conferma da tarare; ±25 ms | con il modulo di correlazione |
-| Punti di conferma | 30, fino a 60 | con il modulo di correlazione |
+| Lunghezza delle finestre (§4.4–4.7) | 30 s per le ancore; 10 s per punti di conferma, confini e trasferimento, **provvisorio** | 10–120 s; 2–60 s |
+| Zona di esclusione (§4.4) | ±25 ms | 5–250 ms |
+| Punti di conferma (§4.5) | 30, fino a 60 | 10–100 e 10–200, interi; il massimo non sotto i punti previsti, né sotto i punti coerenti richiesti da §9.3 |
+| Margine dell'intervallo di ricerca, ±(S_max + margine) (§4.4) | 60 s | 1–120 s |
 | Copertura dei punti coerenti (§9.3) | almeno 20 punti coerenti, buco massimo 15 min, un punto nel primo e nell'ultimo 10%, copertura 90% | 10–60 punti (intero), 1–30 min, 2–25%, 50–100% |
 | Soglie degli avvisi | `MANY_INCONCLUSIVE` 10%; `MEASURE_MIX_DIFFERS` per una somiglianza sotto θ_ncc + 0,1 (fascia **provvisoria**); `LONG_GAP_WITHOUT_ITALIAN` 10 min; `ABRUPT_START` da tarare | 1–50%; fascia 0–0,5; le altre con il modulo del piano |
 | Altre soglie | margine di bitrate 20% (§3.2), forced sotto il 10–20% dei sottotitoli della traccia più grande (§7) | bitrate 5–100%; forced con il modulo del piano |
@@ -455,6 +489,8 @@ I valori **provvisori** sono fissati prima della taratura sulle coppie reali (§
 | Finestra di `INPUT_BUSY` (§10) | 30 s, come Wayfinderr | 5 s – 10 min |
 
 I parametri dei moduli non ancora scritti entrano nel file insieme ai moduli che li usano. Il pre-roll e le soglie della lettura delle finestre non sono parametri di taratura ma costanti del metodo (§4.3).
+
+Anche le costanti della correlazione sono costanti del metodo: ricerca vicina ±1 s, rifinitura ±2 ms, banda della correlazione sbiancata, posizioni delle ancore, spostamento sul contenuto (60 s, a passi di 250 ms), finestre brevi (2 s), precisione (1 s) e numero massimo di prove dei confini, ricerche oltre i confini (3 per lato), punti del trasferimento (5), parità tra coppie (0,02) e rapporti della diagnosi di velocità (§4.2, §4.4–4.7). Dicono dove e come cercare, non quando una coppia è idonea; stanno in `src/measure.ts` e si cambiano con una PR che aggiorna questi paragrafi. Lunghezza delle finestre, zona di esclusione, numero di punti e margine di ricerca stanno invece in `calibration.json`: cambiano quanto è severo il giudizio, e vanno tarati con le soglie.
 
 ### 9.3 Copertura dei punti coerenti
 
@@ -779,10 +815,12 @@ Prima di scrivere codice si verificano su file di prova i meccanismi da cui dipe
 - Le code si tagliano con `--split` su intermedi senza video, mai su file con FLAC.
 - **Lo spostamento atteso si legge dai timestamp dei file prodotti, non dal valore richiesto.** Un `--split` su un file con video taglia sul fotogramma chiave successivo: nelle prove, 7,500 s richiesti sono diventati 8,008 s.
 - Si verificano segno di S, piano di inizio e fine, flag, capitoli e sottotitoli persi, al millisecondo.
+- *Stato (Dyadrr 0.5.0):* misura provata su MKV di 120 s generati al volo, in AC3: spostamenti con `--sync` di entrambi i segni (S esatto al decimo di ms, letto dai timestamp dei file prodotti), code tagliate con `--split` su intermedi senza video, intro diverse, silenzi all'inizio e alla fine, `OFFSET_TOO_LARGE`, deriva, velocità 1,001, contenuto ripetitivo, centrale contro L+R su un remix e scelta della coppia. Piano, flag, capitoli e sottotitoli arrivano con i rispettivi moduli.
 
 **1b. Test sintetici con un taglio a metà film**
 - Si tolgono e si ricuciono parti di una copia, sempre senza ricodifica.
 - Esito atteso: `CHECKPOINT_CONTRADICTION` o `CHECKPOINT_UNMATCHED`.
+- *Stato (Dyadrr 0.5.0):* 4 s tolti a metà film con `--split` e ricuciti (salto unico di 4032 ms, trovato oltre il confine), circa 100 ms tolti (salto unico di 144 ms tra due punti di conferma), 20 s sostituiti da un altro contenuto (`CHECKPOINT_UNMATCHED`), 30 s di silenzio (punti non conclusivi e punti aggiunti).
 
 **1c. Errore dei codec**
 - Si confrontano due codifiche dello stesso mix ottenute solo per remux: TrueHD contro il suo nucleo AC3, DTS-HD MA contro il suo nucleo DTS.
@@ -792,7 +830,7 @@ Prima di scrivere codice si verificano su file di prova i meccanismi da cui dipe
 - Punti di conferma posti 0–100 ms dopo i fotogrammi chiave, su AC3, FLAC e TrueHD con punti di sincronizzazione rari.
 - Un file con `start_time` diverso da zero, una traccia che non parte da zero.
 - Richiesti **zero** rifiuti falsi.
-- *Stato (Dyadrr 0.4.0):* lettura delle finestre provata su MKV generati al volo: spostamenti noti con `--sync` di entrambi i segni (letti dai timestamp dei file prodotti), finestre 0–100 ms dopo i fotogrammi chiave su AC3, E-AC3, FLAC, TrueHD e DTS, `start_time` diverso da zero, traccia che parte dopo lo zero, centrale contro L+R, file troncato. Errore sotto il millisecondo in tutte le finestre, con ffmpeg 6.1.1 e 7.0.2. Resta da ripetere su rip reali di MakeMKV (fase 0).
+- *Stato (Dyadrr 0.4.0):* lettura delle finestre provata su MKV generati al volo: spostamenti noti con `--sync` di entrambi i segni (letti dai timestamp dei file prodotti), finestre 0–100 ms dopo i fotogrammi chiave su AC3, E-AC3, FLAC, TrueHD e DTS, `start_time` diverso da zero, traccia che parte dopo lo zero, centrale contro L+R, file troncato. Errore sotto il millisecondo in tutte le finestre, con ffmpeg 6.1.1 e 7.0.2. Resta da ripetere su rip reali di MakeMKV (fase 0). Dalla 0.5.0 anche con uno `start_time` oltre il pre-roll (6,5 s), che con il metodo della 0.6 dava finestre in ritardo (§18).
 
 **1e. Logica di decisione senza file**
 - La decisione è una funzione pura: misure + soglie → report.
@@ -943,6 +981,11 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
 | Lettura dal disco | Per leggere N secondi di audio si leggono N secondi di tutto il file (circa 1,15 volte, con il pre-roll) |
 | Metodo di lettura della 0.6 (§4.3), ffmpeg 6.1.1 e 7.0.2: 63 finestre da 1 s per codec, 0–100 ms dopo 7 fotogrammi chiave, pre-roll 2 s | ✅ Dispersione dell'errore tra le finestre (il ritardo costante del codec è a parte, §4.9): AC3 ed E-AC3 0,001 ms (ritardo −0,34 ms: il CodecDelay di 5,33 ms che ffmpeg arrotonda a 5), FLAC 0,000 ms, TrueHD 0,66 ms, DTS 1,0 ms (ritardo −10,4 ms). Il resto è l'arrotondamento al ms dei timestamp di Matroska, ±0,5 ms. ❌ La lettura ingenua sugli stessi file: AC3 ed E-AC3 da −5,3 a +14,7 ms, FLAC da 0 a 89 ms, TrueHD 4,7 ms, DTS 9,7 ms. Con pre-roll da 0 a 3 s la dispersione resta sotto 1 ms |
 | Buco di 50 ms nei timestamp di una traccia FLAC | ❌ Senza compensazione tutto quello che segue è spostato di −50 ms. ✅ Con la compensazione di `aresample` oltre 2 ms l'errore è 0 (§4.3) |
+| File con `start_time` oltre il pre-roll (6,5 s), 0.7 | ❌ Con il metodo della 0.6 la finestra comincia a T + 6,5 s: ffmpeg, con `-copyts`, taglia dopo `-ss` a T − 2 s più lo `start_time`; una finestra di 1 s non ha campioni (`INPUT_UNREADABLE`). ✅ Con `-noaccurate_seek` comincia a T, su ffmpeg 6.1.1 e 7.0.2 (§4.3) |
+| Unicità di un motivo ripetuto esattamente, 0.7 | ❌ Rapporto 2,0 sulla correlazione sbiancata: lo spettro a righe, sbiancato, dà un picco che sembra unico. ✅ 1,0 sull'NCC (§4.4) |
+| Somiglianza a mezzo campione dal picco, 0.7 | ❌ NCC 0,90 sui campioni, per un segnale identico. ✅ 1,00 con il donatore interpolato (sinc a finestra, §4.4) |
+| Correlazione (0.7) su MKV di 120 s in AC3 generati al volo (ancore 10 s, punti 3 s, S_max 5 s), ffmpeg 6.1.1 e 7.0.2 | ✅ `--sync` di +1537 e −263 ms: S esatto, dispersione 0, trasferimento 0. Coda tagliata a 100 s: confine a 99,1 s. Intro diversa fino a 5 s: confine a 4,5 s. 4 s tolti a 60 s: confine a 61,4 s e salto unico di 4032 ms oltre il confine. Circa 100 ms tolti: salto unico di 144 ms. 20 s sostituiti: punti senza corrispondenza. 30 s di silenzio: 3 punti su 20 non conclusivi. Remix con lo stesso centrale: NCC 0,9995 sul centrale, 0,02 su L+R. Velocità 0,3‰: deriva di 1125 ms all'ora. Velocità 1,001: somiglianza 0,45–0,48 con ancore da 10 s, sotto 0,35 con ancore da 30 s; la diagnosi trova 1/1,001. Motivo di 1,5 s ripetuto: rapporto 1,0 |
+| Tempo di calcolo della correlazione, 0.7 | Un'ancora (30 s contro 8,5 min) circa 2 s in Node, tre coppie insieme circa 4 s; una ricerca ampia di un punto (10 s contro 8 min) circa 1,4 s |
 
 ---
 
@@ -1025,3 +1068,12 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
   - **Canale centrale:** quando una traccia "lo ha", mono e disposizioni sconosciute (§4.2).
   - **Costanti del metodo:** pre-roll 2 s, buchi oltre 2 ms, finestra troppo corta sotto il 90% dei campioni attesi (`INPUT_UNREADABLE`, §4.3, §4.8); non sono parametri di taratura (§9.2).
   - **ffmpeg almeno 6.1** (`TOOL_TOO_OLD`, §13).
+- **0.7:** correlazione.
+  - **Confidenza dei picchi:** posizione con la correlazione sbiancata nella banda 20 Hz – 3 kHz, rifinitura NCC con parabola, somiglianza con il donatore interpolato tra i campioni, unicità sull'NCC e non sulla correlazione sbiancata (§4.4, §18).
+  - **Coppie di tracce:** tutte sulla prima ancora con un picco sicuro, parità entro 0,02 (§4.2).
+  - **Ancore:** posizioni, due ancore sicure bastano, diagnosi di velocità sul tratto della prima (§4.4).
+  - **Punti di conferma:** finestre di 10 s (provvisorie), ricerca vicina ±1 s, spostamento sul contenuto dentro l'intervallo del punto, punti aggiunti solo per la regola di §9.3 (§4.5).
+  - **Confini:** "in comune" vuol dire un picco sicuro vicino a S; prima l'estremo, poi a metà per volta, finestre lunghe e poi brevi, precisione e ricerche oltre i confini (§4.6).
+  - **Trasferimento:** 5 punti, traccia italiana principale, L+R o (L − R)/2 (§4.2, §4.7).
+  - **Taratura:** `anchorWindowMs`, `checkpointWindowMs` (provvisorio), `exclusionZoneMs`, `checkpointCount`, `maxCheckpointCount`, `searchMarginMs`, con i limiti; le altre costanti della correlazione sono costanti del metodo (§9.2).
+  - **Lettura delle finestre:** `-noaccurate_seek`, per i file con uno `start_time` oltre il pre-roll (§4.3, §18).
