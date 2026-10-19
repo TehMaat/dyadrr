@@ -5,6 +5,11 @@ Il report è il contratto di Dyadrr (studio §11): un file JSON per ogni
 report mancante o illeggibile, o un codice di uscita non documentato, è un
 errore. Il tipo è `Report` in `src/report.ts`.
 
+Nel container, se un lavoro non arriva alla riga di comando o Dyadrr finisce
+senza report, il report lo scrive il runner: la stessa forma, con solo esito
+e motivo (e `mode` e `arguments.files` se il job li dice), il resto `null` o
+vuoto ([CONTAINER.md](CONTAINER.md#un-lavoro)).
+
 ## Versione del formato
 
 Versione del formato: **1** (`format`, `REPORT_FORMAT` in `src/report.ts`).

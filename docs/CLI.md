@@ -1,7 +1,8 @@
 # Riga di comando
 
 > **Stato:** implementata dalla 0.9.0 (studio §10–11). La forma del report e
-> gli eventi di `--progress json` sono in [REPORT.md](REPORT.md).
+> gli eventi di `--progress json` sono in [REPORT.md](REPORT.md). Nel
+> container la lancia il runner dei file job ([CONTAINER.md](CONTAINER.md)).
 
 ## Comandi
 
@@ -181,8 +182,8 @@ ricevono SIGTERM, la cartella di lavoro si elimina, il file finale non si
 consegna, il report dice `cancelled` (`CANCELLED`) e si esce con 50. Un
 secondo segnale fa uscire subito con 50, senza pulizia né report (gli avanzi
 si eliminano al merge successivo). Un segnale dopo la consegna del file arriva
-tardi: il report dice `eligible`. Nel container serve un piccolo init
-(`init: true` in Compose).
+tardi: il report dice `eligible`. Nel container i segnali arrivano attraverso
+l'init dell'immagine e il runner ([CONTAINER.md](CONTAINER.md#un-lavoro)).
 
 ## Uscita
 

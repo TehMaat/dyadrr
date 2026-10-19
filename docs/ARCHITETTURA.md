@@ -2,10 +2,10 @@
 
 Dyadrr è una **libreria TypeScript con una riga di comando** (studio §14). La
 logica sta nella libreria; il contratto è la riga di comando con il report
-JSON. In Wayfinderr (fase 2) Dyadrr girerà in un container separato, con
-un'immagine propria: Wayfinderr gli passerà i lavori con file job su una
-cartella condivisa, e un runner nel container lancerà la riga di comando
-(studio §14, decisione 7).
+JSON. In Wayfinderr (fase 2) Dyadrr gira in un container separato, con
+un'immagine propria (`Dockerfile`): Wayfinderr gli passa i lavori con file job
+su una cartella condivisa, e il runner nel container lancia la riga di comando
+(studio §14, decisione 7; [CONTAINER.md](CONTAINER.md)).
 
 - **Compilazione:** CommonJS, senza `await` al livello principale, così il
   backend di Wayfinderr (che compila in CommonJS) può anche importare la
@@ -14,7 +14,8 @@ cartella condivisa, e un runner nel container lancerà la riga di comando
   (≥ v57) si lanciano come programmi esterni; nella costruzione ffmpeg serve
   solo per la coda delle tracce FLAC.
 - **Node:** 22.
-- **Eseguibile:** `dyadrr` (`bin` in `package.json`) è `dist/bin.js`.
+- **Eseguibili** (`bin` in `package.json`): `dyadrr` è `dist/bin.js`,
+  `dyadrr-runner` è `dist/runner-bin.js`.
 
 ## Moduli
 
@@ -41,13 +42,24 @@ Il test `test/docs.test.ts` controlla che questa tabella elenchi tutti i file
 | `src/report.ts` | Il report (§11.3): forma (`Report`, `REPORT_FIELDS`), versione del formato (`REPORT_FORMAT`), fasi dell'avanzamento (`PROGRESS_PHASES`), scrittura con un nome temporaneo e rinomina, nome predefinito; lettura del report di `--expect` e confronto di impronte, ruoli, S e piano | §10–11 |
 | `src/cli.ts` | Riga di comando (`runCli`): argomenti, ordine di analyze e merge (`analyzePair`, scelte, `buildMerge`, `verifyBuild`, `commitBuild`), scelte chieste in un terminale, `--expect` (`INPUT_CHANGED`), ingressi dopo il merge (`--inputs`, `INPUT_NOT_DELETED`), `--progress json`, annullamento (`CANCELLED`), report sempre scritto e codice di uscita da `exitCodeFor`. Non tocca il processo: tutto arriva da `CliEnvironment` | §9.4, §10–11 |
 | `src/bin.ts` | Il processo `dyadrr`: segnali di stop (SIGINT, SIGTERM, SIGHUP) su un `AbortController`, secondo segnale, domande in un terminale con readline, codice di uscita | §10 |
+| `src/runner.ts` | Runner dei file job (`runRunner`): cartelle nel container e intervalli (`RUNNER`), lettura del job (`parseJob`, `BAD_ARGUMENTS`), percorsi relativi a `/data`, argomenti della riga di comando (`jobArguments`), un lavoro alla volta da `.job` a `.exit`, `.cancel` con un solo SIGTERM, report scritto dal runner (`writeOutcomeReport`) quando Dyadrr non lo scrive, lavori interrotti all'avvio (`INTERRUPTED`), `dyadrr.alive` | §14.1 |
+| `src/runner-bin.ts` | Il processo `dyadrr-runner`, comando di default dell'immagine: `--data`, segnali di stop, secondo segnale | §14.1 |
 | `src/decision.ts` | Decisione: funzione pura dalle misure e dalla taratura a decisione, controlli, motivi, avvisi, S definitivo, deriva, forma della contraddizione e copertura; `checkStructure` per i soli controlli strutturali, prima di misurare | §4.4–4.7, §9.3–9.4, §9.6 |
+
+## Immagine
+
+- `Dockerfile`, a tre stadi: `build` compila il TypeScript sulla piattaforma
+  della build; `runtime` è l'immagine pubblicata (Alpine 3.22 con Node 22,
+  ffmpeg 6.1.2, mkvtoolnix 92.0 e tini, `dist/` e `package.json`);
+  `test` aggiunge a `runtime` npm, i sorgenti e i test, per lanciare la suite
+  sull'immagine (studio §14.2).
+- `.github/workflows/image.yml` (workflow **Image**): costruzione per amd64 e
+  arm64, suite sull'immagine, versioni, un job con il runner, pubblicazione su
+  GHCR da `main` ([CONTAINER.md](CONTAINER.md#immagine)).
 
 ## Moduli previsti
 
-1. **Container** per Wayfinderr (fase 2, decisione 7): immagine
-   multi-architettura con un piccolo init, e runner dei file job che lancia
-   la riga di comando (studio §14).
+Nessuno: il container (studio §14, decisione 7) è fatto dalla 0.12.0.
 
 ## Test
 
@@ -96,3 +108,10 @@ Il test `test/docs.test.ts` controlla che questa tabella elenchi tutti i file
   `CANCELLED` con un `AbortSignal`, argomenti sbagliati, `--inputs` su copie
   degli ingressi. L'ultimo test lancia
   il processo vero (`build/src/bin.js`) e lo ferma con SIGTERM.
+- `test/runner.test.ts` prova il runner su una cartella con la forma di
+  `/data`: file job letti e tradotti in argomenti, il Dyadrr vero su MKV di
+  60 s (job sbagliati, un valore sbagliato, `.cancel` durante l'analisi e
+  prima di cominciare, id riusati, `dyadrr.alive`), un Dyadrr finto per i
+  crash, i processi uccisi, i `.run` rimasti all'avvio e lo stop del runner;
+  infine il processo `dyadrr-runner`.
+- Il workflow **Image** ripete tutta la suite dentro l'immagine (sopra).

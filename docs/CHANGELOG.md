@@ -4,6 +4,25 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.12.0] - 2026-10-19
+
+### Aggiunto
+- Immagine Docker `ghcr.io/tehmaat/dyadrr` per Wayfinderr, amd64 e arm64:
+  Alpine 3.22 con Node 22, ffmpeg 6.1.2, mkvtoolnix 92.0 e tini come init.
+  Tag `latest`, `sha-…` e la versione, pubblicati a ogni push su `main`
+- `dyadrr-runner`, il comando di default dell'immagine: prende i file job di
+  Wayfinderr da `/data/watch/.wayfinderr/dyadrr/jobs/`, uno alla volta, e
+  lancia la riga di comando. `<id>.job` → `<id>.run` → `<id>.log` →
+  `<id>.json` → `<id>.exit`; `<id>.cancel` ferma il lavoro; `dyadrr.alive`
+  ogni 5 s. Percorsi nel job relativi alle cartelle montate sotto `/data`
+- `INTERRUPTED`: un lavoro nel container finito senza esito (Dyadrr ucciso,
+  o trovato interrotto all'avvio del runner). Uscita 40, riprovabile
+- Workflow **Image**: a ogni PR costruisce l'immagine, ci ripete tutta la
+  suite, controlla le versioni e fa girare un job con il runner
+- Libreria: `runRunner`, `parseJob`, `jobArguments`, `writeOutcomeReport`
+- Documentazione: [CONTAINER.md](CONTAINER.md); studio di fattibilità 0.14
+  (§14.1, §14.2)
+
 ## [0.11.0] - 2026-10-18
 
 ### Aggiunto

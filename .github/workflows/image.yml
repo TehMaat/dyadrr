@@ -1,0 +1,122 @@
+name: Image
+
+# L'immagine Docker (studio §14.2): a ogni PR e a ogni push su main la si
+# costruisce per amd64 e arm64, si ripete tutta la suite (npm test) dentro
+# l'immagine amd64 e si controllano le versioni di Node, ffmpeg e mkvmerge;
+# su main la si pubblica su GHCR con i tag latest, sha-… e la versione.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Versioni fissate nel Dockerfile, controllate sull'immagine.
+  NODE_MAJOR: '22'
+  FFMPEG_VERSION: '6.1.2'
+  MKVMERGE_VERSION: '92.0'
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the test image (amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: test
+          platforms: linux/amd64
+          load: true
+          tags: dyadrr:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run the test suite in the image
+        run: docker run --rm dyadrr:test
+
+      - name: Build the image (amd64 and arm64)
+        run: |
+          for arch in amd64 arm64; do
+            docker buildx build --target runtime --platform "linux/$arch" --load \
+              --cache-from type=gha --tag "dyadrr:$arch" .
+          done
+
+      - name: Check the versions in the image
+        run: |
+          for arch in amd64 arm64; do
+            echo "== $arch"
+            docker run --rm --platform "linux/$arch" -e NODE_MAJOR -e FFMPEG_VERSION -e MKVMERGE_VERSION "dyadrr:$arch" sh -euc '
+              uname -m
+              node --version | grep -E "^v$NODE_MAJOR\."
+              ffmpeg -version | head -n 1 | grep -F "ffmpeg version $FFMPEG_VERSION"
+              ffprobe -version | head -n 1
+              mkvmerge --version | grep -F "mkvmerge v$MKVMERGE_VERSION "
+              dyadrr --version
+              dyadrr-runner --version
+            '
+          done
+
+      # Il comando di default: il runner con tini, un job e docker stop (§14.1).
+      - name: Run a job with the runner
+        run: |
+          data="$RUNNER_TEMP/data"
+          jobs="$data/watch/.wayfinderr/dyadrr/jobs"
+          mkdir -p "$jobs"
+          docker run -d --name runner -v "$data:/data" dyadrr:amd64
+          timeout 30 sh -c "until [ -f '$jobs/dyadrr.alive' ]; do sleep 1; done"
+          printf 'command=analyze\ninput=watch/a.mkv\ninput=watch/b.mkv\n' > "$jobs/.smoke.tmp"
+          mv "$jobs/.smoke.tmp" "$jobs/smoke.job"
+          timeout 60 sh -c "until [ -f '$jobs/smoke.exit' ]; do sleep 1; done"
+          docker stop runner
+          docker logs runner
+          test "$(cat "$jobs/smoke.exit")" = 30
+          grep -F '"code": "INPUT_UNREADABLE"' "$jobs/smoke.json"
+          grep -F '"event":"end"' "$jobs/smoke.log"
+          test "$(docker inspect -f '{{.State.ExitCode}}' runner)" = 0
+
+      - name: Tags
+        if: github.event_name == 'push'
+        id: tags
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          version="$(node -p 'require("./package.json").version')"
+          {
+            echo "tags<<EOF"
+            echo "$image:latest"
+            echo "$image:sha-${GITHUB_SHA::7}"
+            echo "$image:$version"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        if: github.event_name == 'push'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
