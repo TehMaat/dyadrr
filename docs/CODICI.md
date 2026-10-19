@@ -47,7 +47,8 @@ mai portare a caricare un file senza italiano.
 | `TOOL_TOO_OLD` | 30 | mkvmerge più vecchio di v57, oppure ffmpeg più vecchio di 6.1 o di cui non si riesce a leggere la versione |
 | `MERGE_FAILED` | 40 | mkvmerge fallito (codice 2, crash, errore di I/O), o ffmpeg fallito nel taglio della coda delle tracce FLAC |
 | `VERIFY_FAILED` | 40 | Una verifica bloccante dopo il merge non torna (tracce, video, pacchetti delle tracce del riferimento, inizio e fine dell'italiano, durata), o il file finale non si legge. Il file non si consegna e i temporanei si eliminano |
-| `INTERNAL` | 40 | Errore imprevisto |
+| `INTERNAL` | 40 | Errore imprevisto. Nel container anche Dyadrr che finisce senza report ([CONTAINER.md](CONTAINER.md#un-lavoro)) |
+| `INTERRUPTED` | 40 | Nel container, un lavoro finito senza esito: Dyadrr ucciso da un segnale, o un lavoro trovato interrotto all'avvio del runner (container fermato di colpo, memoria esaurita, corrente). Riprovabile ([CONTAINER.md](CONTAINER.md#un-lavoro)) |
 
 ## Annullamento
 
@@ -109,7 +110,8 @@ della misura, quelli della costruzione (`test/build.test.ts`) con MKV veri e,
 per gli esiti di mkvmerge, con un mkvmerge finto, quelli delle verifiche
 (`test/verify.test.ts`) con MKV veri e, per `VERIFY_FAILED`, errori iniettati, quelli
 della riga di comando (`test/cli.test.ts`) con MKV veri, report scritti e
-letti, segnali di stop e il processo vero. Un codice di un modulo non ancora
+letti, segnali di stop e il processo vero, quelli del runner
+(`test/runner.test.ts`) con file job, il Dyadrr vero e uno finto. Un codice di un modulo non ancora
 scritto indicherebbe il modulo previsto
 ([ARCHITETTURA.md](ARCHITETTURA.md#moduli-previsti)). Il test
 `test/docs.test.ts` controlla che ogni codice sia elencato e che ogni test
@@ -131,7 +133,7 @@ citato esista e usi quel codice.
 | `DRIFT` | `test/decision.test.ts` › DRIFT: lo spostamento cresce nel tempo, e risulta deriva e non contraddizione<br>`test/measure.test.ts` › DRIFT: il donatore va più veloce di 0,3 per mille |
 | `TOO_FEW_CHECKPOINTS` | `test/decision.test.ts` › TOO_FEW_CHECKPOINTS: meno di 20 punti coerenti<br>`test/decision.test.ts` › TOO_FEW_CHECKPOINTS: un buco oltre 15 minuti tra punti coerenti<br>`test/decision.test.ts` › TOO_FEW_CHECKPOINTS: nessun punto coerente nell'ultimo 10% del materiale in comune |
 | `LOW_COVERAGE` | `test/decision.test.ts` › LOW_COVERAGE: il materiale in comune copre troppo poco del video di riferimento<br>`test/measure.test.ts` › code tagliate con --split: confine finale al secondo, LOW_COVERAGE se il materiale in comune non basta |
-| `BAD_ARGUMENTS` | `test/choices.test.ts` › valori non validi sono BAD_ARGUMENTS, da opzione o da variabile<br>`test/cli.test.ts` › BAD_ARGUMENTS: argomenti sbagliati, con il report comunque scritto; --help e --version senza report<br>`test/calibration.test.ts` › BAD_ARGUMENTS: un valore di taratura fuori dai limiti, mancante o sconosciuto<br>`test/build.test.ts` › CHOICE_REQUIRED, OUTPUT_EXISTS, OUTPUT_NOT_WRITABLE e BAD_ARGUMENTS prima di scrivere qualsiasi cosa |
+| `BAD_ARGUMENTS` | `test/choices.test.ts` › valori non validi sono BAD_ARGUMENTS, da opzione o da variabile<br>`test/cli.test.ts` › BAD_ARGUMENTS: argomenti sbagliati, con il report comunque scritto; --help e --version senza report<br>`test/calibration.test.ts` › BAD_ARGUMENTS: un valore di taratura fuori dai limiti, mancante o sconosciuto<br>`test/build.test.ts` › CHOICE_REQUIRED, OUTPUT_EXISTS, OUTPUT_NOT_WRITABLE e BAD_ARGUMENTS prima di scrivere qualsiasi cosa<br>`test/runner.test.ts` › file job: chiavi e percorsi relativi alle cartelle montate; BAD_ARGUMENTS per un job sbagliato<br>`test/runner.test.ts` › runner: un job alla volta dal più vecchio, .log, .json e .exit; .cancel; BAD_ARGUMENTS; id riusati |
 | `INPUT_UNREADABLE` | `test/inputs.test.ts` › INPUT_UNREADABLE: file mancante, non MKV o senza video<br>`test/audio.test.ts` › INPUT_UNREADABLE: finestra oltre la fine di un file troncato, o a cavallo del troncamento |
 | `INPUT_TRUNCATED` | `test/decision.test.ts` › INPUT_TRUNCATED: un ingresso troncato è un errore, non un rifiuto<br>`test/inputs.test.ts` › INPUT_TRUNCATED: un file troncato a metà, e una traccia più corta dei suoi tag |
 | `INPUT_BUSY` | `test/inputs.test.ts` › INPUT_BUSY: file modificato negli ultimi secondi, o con una data nel futuro<br>`test/audio.test.ts` › INPUT_BUSY: il file è cambiato da quando è stato letto |
@@ -144,8 +146,9 @@ citato esista e usi quel codice.
 | `TOOL_TOO_OLD` | `test/tools.test.ts` › TOOL_TOO_OLD: mkvmerge più vecchio di v57<br>`test/tools.test.ts` › TOOL_TOO_OLD: ffmpeg più vecchio di 6.1 |
 | `MERGE_FAILED` | `test/build.test.ts` › MERGE_FAILED: mkvmerge esce con 2, i temporanei si eliminano |
 | `VERIFY_FAILED` | `test/verify.test.ts` › VERIFY_FAILED: un risultato della costruzione alterato, o il file cambiato dopo; la cartella di lavoro si elimina |
-| `INTERNAL` | `test/decision.test.ts` › INTERNAL: mancano le misure di una fase che serve<br>`test/plan.test.ts` › INTERNAL: il piano di un donatore senza audio italiano |
-| `CANCELLED` | `test/cli.test.ts` › CANCELLED: un segnale di stop durante il merge o durante l'analisi; temporanei eliminati |
+| `INTERNAL` | `test/decision.test.ts` › INTERNAL: mancano le misure di una fase che serve<br>`test/plan.test.ts` › INTERNAL: il piano di un donatore senza audio italiano<br>`test/runner.test.ts` › INTERRUPTED: .run rimasti all'avvio e Dyadrr ucciso; INTERNAL senza report; lo stop del runner annulla con un solo SIGTERM |
+| `INTERRUPTED` | `test/runner.test.ts` › INTERRUPTED: .run rimasti all'avvio e Dyadrr ucciso; INTERNAL senza report; lo stop del runner annulla con un solo SIGTERM |
+| `CANCELLED` | `test/cli.test.ts` › CANCELLED: un segnale di stop durante il merge o durante l'analisi; temporanei eliminati<br>`test/runner.test.ts` › runner: un job alla volta dal più vecchio, .log, .json e .exit; .cancel; BAD_ARGUMENTS; id riusati |
 | `VIDEO_QUALITY_UNCERTAIN` | `test/decision.test.ts` › VIDEO_QUALITY_UNCERTAIN: stessa risoluzione, HDR e codec, bitrate del donatore oltre il margine |
 | `ORIGINAL_LANGUAGE_NOT_COMMON` | `test/decision.test.ts` › ORIGINAL_LANGUAGE_NOT_COMMON: la lingua originale non è in entrambi i file |
 | `MEASURE_MIX_DIFFERS` | `test/decision.test.ts` › MEASURE_MIX_DIFFERS: somiglianza nella fascia bassa ma sufficiente |

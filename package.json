@@ -1,13 +1,14 @@
 {
   "name": "dyadrr",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Unisce l'audio italiano di un rip al video migliore di un altro, senza ricodificare",
   "license": "MIT",
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "dyadrr": "dist/bin.js"
+    "dyadrr": "dist/bin.js",
+    "dyadrr-runner": "dist/runner-bin.js"
   },
   "files": [
     "dist"

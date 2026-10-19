@@ -14,3 +14,4 @@ export * from './build.js';
 export * from './verify.js';
 export * from './report.js';
 export * from './cli.js';
+export * from './runner.js';

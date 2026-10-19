@@ -1,10 +1,10 @@
 # Dyadrr: studio di fattibilità
 
-Stato: bozza 0.13, ottobre 2026.
+Stato: bozza 0.14, ottobre 2026.
 
 Questo documento raccoglie le decisioni prese, quelle ancora aperte e i risultati delle prime verifiche sperimentali (§18). È il punto di partenza del repo.
 
-La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). La 0.9 fissa la costruzione del file finale (tagli, TrueHD, coda, unione, sottotitoli persi ai tagli, file temporanei) e chiude la decisione 7: in fase 2 Dyadrr gira in un container separato (§6, §7, §13, §14, §17). La 0.10 fissa le verifiche dopo il merge: cosa si legge del file finale, le tolleranze "entro un pacchetto" per codec, cosa è bloccante e cosa è solo un avviso (§9.5, §12). La 0.11 fissa la riga di comando e il report: forma esatta del report e sua versione, eventi di `--progress json`, confronto di `--expect`, richiesta delle scelte e annullamento (§9.4, §10, §11). La 0.12 chiude le decisioni 3, 4, 5, 6 e 11 sull'integrazione con Wayfinderr, e aggiunge alla riga di comando la cancellazione degli ingressi dopo il merge (§10.2, §15, §17). La 0.13 fa chiedere in un terminale se cancellare un file finale che c'è già (§6.4, §10). Le modifiche principali sono elencate in §20.
+La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). La 0.9 fissa la costruzione del file finale (tagli, TrueHD, coda, unione, sottotitoli persi ai tagli, file temporanei) e chiude la decisione 7: in fase 2 Dyadrr gira in un container separato (§6, §7, §13, §14, §17). La 0.10 fissa le verifiche dopo il merge: cosa si legge del file finale, le tolleranze "entro un pacchetto" per codec, cosa è bloccante e cosa è solo un avviso (§9.5, §12). La 0.11 fissa la riga di comando e il report: forma esatta del report e sua versione, eventi di `--progress json`, confronto di `--expect`, richiesta delle scelte e annullamento (§9.4, §10, §11). La 0.12 chiude le decisioni 3, 4, 5, 6 e 11 sull'integrazione con Wayfinderr, e aggiunge alla riga di comando la cancellazione degli ingressi dopo il merge (§10.2, §15, §17). La 0.13 fa chiedere in un terminale se cancellare un file finale che c'è già (§6.4, §10). La 0.14 fissa il runner dei file job e l'immagine Docker: chiavi del job, percorsi, lavori interrotti, `dyadrr.alive`, versioni di ffmpeg e mkvtoolnix, pubblicazione (§14.1, §14.2). Le modifiche principali sono elencate in §20.
 
 ---
 
@@ -682,7 +682,7 @@ La decisione è una **funzione pura**: riceve i fatti dei due file e le misure, 
 **Interruzione:**
 - Con un segnale di stop (o un file di annullamento in Wayfinderr), Dyadrr termina mkvmerge e ffmpeg, elimina i temporanei e scrive un report con esito "annullato".
 - Dopo un'interruzione brusca (SIGKILL, mancanza di corrente) non può fare pulizia, ma gli avanzi stanno solo nella cartella temporanea (§6.4).
-- Nell'immagine Docker serve un piccolo init (`init: true` in Compose): un processo Node con PID 1 altrimenti ignora l'arresto normale e viene ucciso dopo 10 s.
+- Nell'immagine Docker serve un piccolo init: un processo Node con PID 1 altrimenti ignora l'arresto normale e viene ucciso dopo 10 s. L'immagine ha il suo (tini, §14.2).
 
 **Ingressi:** Dyadrr parte da **due MKV già rippati**, non dai dischi. Il ripping resta compito di MakeMKV o di Wayfinderr.
 
@@ -877,6 +877,7 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
 | `MERGE_FAILED` | mkvmerge fallito (codice 2, crash, errore di I/O) |
 | `VERIFY_FAILED` | Una verifica dopo il merge non torna |
 | `INTERNAL` | Errore imprevisto |
+| `INTERRUPTED` | Nel container, un lavoro finito senza esito: Dyadrr o il container fermati di colpo (§14.1). Riprovabile |
 
 **Annullato:** `CANCELLED`.
 
@@ -943,7 +944,7 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
   - il contratto (§11) resta identico: nel container il runner lancia la riga di comando.
 - **Formato del pacchetto:** se in futuro il backend volesse importare la libreria direttamente, servono un punto d'ingresso compatibile CommonJS e nessun `await` al livello principale, perché il backend di Wayfinderr compila in CommonJS.
 - **Container separato** (decisione 7):
-  - **Servizio** `dyadrr` nel `docker-compose.yml` di Wayfinderr, con un profilo Compose (`profiles: ["merge"]`) come il servizio `makemkv`, e `init: true` (§10).
+  - **Servizio** `dyadrr` nel `docker-compose.yml` di Wayfinderr, con un profilo Compose (`profiles: ["merge"]`) come il servizio `makemkv` e un hostname fisso (§14.1). L'init è nell'immagine (§14.2): `init: true` non serve.
   - **Protocollo a file job** su una cartella condivisa, come quello del runner MakeMKV (§19). La cartella sta dentro la cartella di lavoro di Wayfinderr (`.wayfinderr/` nella cartella sorvegliata, ignorata dal watcher), in `dyadrr/jobs/`:
     - `<id>.job`: comando (`analyze` o `merge`), ingressi, uscita e opzioni, una riga `chiave=valore` ciascuno. Wayfinderr lo scrive con un altro nome e poi lo rinomina, così non si legge mai a metà;
     - `<id>.run`: il runner ha preso il lavoro, rinominando il `.job`. Un lavoro alla volta;
@@ -966,6 +967,65 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
   - con il container separato Dyadrr non sta più nell'immagine del backend, ma la sua immagine la scarica ogni installazione di Wayfinderr che attiva il merge, senza login: deve essere pubblica, e con lei il codice che contiene. Un repo privato non nasconderebbe niente;
   - chi compila Wayfinderr in locale può costruire anche l'immagine di Dyadrr;
   - nessuna credenziale nella CI e nella build.
+
+### 14.1 Il runner dei file job (0.14)
+
+Il protocollo di §14 visto dal runner. Wayfinderr ne scrive l'altra metà (§15, fase 2).
+
+- **Cartelle nel container.** Tutto quello che il container condivide con Wayfinderr sta sotto `/data`, una cartella montata per nome: `/data/watch` è la cartella sorvegliata (in scrittura, obbligatoria: senza, il runner non parte), le altre (per esempio `/data/downloads`) si montano con il nome che si vuole, di norma in sola lettura.
+- **Percorsi nel job.** Relativi a `/data`, separati da `/`, con il nome della cartella montata come primo elemento: `watch/Film (2).mkv`, `downloads/Film/Film.mkv`. Wayfinderr sostituisce il proprio percorso di ogni cartella con il suo nome. Un percorso assoluto, vuoto o con un elemento vuoto, `.` o `..` è `BAD_ARGUMENTS`: non per sicurezza (Wayfinderr è fidato), ma perché è sempre un errore di chi scrive il job.
+  - Il report riporta i percorsi del container (`/data/watch/…`): Wayfinderr fa il cammino inverso. `--expect` non confronta i percorsi (§10), quindi un report di analyze resta valido anche se cambia il punto di montaggio.
+- **Cartella dei job:** `/data/watch/.wayfinderr/dyadrr/jobs/`. Il runner la crea se manca.
+- **Il file `<id>.job`.**
+  - `<id>`: da 1 a 64 tra lettere ASCII, cifre, `-` e `_`, che comincia con una lettera o una cifra. Wayfinderr usa id che non si ripetono (per esempio un UUID). Un file con un altro nome si ignora: è il nome temporaneo con cui Wayfinderr lo scrive, prima di rinominarlo.
+  - UTF-8, una riga `chiave=valore` per riga: la chiave è quello che precede il primo `=`, il valore tutto il resto, spazi compresi. Le righe vuote si ignorano, un CR in fondo alla riga si toglie.
+  - Le chiavi sono le opzioni della riga di comando senza i due trattini, più `command` e `input`:
+
+    | Chiave | Valore | Opzione |
+    |---|---|---|
+    | `command` | `analyze` o `merge`, obbligatoria | il comando |
+    | `input` | un percorso; due righe, una per ingresso | i due file |
+    | `output`, `temp-dir`, `expect` | un percorso | `--output`, `--temp-dir`, `--expect` |
+    | `original-language` | un codice di lingua | `--original-language` |
+    | `tail`, `italian`, `reference-italian-subs`, `edge-mismatch` | un valore della scelta (§10.1) | le quattro scelte |
+    | `inputs` | `keep` o `delete` (Wayfinderr passa sempre `keep`, §15) | `--inputs` |
+
+  - Sono `BAD_ARGUMENTS`, decisi dal runner: una riga senza `=`, una chiave sconosciuta, una chiave ripetuta (salvo `input`), `command` mancante o diverso da `analyze` e `merge`, un percorso non valido. Non ci sono `report` e `progress`: li decide il runner. Tutto il resto (numero degli ingressi, valori delle scelte, opzioni solo per merge) lo controlla la riga di comando, come per chi la lancia a mano.
+- **Riga di comando:** `dyadrr <command> <ingresso> <ingresso> --<chiave>=<valore>… --report=<jobs>/<id>.json --progress=json`, con i percorsi tradotti, lanciata in `/data` con l'ambiente del container. Le variabili delle scelte nel Compose valgono come preimpostazioni (§10.1), ma Wayfinderr passa comunque sempre le scelte.
+- **Un lavoro.**
+  1. I `.job` si prendono uno alla volta, dal più vecchio (data di modifica, poi nome). La cartella si guarda ogni secondo: niente notifiche del filesystem, che sulle cartelle montate da Docker Desktop o via rete non sono affidabili.
+  2. **Preso:** il `.job` si rinomina in `.run`. Se c'è già un file di quel lavoro (`.run`, `.log`, `.json`, `.exit`) l'id è stato riusato: il `.job` resta dov'è, non si sovrascrive niente, e il runner lo scrive nel suo log.
+  3. **`<id>.log`** si crea subito, vuoto; ci finisce lo stderr di Dyadrr man mano: le righe di `--progress json` (§11.3) e, solo quando Dyadrr non può scrivere un report o non legge gli argomenti, un messaggio che non è JSON.
+  4. Un job sbagliato, o con un `.cancel` già presente, non lancia Dyadrr: il report lo scrive il runner (`BAD_ARGUMENTS` o `cancelled`).
+  5. **`<id>.cancel`**, controllato ogni secondo: il runner manda SIGTERM a Dyadrr **una volta sola**, perché un secondo segnale lo farebbe uscire senza pulizia (§10). Il contenuto non conta; un `.cancel` dopo la fine non fa niente.
+  6. **Fine:** `<id>.json` è il report di Dyadrr. Se Dyadrr finisce senza report (crash di Node, ucciso), il runner ne scrive uno con il solo esito: `INTERRUPTED` se un segnale l'ha ucciso, `INTERNAL` altrimenti. Poi **`<id>.exit`**: il codice di uscita (§12) e un a capo, con un nome temporaneo e una rinomina. **`.exit` è sempre l'ultimo file, e quando c'è c'è anche `.json`**: Wayfinderr aspetta solo lui.
+  7. Il runner non cancella mai i file di un lavoro: li cancella Wayfinderr dopo aver letto `.exit`, `.cancel` compreso.
+- **Runner fermato** (`docker stop`, che manda SIGTERM all'init, §14.2): con un lavoro in corso il runner manda SIGTERM a Dyadrr, aspetta il report `cancelled` (50), scrive `.exit` ed esce. Fermare il container vuol dire annullare il lavoro. Docker aspetta 10 s prima di SIGKILL: di norma bastano, ma il Compose dà `stop_grace_period: 30s`. Un secondo segnale fa uscire il runner subito.
+- **All'avvio, i `.run` senza `.exit`:** il container è stato fermato di colpo (SIGKILL, memoria esaurita, corrente) mentre il lavoro andava. Non si rilanciano: potrebbe essere proprio quel lavoro a far cadere il container, e un merge si ripete solo con una conferma nella GUI.
+  - Se c'è `<id>.json`, Dyadrr aveva finito: `.exit` si ricava dal report.
+  - Altrimenti il runner scrive il report con `INTERRUPTED` (uscita 40, riprovabile) e `.exit`. Nuovo codice di errore (§12).
+  - Gli avanzi nella cartella dei temporanei li elimina il lavoro successivo che la usa (§6.4), purché il container abbia sempre lo stesso nome host: per questo il servizio ha `hostname: dyadrr`. Con il nome casuale che Docker dà a ogni container sarebbero di "un altro host" e resterebbero.
+- **`dyadrr.alive`:** i secondi dall'epoch e un a capo, riscritti con un nome temporaneo e una rinomina subito all'avvio e poi **ogni 5 s**, anche durante un lavoro. Wayfinderr considera il container spento se il valore è più vecchio di **30 s** (sei scritture mancate): non manda lavori e lo mostra nella GUI. Un lavoro in `.run` con il container spento resta lì finché il container non riparte e lo chiude come sopra.
+- **Un solo runner per cartella dei job.** Due container sulla stessa cartella prenderebbero lavori diversi senza contare lo spazio l'uno dell'altro (§15, concorrenza).
+- **Costanti del metodo** (non parametri di taratura, §9.2): la cartella guardata ogni secondo, `dyadrr.alive` ogni 5 s, il limite di 30 s per Wayfinderr.
+
+### 14.2 L'immagine (0.14)
+
+- **Base:** `alpine:3.22`, con i pacchetti di Alpine `nodejs` 22, `ffmpeg` **6.1.2**, `mkvtoolnix` **92.0** e `tini` 0.19.
+  - **Perché Alpine 3.22 e non l'ultima.** `node:22-alpine` oggi è Alpine 3.24, che ha ffmpeg 8.1 (la 3.23 ha la 8.0). Il metodo di lettura delle finestre è provato su ffmpeg 6.1.1 e 7.0.2 e legge messaggi il cui formato è garantito solo lì (§4.3, §13). La 3.22 ha la 6.1.2: la stessa versione minore della CI (Ubuntu 24.04, 6.1.1). mkvtoolnix 92.0 supera v57; la CI ha v82, e la suite ripetuta sull'immagine copre la differenza.
+  - **Node dai pacchetti di Alpine**, non da `node:22-alpine3.22`: le immagini di Node per una versione di Alpine non più recente smettono di essere aggiornate (oggi ferme alla 22.22.3), mentre il pacchetto `nodejs` della 3.22 riceve gli aggiornamenti di sicurezza (22.23.2).
+  - **Versioni fissate** con il vincolo `~` di apk sulla versione del programma: la revisione di Alpine (`-rN`) può cambiare per una correzione di sicurezza, la versione no. Se Alpine la cambiasse dentro il ramo, la costruzione dell'immagine fallisce e la si rivede a mano. Le versioni usate finiscono comunque in ogni report (§11.2).
+  - **Scadenza:** Alpine 3.22 è supportata fino a maggio 2027. Prima si passa a un ramo nuovo, con ffmpeg 8: serve rifare le prove della lettura delle finestre (§4.3, §18) oltre alla suite.
+- **Init:** tini come `ENTRYPOINT`, che inoltra i segnali al runner e raccoglie i processi orfani.
+- **Comandi:** per default il runner (`dyadrr-runner`); `dyadrr` è nel `PATH`, per lanciare la riga di comando a mano nel container.
+- **Utente:** quello di default (root). Il Compose gli dà con `user:` lo stesso utente del backend, così i file scritti da uno si possono cancellare dall'altro (§14, volumi).
+- **Costruzione:** il TypeScript si compila una volta sola, sulla piattaforma della build (non ha codice nativo); per arm64 si installano solo i pacchetti di Alpine.
+- **Workflow `Image`**, in questo repo, a ogni PR e a ogni push su `main`:
+  - costruisce l'immagine per amd64 e arm64;
+  - ripete **tutta la suite** (`npm test`) dentro l'immagine amd64: uno stadio di prova che aggiunge all'immagine npm, i sorgenti e i test, con gli stessi Node, ffmpeg e mkvtoolnix;
+  - controlla le versioni di Node, ffmpeg e mkvmerge su entrambe le architetture (arm64 in emulazione);
+  - su `main` pubblica su GitHub Container Registry, `ghcr.io/tehmaat/dyadrr`, con i tag `latest`, `sha-<7 caratteri del commit>` e la versione di `package.json` (per esempio `0.12.0`), con le credenziali del workflow e nessun segreto.
+- **Le coppie reali** (fase 1, punto 3) e la taratura vanno fatte con le versioni dell'immagine: sono quelle con cui Dyadrr girerà in Wayfinderr.
 
 ---
 
@@ -1089,7 +1149,9 @@ Verifica a occhio su ogni lettore che usi davvero (app della TV, Plex o Jellyfin
 - **Concorrenza:** un merge alla volta, in coda con i rip. In alternativa, lo spazio va contato insieme a quello riservato dai lavori in corso: oggi il controllo di spazio del ripper conta solo sé stesso.
 - **Lingua:** Dyadrr lavora solo con l'italiano. Il merge si attiva solo se `RIP_LANGUAGE` è `it`.
 - **Container Dyadrr** (decisione 7, §14): il servizio con il suo profilo nel `docker-compose.yml`, il runner dei job nell'immagine di Dyadrr, il lato Wayfinderr del protocollo e i volumi.
+  - *Stato (Dyadrr 0.12.0):* runner e immagine fatti, in questo repo (§14.1, §14.2). Restano, in Wayfinderr, il servizio nel Compose, i volumi e il lato Wayfinderr del protocollo.
 - **Prima di attivarlo:** si ripete la suite della fase 1 sull'immagine dove Dyadrr girerà davvero, con le sue versioni di ffmpeg e mkvtoolnix.
+  - *Stato (Dyadrr 0.12.0):* i test sintetici (`npm test`) girano sull'immagine a ogni PR (§14.2). Le coppie reali (fase 1, punto 3) si faranno con l'immagine.
 
 ### Fase 3: abbinamento automatico (idea, da discutere)
 
@@ -1302,3 +1364,10 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
   - **Decisione 11 chiusa:** voce di menu sempre visibile, come Rips (§15, §17).
 - **0.13:** un file finale che c'è già.
   - **Da riga di comando** in un terminale si chiede se cancellarlo e andare avanti; si cancella solo dopo le verifiche, se è ancora lui, e mai se è un ingresso o un report. Senza terminale `OUTPUT_EXISTS` (§6.4, §10).
+- **0.14:** runner dei file job e immagine Docker.
+  - **Percorsi:** le cartelle condivise montate sotto `/data` per nome, `/data/watch` la cartella sorvegliata; nel job percorsi relativi a `/data` (§14.1).
+  - **File job:** nome, formato `chiave=valore`, chiavi uguali alle opzioni più `command` e `input`; errori del job decisi dal runner, il resto dalla riga di comando (§14.1).
+  - **Un lavoro:** dal più vecchio, cartella guardata ogni secondo, `.log` dallo stderr, `.cancel` con un solo SIGTERM, report scritto dal runner se Dyadrr non lo scrive, `.exit` sempre per ultimo e mai senza `.json`; il runner non cancella niente (§14.1).
+  - **Lavori interrotti:** all'avvio un `.run` senza `.exit` non si rilancia: `.exit` dal report se c'è, altrimenti il nuovo errore `INTERRUPTED`; hostname fisso perché gli avanzi si eliminino (§6.4, §12, §14.1).
+  - **`dyadrr.alive`:** ogni 5 s; per Wayfinderr il container è spento dopo 30 s (§14.1).
+  - **Immagine:** Alpine 3.22 con Node 22, ffmpeg 6.1.2 e mkvtoolnix 92.0 dai pacchetti di Alpine, tini come init, amd64 e arm64; workflow che ripete la suite sull'immagine e la pubblica su GHCR con i tag `latest`, `sha-…` e la versione (§10, §14, §14.2).

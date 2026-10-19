@@ -271,6 +271,22 @@ interface State {
   inputWarnings: Warning[];
 }
 
+const emptyState = (): State => ({
+  tools: null,
+  calibration: null,
+  choices: {},
+  files: [null, null],
+  analysis: null,
+  plan: null,
+  expect: null,
+  build: null,
+  verification: null,
+  delivered: false,
+  sizeBytes: null,
+  inputs: null,
+  inputWarnings: [],
+});
+
 const inputChanged = (differences: string[]) =>
   new DyadrrError('INPUT_CHANGED', `the inputs or the plan differ from the confirmed analysis: ${differences.join('; ')}`);
 
@@ -342,21 +358,7 @@ export async function runCli(argv: readonly string[], io: CliEnvironment): Promi
     emit({ event: 'progress', phase: b.phase, step: b.step, steps: b.steps, percent: b.percent });
   };
 
-  const state: State = {
-    tools: null,
-    calibration: null,
-    choices: {},
-    files: [null, null],
-    analysis: null,
-    plan: null,
-    expect: null,
-    build: null,
-    verification: null,
-    delivered: false,
-    sizeBytes: null,
-    inputs: null,
-    inputWarnings: [],
-  };
+  const state = emptyState();
   let decision: Decision = 'eligible';
   let reasons: ReportReason[] = [];
   let errorCode: ErrorCode | undefined;
@@ -553,6 +555,37 @@ export async function runCli(argv: readonly string[], io: CliEnvironment): Promi
   if (progressJson) emit({ event: 'end', decision, exitCode });
   else io.stderr(`dyadrr: ${decision}${reasons[0] ? `: ${reasons[0].code}: ${reasons[0].message}` : ''}\n`);
   return exitCode;
+}
+
+/** Un esito senza analisi: un errore con il suo codice, o un annullamento. */
+export type Outcome =
+  | { decision: 'error'; code: ErrorCode; message: string }
+  | { decision: 'cancelled'; message: string };
+
+/**
+ * Il report di un lavoro che la riga di comando non ha scritto (runner, studio
+ * §14.1): un job sbagliato o annullato prima di cominciare, o Dyadrr finito
+ * senza report. Solo l'esito, con il comando e i file se si conoscono; il
+ * resto è `null`. Restituisce il codice di uscita.
+ */
+export async function writeOutcomeReport(
+  reportPath: string,
+  job: { mode: Mode | null; files: string[]; startedAt: Date },
+  outcome: Outcome,
+): Promise<number> {
+  const code = outcome.decision === 'error' ? outcome.code : 'CANCELLED';
+  await writeReport(reportPath, assemble({
+    args: null,
+    mode: job.mode,
+    files: job.files,
+    reportPath,
+    startedAt: job.startedAt,
+    state: emptyState(),
+    decision: outcome.decision,
+    reasons: [{ code, message: outcome.message }],
+    at: (p) => p,
+  }));
+  return outcome.decision === 'error' ? exitCodeFor('error', outcome.code) : exitCodeFor('cancelled');
 }
 
 function assemble(x: {

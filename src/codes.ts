@@ -33,6 +33,7 @@ export const ERROR_CODES = [
   'MERGE_FAILED',
   'VERIFY_FAILED',
   'INTERNAL',
+  'INTERRUPTED',
 ] as const;
 
 export const WARNING_CODES = [

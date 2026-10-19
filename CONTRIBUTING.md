@@ -18,6 +18,14 @@ npm test        # compila e lancia tutti i test, compresi quelli sulla documenta
 npm run build   # compila la libreria in dist/
 ```
 
+Con Docker si può lanciare la suite anche sull'immagine, con le sue versioni
+di Node, ffmpeg e mkvtoolnix, come fa il workflow **Image**
+([docs/CONTAINER.md](docs/CONTAINER.md#immagine)):
+
+```bash
+docker build --target test -t dyadrr:test . && docker run --rm dyadrr:test
+```
+
 La struttura del codice è in [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md).
 
 **Lingue:** documentazione e commenti in italiano; codici, messaggi d'errore e
@@ -72,6 +80,9 @@ la sezione della nuova versione:
 - Al merge su `main` il workflow **Release** crea il tag `vX.Y.Z` e la release
   GitHub, con le note prese dalla sezione del CHANGELOG. Non serve creare il
   tag a mano.
+- In ogni PR il workflow **Image** costruisce l'immagine Docker e ci ripete la
+  suite; al merge su `main` la pubblica su GHCR con i tag `latest`, `sha-…` e
+  la versione.
 
 **Versione del formato del report.** È separata dalla versione di Dyadrr ed è
 un intero (`REPORT_FORMAT` in `src/report.ts`, oggi 1): si alza solo con
@@ -94,6 +105,7 @@ documenti che tocca**, nella stessa PR.
 | Un codice che un test produce per la prima volta | la sezione **Test** di [docs/CODICI.md](docs/CODICI.md) |
 | Valori o limiti di taratura (`src/calibration.json`, `src/calibration.ts`) | [docs/TARATURA.md](docs/TARATURA.md); per i limiti e per i valori che smettono di essere provvisori anche lo studio (§9.2) |
 | File in `src/` aggiunti, rinominati o tolti | [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md) |
+| Runner, file job, `Dockerfile`, versioni nell'immagine, workflow **Image** | [docs/CONTAINER.md](docs/CONTAINER.md); per le versioni e il protocollo anche lo studio (§14.1–14.2) |
 | Una voce passa da "previsto" a implementata | la colonna o la riga **Stato** in [docs/CLI.md](docs/CLI.md) |
 | Una decisione di progetto o una regola del metodo | [docs/STUDIO-DI-FATTIBILITA.md](docs/STUDIO-DI-FATTIBILITA.md), con una voce nella cronologia (§20) |
 

@@ -7,9 +7,10 @@ solo i pacchetti, con mkvmerge.
 
 Il nome viene da *diade*: due elementi che formano una coppia.
 
-> **Stato:** fase 1, in sviluppo. La riga di comando funziona dalla 0.9.0;
-> le soglie sono ancora provvisorie, da tarare su coppie reali
-> ([docs/TARATURA.md](docs/TARATURA.md)). Le modifiche sono nel
+> **Stato:** fase 1, in sviluppo. La riga di comando funziona dalla 0.9.0,
+> l'immagine Docker per Wayfinderr dalla 0.12.0
+> ([docs/CONTAINER.md](docs/CONTAINER.md)); le soglie sono ancora
+> provvisorie, da tarare su coppie reali ([docs/TARATURA.md](docs/TARATURA.md)). Le modifiche sono nel
 > [CHANGELOG](docs/CHANGELOG.md).
 
 ## Come funziona
@@ -76,6 +77,9 @@ Il riferimento completo è in [docs/CLI.md](docs/CLI.md); il report in
   punti di taglio e per la coda delle tracce FLAC, sempre senza ricodificare)
 
 Nessuna scheda grafica: il video non viene mai decodificato.
+
+Oppure l'immagine Docker `ghcr.io/tehmaat/dyadrr`, che ha già tutto, con il
+runner dei file job per Wayfinderr ([docs/CONTAINER.md](docs/CONTAINER.md)).
 
 ## Documentazione
 
