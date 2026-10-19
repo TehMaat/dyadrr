@@ -36,6 +36,11 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 - Workflow **Image**: controlla anche `dyadrr-pairs --version` e lancia un
   elenco di una coppia nell'immagine
 
+### Corretto
+- `dyadrr-runner`: due scritture di `dyadrr.alive` insieme, su un disco
+  lento, potevano lasciarlo vuoto o a metà per un attimo; ora se ne fa una
+  alla volta
+
 ## [0.12.0] - 2026-10-19
 
 ### Aggiunto
