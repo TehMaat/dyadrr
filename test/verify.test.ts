@@ -1,6 +1,6 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, rmSync, truncateSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, truncateSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildMerge, commitBuild, type Build } from '../src/build.js';
 import { loadCalibration, parseCalibration } from '../src/calibration.js';
@@ -16,7 +16,7 @@ import { writeSup } from './helpers/pgs.js';
 // canale: l'italiano ha gli stessi canali dell'inglese tranne il centrale,
 // come un doppiaggio, quindi nel file finale italiano e inglese correlano sui
 // canali non centrali. Il riferimento ha un video HEVC HDR10 320x180, l'audio
-// inglese e un PGS inglese forced; il donatore un video H.264 160x90, l'audio
+// inglese, un PGS inglese forced e due capitoli; il donatore un video H.264 160x90, l'audio
 // italiano e quello inglese, che cominciano 1,5 s dopo nel film: S = +1500 ms.
 
 const SECONDS = 30;
@@ -27,6 +27,8 @@ const ITALIAN = [1, 2, 7, 4, 5, 6];
 // Finestre del trasferimento più corte: il file dura 30 s.
 const base = loadCalibration();
 const cal = parseCalibration({ version: base.version, provisional: base.provisional, values: { ...base.values, checkpointWindowMs: 3000 } });
+
+const CHAPTERS = 'CHAPTER01=00:00:00.000\nCHAPTER01NAME=Uno\nCHAPTER02=00:00:15.000\nCHAPTER02NAME=Due\n';
 
 let dir: string;
 const p = (name: string) => join(dir, name);
@@ -61,7 +63,9 @@ before(async () => {
     surround('ita.mka', ITALIAN),
   ]);
   writeSup(p('eng.sup'), [[3, 5], [12, 14]]);
+  writeFileSync(p('chapters.txt'), CHAPTERS);
   const referenceArgs = [
+    '--chapters', p('chapters.txt'),
     p('ref-video.mkv'),
     '--language', '0:eng', p('eng.mka'),
     '--language', '0:eng', '--forced-display-flag', '0:1', '--compression', '0:none', p('eng.sup'),
@@ -209,4 +213,29 @@ test('VERIFY_FAILED: un risultato della costruzione alterato, o il file cambiato
     return true;
   });
   assert.ok(!existsSync(broken.jobDir));
+});
+
+test('capitoli: gli UID possono cambiare, inizi e titoli no', async () => {
+  // mkvpropedit con capitoli in formato semplice genera UID nuovi, come ha
+  // fatto mkvmerge nel merge di un file di MakeMKV.
+  const pl = plan(S);
+  const request = { reference, plan: pl, measureTrackId: MEASURE };
+  // Gli UID come testo: sono interi a 64 bit.
+  const uids = (file: string) => run('ffprobe', ['-v', 'error', '-show_chapters', '-of', 'json', file]).match(/"id": -?\d+/g);
+
+  const renumbered = await build(pl);
+  run('mkvpropedit', ['-q', renumbered.file, '--chapters', p('chapters.txt')]);
+  assert.notDeepEqual(uids(renumbered.file), uids(reference.path));
+  const v = await verifyBuild(request, renumbered, cal);
+  assert.equal(v.checks.find((c) => c.name === 'layout')!.result, 'pass');
+  await commitBuild(renumbered);
+
+  writeFileSync(p('renamed.txt'), CHAPTERS.replace('Due', 'Tre'));
+  const renamed = await build(pl);
+  run('mkvpropedit', ['-q', renamed.file, '--chapters', p('renamed.txt')]);
+  await assert.rejects(verifyBuild(request, renamed, cal), (e: unknown) => {
+    failed(['layout'])(e);
+    assert.match((e as Error).message, /chapters .*"title":"Tre".*expected those of the reference .*"title":"Due"/);
+    return true;
+  });
 });

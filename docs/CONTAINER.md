@@ -153,7 +153,7 @@ report se c'è, altrimenti il runner scrive un report `INTERRUPTED` (uscita
 
 ```yaml
   dyadrr:
-    image: ghcr.io/tehmaat/dyadrr:0.13.0
+    image: ghcr.io/tehmaat/dyadrr:0.13.1
     profiles: ["merge"]
     hostname: dyadrr            # fisso: gli avanzi di un lavoro interrotto si eliminano al successivo
     user: "1000:1000"           # lo stesso utente del backend

@@ -19,7 +19,7 @@ mkvtoolnix, quelle con cui Dyadrr gira in Wayfinderr
 ```bash
 docker run --rm --user "$(id -u):$(id -g)" \
   -v /film:/data/film:ro -v ~/taratura:/data/taratura \
-  ghcr.io/tehmaat/dyadrr:0.13.0 dyadrr-pairs taratura/coppie.txt
+  ghcr.io/tehmaat/dyadrr:0.13.1 dyadrr-pairs taratura/coppie.txt
 ```
 
 La cartella di lavoro del container è `/data`: i percorsi dell'elenco sono

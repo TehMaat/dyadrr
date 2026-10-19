@@ -4,6 +4,15 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.13.1] - 2026-10-19
+
+### Corretto
+- Verifiche dopo il merge: i capitoli si confrontano su inizi e titoli, non
+  più sugli UID. Nel merge di un UHD rippato con MakeMKV mkvmerge ha generato
+  UID nuovi per tutti i capitoli, e un file giusto finiva in `VERIFY_FAILED`
+  (*the final file is not the planned one: layout (chapters …)*)
+- Documentazione: studio di fattibilità 0.16 (§9.5)
+
 ## [0.13.0] - 2026-10-19
 
 ### Aggiunto
