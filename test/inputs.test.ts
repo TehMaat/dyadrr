@@ -253,7 +253,8 @@ test('INPUT_UNREADABLE: file mancante, non MKV o senza video', async () => {
     await assert.rejects(read(name), code('INPUT_UNREADABLE'), name);
   }
   await assert.rejects(read('text'), /not a Matroska file/);
-  await assert.rejects(read('mp4'), /QuickTime\/MP4/);
+  // mkvmerge v82 dice "QuickTime/MP4", la v92 dell'immagine "MP4/QuickTime".
+  await assert.rejects(read('mp4'), /not a Matroska file \((QuickTime\/MP4|MP4\/QuickTime)\)/);
   await assert.rejects(read('audioOnly'), /no video track/);
 });
 
