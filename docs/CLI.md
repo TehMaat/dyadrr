@@ -25,7 +25,7 @@ con audio italiano) e quale il **riferimento** (studio §3.2).
 
 | Opzione | Comandi | Significato | Stato |
 |---|---|---|---|
-| `--output <file>` | merge, obbligatoria | File finale. Se esiste già o coincide con un ingresso, anche se compare durante il merge: `OUTPUT_EXISTS`. Nessuna sovrascrittura. Cartella mancante o non scrivibile: `OUTPUT_NOT_WRITABLE`. Si controlla prima di leggere gli ingressi | implementato |
+| `--output <file>` | merge, obbligatoria | File finale. Se esiste già, in un terminale si chiede se cancellarlo e andare avanti ([sotto](#file-finale-che-cè-già)); altrimenti, o se coincide con un ingresso, o se compare durante il merge: `OUTPUT_EXISTS`. Nessuna opzione di sovrascrittura. Cartella mancante o non scrivibile: `OUTPUT_NOT_WRITABLE`. Si controlla prima di leggere gli ingressi | implementato |
 | `--report <file>` | entrambi | Percorso del report JSON (sotto) | implementato |
 | `--original-language <codice>` | entrambi | Lingua originale del film (sotto) | implementato |
 | `--temp-dir <cartella>` | merge | Cartella dei temporanei. Default `.dyadrr/` accanto al file finale, che si toglie quando resta vuota; deve stare sullo stesso disco e in una cartella che inizia con un punto, altrimenti `BAD_ARGUMENTS` | implementato |
@@ -112,6 +112,25 @@ fa in uno di questi modi, in ordine di precedenza:
 - Una variabile d'ambiente vuota vale come non impostata.
 
 **Stato:** implementato.
+
+## File finale che c'è già
+
+Se `--output` esiste già e stdin e stderr sono un terminale (senza
+`--progress json`), `merge` chiede, prima di leggere gli ingressi:
+
+```
+/film/Titolo (2020).mkv already exists.
+Delete it and continue? It is deleted only after the new file is built and verified.
+Choose yes or no:
+```
+
+- **`yes`:** il file si cancella solo dopo che il nuovo file è costruito e
+  verificato, subito prima della consegna, e solo se è ancora lo stesso file.
+  Se il merge fallisce, è rifiutato o annullato, il file vecchio resta.
+- **`no`**, la fine dell'ingresso o nessun terminale: `OUTPUT_EXISTS`.
+- Un file che è anche un ingresso, il report di `--expect` o il report non si
+  cancella mai, e non si chiede nemmeno; lo stesso per una cartella o un link.
+- Il report lo dice in `output.build.replace` e `output.build.replaced`.
 
 ## Ingressi dopo il merge
 
