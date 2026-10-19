@@ -138,7 +138,8 @@ interface Probed {
   /** Titolo e dati del codec (CodecPrivate, in esadecimale) per ID di traccia, da mkvmerge -J. */
   title: string | null;
   codecPrivate: Map<number, string | null>;
-  chapters: { id: string; startMs: number; title: string | null }[];
+  /** Inizio e titolo; gli UID no: mkvmerge può generarne di nuovi (§9.5). */
+  chapters: { startMs: number; title: string | null }[];
   /** Metadati del flusso video e side data del suo primo fotogramma, da ffprobe. */
   video: Record<string, unknown>;
 }
@@ -158,13 +159,11 @@ async function json(
   tool: 'mkvmerge' | 'ffprobe',
   args: readonly string[],
   fail: (why: string) => Error,
-  textIds = false,
 ) {
   const result = await runTool(run.tools, tool, args, run);
   try {
     if (tool === 'ffprobe' && result.exitCode !== 0) throw new Error();
-    // Gli ID dei capitoli sono interi a 64 bit: restano testo.
-    return JSON.parse(textIds ? result.stdout.replace(/"id": (\d+)/g, '"id": "$1"') : result.stdout) as Record<string, unknown>;
+    return JSON.parse(result.stdout) as Record<string, unknown>;
   } catch {
     throw fail(`${tool} failed (exit code ${result.exitCode}): ${result.stderr.trim()}`);
   }
@@ -174,7 +173,7 @@ async function probe(file: InputFile, video: InputTrack, run: Run, fail: (why: s
   const id = await json(run, 'mkvmerge', ['-J', file.path], fail);
   const tracks = (id.tracks ?? []) as { id: number; properties?: { codec_private_data?: string } }[];
   const container = (id.container ?? {}) as { properties?: { title?: string } };
-  const chapters = await json(run, 'ffprobe', ['-v', 'error', '-show_chapters', '-of', 'json', file.path], fail, true);
+  const chapters = await json(run, 'ffprobe', ['-v', 'error', '-show_chapters', '-of', 'json', file.path], fail);
   if (video.streamIndex === null) throw fail(`video track ${video.id} cannot be matched to an ffprobe stream`);
   const stream = await json(run, 'ffprobe', ['-v', 'error', '-select_streams', String(video.streamIndex), '-show_streams', '-of', 'json', file.path], fail);
   const frame = await json(run, 'ffprobe', [
@@ -185,8 +184,8 @@ async function probe(file: InputFile, video: InputTrack, run: Run, fail: (why: s
   return {
     title: container.properties?.title ?? null,
     codecPrivate: new Map(tracks.map((t) => [t.id, t.properties?.codec_private_data ?? null])),
-    chapters: ((chapters.chapters ?? []) as { id: string; start_time: string; tags?: { title?: string } }[])
-      .map((c) => ({ id: c.id, startMs: Math.round(Number(c.start_time) * 1e6) / 1000, title: c.tags?.title ?? null })),
+    chapters: ((chapters.chapters ?? []) as { start_time: string; tags?: { title?: string } }[])
+      .map((c) => ({ startMs: Math.round(Number(c.start_time) * 1e6) / 1000, title: c.tags?.title ?? null })),
     video: {
       ...Object.fromEntries(VIDEO_FIELDS.map((f) => [f, s[f] ?? null])),
       first_frame_side_data_list: ((frame.frames ?? []) as { side_data_list?: unknown }[])[0]?.side_data_list ?? null,
