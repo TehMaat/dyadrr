@@ -37,12 +37,14 @@ quella con cui è provato il metodo di lettura dell'audio.
 - **Init:** tini inoltra i segnali al runner: `docker stop` ferma il runner
   in modo pulito, e `init: true` non serve.
 - **Utente:** root, salvo `user:` nel Compose (sotto).
+- **Coppie reali:** `dyadrr-pairs` è nel `PATH`, per misurare le coppie della
+  fase 1 con le versioni dell'immagine ([COPPIE.md](COPPIE.md)).
 
 Il workflow **Image** (`.github/workflows/image.yml`) a ogni PR e a ogni push
 su `main` costruisce l'immagine per le due architetture, ripete tutta la suite
 (`npm test`) dentro l'immagine amd64, controlla le versioni di Node, ffmpeg e
-mkvmerge su entrambe, fa girare un job vero con il runner e `docker stop`; su
-`main` pubblica i tre tag. In locale:
+mkvmerge su entrambe, fa girare un job vero con il runner e `docker stop` e un
+elenco di una coppia con `dyadrr-pairs`; su `main` pubblica i tre tag. In locale:
 
 ```bash
 docker build --target runtime -t dyadrr .     # l'immagine
@@ -151,7 +153,7 @@ report se c'è, altrimenti il runner scrive un report `INTERRUPTED` (uscita
 
 ```yaml
   dyadrr:
-    image: ghcr.io/tehmaat/dyadrr:0.12.0
+    image: ghcr.io/tehmaat/dyadrr:0.13.0
     profiles: ["merge"]
     hostname: dyadrr            # fisso: gli avanzi di un lavoro interrotto si eliminano al successivo
     user: "1000:1000"           # lo stesso utente del backend

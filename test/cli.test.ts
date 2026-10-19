@@ -168,6 +168,8 @@ test('analyze: report con la forma del formato 1, ruoli, S, scelte in sospeso; s
   const m = report.measurement!;
   assert.equal(m.offset!.offsetMs, S);
   assert.ok(m.checkpoints.every((c) => c.outcome === 'consistent' && typeof c.requestedMs === 'number'));
+  // I picchi misurati, per la taratura: il punto usa quello della ricerca vicina, e quella su tutto l'intervallo non serve.
+  assert.ok(m.checkpoints.every((c) => c.local !== null && c.local.ncc === c.ncc && c.wide === null), JSON.stringify(m.checkpoints[0]));
   assert.ok(m.bytesRead.reference > 0 && m.bytesRead.donor > 0);
   assert.ok(report.checks.every((c) => c.result === 'pass'), JSON.stringify(report.checks));
 

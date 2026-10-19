@@ -17,9 +17,10 @@ RUN apk add --no-cache 'nodejs~22' 'ffmpeg~6.1.2' 'mkvtoolnix~92.0' 'tini~0.19'
 WORKDIR /app
 COPY package.json ./
 COPY --from=build /src/dist ./dist
-RUN chmod +x dist/bin.js dist/runner-bin.js \
+RUN chmod +x dist/bin.js dist/runner-bin.js dist/pairs-bin.js \
  && ln -s /app/dist/bin.js /usr/local/bin/dyadrr \
- && ln -s /app/dist/runner-bin.js /usr/local/bin/dyadrr-runner
+ && ln -s /app/dist/runner-bin.js /usr/local/bin/dyadrr-runner \
+ && ln -s /app/dist/pairs-bin.js /usr/local/bin/dyadrr-pairs
 WORKDIR /data
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["dyadrr-runner"]

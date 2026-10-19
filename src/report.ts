@@ -5,7 +5,7 @@ import type { Build } from './build.js';
 import type { Calibration } from './calibration.js';
 import { CHOICES, type ChoiceName, type GivenChoices } from './choices.js';
 import { DyadrrError, type Decision, type ErrorCode, type RefusalCode } from './codes.js';
-import type { Check, DecisionReport, Warning } from './decision.js';
+import type { Check, DecisionReport, Match, Warning } from './decision.js';
 import type { Fingerprint, InputFile } from './inputs.js';
 import type { MeasuredTransferProbe, Measurement, PairAnalysis, PairTrial, TrackPair } from './measure.js';
 import type { Plan, PlanChoice } from './plan.js';
@@ -104,7 +104,8 @@ export interface ReportMeasurement {
   offset: DecisionReport['offset'];
   drift: DecisionReport['drift'];
   contradiction: DecisionReport['contradiction'];
-  checkpoints: (DecisionReport['checkpoints'][number] & { requestedMs: number })[];
+  /** Con i picchi misurati prima della decisione (`local`, `wide`), per la taratura (§15, fase 1). */
+  checkpoints: (DecisionReport['checkpoints'][number] & { requestedMs: number; local: Match | null; wide: Match | null })[];
   commonMaterial: DecisionReport['commonMaterial'];
   edgeProbes: Measurement['edgeProbes'];
   transfer: {
@@ -192,7 +193,10 @@ export function analysisSections(analysis: PairAnalysis): Pick<Report, 'roles' |
     offset: d.offset,
     drift: d.drift,
     contradiction: d.contradiction,
-    checkpoints: d.checkpoints.map((c, i) => ({ requestedMs: m.checkpoints![i]!.requestedMs, ...c })),
+    checkpoints: d.checkpoints.map((c, i) => {
+      const { requestedMs, local, wide } = m.checkpoints![i]!;
+      return { requestedMs, ...c, local, wide };
+    }),
     commonMaterial: d.commonMaterial,
     edgeProbes: m.edgeProbes,
     transfer: m.transfer && d.transfer && {

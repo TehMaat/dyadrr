@@ -171,9 +171,16 @@ export async function runRunner(o: RunnerOptions): Promise<void> {
   const jobs = join(o.dataDir, RUNNER.jobs);
   await mkdir(jobs, { recursive: true });
 
+  // Una scrittura alla volta: due insieme userebbero lo stesso nome
+  // temporaneo, e la rinomina dell'una porterebbe al suo posto il file che
+  // l'altra sta ancora scrivendo, vuoto o a metà.
+  let writing: Promise<void> | null = null;
   const alive = () =>
-    writeAtomic(join(jobs, RUNNER.alive), `${Math.floor(Date.now() / 1000)}\n`).catch((e: unknown) =>
-      log(`${RUNNER.alive} cannot be written: ${(e as NodeJS.ErrnoException).code ?? String(e)}`));
+    (writing ??= writeAtomic(join(jobs, RUNNER.alive), `${Math.floor(Date.now() / 1000)}\n`)
+      .catch((e: unknown) => log(`${RUNNER.alive} cannot be written: ${(e as NodeJS.ErrnoException).code ?? String(e)}`))
+      .finally(() => {
+        writing = null;
+      }));
   await alive();
   const timer = setInterval(() => void alive(), o.aliveMs ?? RUNNER.aliveMs);
   try {

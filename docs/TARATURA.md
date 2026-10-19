@@ -14,7 +14,8 @@ questo **non esiste un'opzione né una variabile d'ambiente per cambiarle**.
   e quali sono provvisori.
 - **Provvisori:** valori fissati prima della taratura sulle coppie reali
   (studio §15, fase 1, punto 3; decisione aperta 12). Gli altri sono i valori
-  iniziali dello studio.
+  iniziali dello studio. Le coppie reali si misurano con `dyadrr-pairs`, che
+  riassume i margini di ogni soglia provvisoria ([COPPIE.md](COPPIE.md)).
 
 ## Parametri
 
@@ -120,7 +121,9 @@ usa invece i parametri di quello nel donatore (`checkpointWindowMs`,
 
 ## Come si cambia un valore
 
-1. Si modifica `src/calibration.json` e si alza il suo `version`.
+1. Si modifica `src/calibration.json` e si alza il suo `version`. Per una
+   soglia provvisoria, la PR porta il `summary.md` delle coppie reali
+   ([COPPIE.md](COPPIE.md)).
 2. Si aggiorna la tabella dei [parametri](#parametri) (il test lo controlla).
 3. Se cambia un limite, o un valore smette di essere provvisorio dopo la
    taratura, si aggiorna anche lo studio (§9.2), con una voce nella cronologia.
