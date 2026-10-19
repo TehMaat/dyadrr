@@ -3,6 +3,8 @@
 > **Stato:** implementata dalla 0.9.0 (studio §10–11). La forma del report e
 > gli eventi di `--progress json` sono in [REPORT.md](REPORT.md). Nel
 > container la lancia il runner dei file job ([CONTAINER.md](CONTAINER.md)).
+> Per le coppie reali della fase 1, `dyadrr-pairs` lancia `analyze` su un
+> elenco di coppie ([COPPIE.md](COPPIE.md)).
 
 ## Comandi
 

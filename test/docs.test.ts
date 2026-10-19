@@ -8,6 +8,7 @@ import { CHOICES, CHOICE_NAMES } from '../src/choices.js';
 import { CALIBRATION_LIMITS, CALIBRATION_NAMES, loadCalibration } from '../src/calibration.js';
 import { PROGRESS_PHASES, REPORT_FIELDS, REPORT_FORMAT } from '../src/report.js';
 import { INPUTS_OPTION } from '../src/cli.js';
+import { PAIR_CATEGORIES, PAIR_KEYS, PHASE1_CATEGORIES, SUMMARY_FIELDS, VERDICTS } from '../src/pairs.js';
 
 // I test girano da build/test/.
 const ROOT = resolve(__dirname, '..', '..');
@@ -25,6 +26,16 @@ function tableRows(markdown: string, heading: string): string[][] {
     rows.push(line.slice(1, -1).split('|').map((c) => c.trim()));
   }
   return rows;
+}
+
+/** Le righe della prima tabella di una sezione, senza l'intestazione. */
+function firstTable(markdown: string, heading: string): string[][] {
+  const lines = markdown.split('\n');
+  const start = lines.indexOf(`## ${heading}`);
+  assert.notEqual(start, -1, `section "## ${heading}" missing`);
+  const from = lines.findIndex((l, i) => i > start && l.startsWith('|'));
+  const end = lines.findIndex((l, i) => i > from && !l.startsWith('|'));
+  return lines.slice(from + 2, end === -1 ? undefined : end).map((l) => l.slice(1, -1).split('|').map((c) => c.trim()));
 }
 
 /** Codici nella prima colonna delle righe di una sezione, con le righe. */
@@ -145,4 +156,15 @@ test('CHANGELOG.md ha la sezione della versione di package.json, in cima', () =>
   const { version } = JSON.parse(read('package.json')) as { version: string };
   const first = read('docs/CHANGELOG.md').split('\n').find((l) => l.startsWith('## ['));
   assert.match(first ?? '', new RegExp(`^## \\[${version.replace(/\./g, '\\.')}\\] - \\d{4}-\\d{2}-\\d{2}$`));
+});
+
+test('COPPIE.md riporta chiavi dell\'elenco, categorie, verdetti e campi del riassunto, in ordine', () => {
+  const doc = read('docs/COPPIE.md');
+  const first = (rows: string[][]) => rows.map((r) => /^`([\w-]+)`$/.exec(r[0] ?? '')?.[1] ?? r[0]);
+  assert.deepEqual(first(firstTable(doc, 'Elenco delle coppie')), [...PAIR_KEYS]);
+  const categories = firstTable(doc, 'Categorie');
+  assert.deepEqual(first(categories), Object.keys(PAIR_CATEGORIES));
+  assert.deepEqual(first(categories.filter((r) => r[2] === '§15, punto 3')), [...PHASE1_CATEGORIES]);
+  assert.deepEqual(first(firstTable(doc, 'Verdetti')), [...VERDICTS]);
+  assert.deepEqual(first(firstTable(doc, 'Riassunto')), [...SUMMARY_FIELDS]);
 });

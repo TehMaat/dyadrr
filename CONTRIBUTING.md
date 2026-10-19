@@ -106,6 +106,7 @@ documenti che tocca**, nella stessa PR.
 | Valori o limiti di taratura (`src/calibration.json`, `src/calibration.ts`) | [docs/TARATURA.md](docs/TARATURA.md); per i limiti e per i valori che smettono di essere provvisori anche lo studio (§9.2) |
 | File in `src/` aggiunti, rinominati o tolti | [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md) |
 | Runner, file job, `Dockerfile`, versioni nell'immagine, workflow **Image** | [docs/CONTAINER.md](docs/CONTAINER.md); per le versioni e il protocollo anche lo studio (§14.1–14.2) |
+| `dyadrr-pairs`: elenco delle coppie, categorie, verdetti, riassunto | [docs/COPPIE.md](docs/COPPIE.md); per una regola nuova anche lo studio (§15) |
 | Una voce passa da "previsto" a implementata | la colonna o la riga **Stato** in [docs/CLI.md](docs/CLI.md) |
 | Una decisione di progetto o una regola del metodo | [docs/STUDIO-DI-FATTIBILITA.md](docs/STUDIO-DI-FATTIBILITA.md), con una voce nella cronologia (§20) |
 
@@ -126,6 +127,8 @@ scostarsene, si aggiorna prima lo studio.
   campi del report e le fasi dell'avanzamento di `src/report.ts`, in ordine;
 - [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md) non elenca esattamente i file
   `.ts` e `.json` di `src/`;
+- [docs/COPPIE.md](docs/COPPIE.md) non riporta le chiavi dell'elenco, le
+  categorie, i verdetti e i campi del riassunto di `src/pairs.ts`;
 - [docs/CHANGELOG.md](docs/CHANGELOG.md) non ha la sezione della versione di
   `package.json`.
 

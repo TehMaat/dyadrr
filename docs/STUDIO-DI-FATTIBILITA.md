@@ -1,10 +1,10 @@
 # Dyadrr: studio di fattibilità
 
-Stato: bozza 0.14, ottobre 2026.
+Stato: bozza 0.15, ottobre 2026.
 
 Questo documento raccoglie le decisioni prese, quelle ancora aperte e i risultati delle prime verifiche sperimentali (§18). È il punto di partenza del repo.
 
-La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). La 0.9 fissa la costruzione del file finale (tagli, TrueHD, coda, unione, sottotitoli persi ai tagli, file temporanei) e chiude la decisione 7: in fase 2 Dyadrr gira in un container separato (§6, §7, §13, §14, §17). La 0.10 fissa le verifiche dopo il merge: cosa si legge del file finale, le tolleranze "entro un pacchetto" per codec, cosa è bloccante e cosa è solo un avviso (§9.5, §12). La 0.11 fissa la riga di comando e il report: forma esatta del report e sua versione, eventi di `--progress json`, confronto di `--expect`, richiesta delle scelte e annullamento (§9.4, §10, §11). La 0.12 chiude le decisioni 3, 4, 5, 6 e 11 sull'integrazione con Wayfinderr, e aggiunge alla riga di comando la cancellazione degli ingressi dopo il merge (§10.2, §15, §17). La 0.13 fa chiedere in un terminale se cancellare un file finale che c'è già (§6.4, §10). La 0.14 fissa il runner dei file job e l'immagine Docker: chiavi del job, percorsi, lavori interrotti, `dyadrr.alive`, versioni di ffmpeg e mkvtoolnix, pubblicazione (§14.1, §14.2). Le modifiche principali sono elencate in §20.
+La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). La 0.9 fissa la costruzione del file finale (tagli, TrueHD, coda, unione, sottotitoli persi ai tagli, file temporanei) e chiude la decisione 7: in fase 2 Dyadrr gira in un container separato (§6, §7, §13, §14, §17). La 0.10 fissa le verifiche dopo il merge: cosa si legge del file finale, le tolleranze "entro un pacchetto" per codec, cosa è bloccante e cosa è solo un avviso (§9.5, §12). La 0.11 fissa la riga di comando e il report: forma esatta del report e sua versione, eventi di `--progress json`, confronto di `--expect`, richiesta delle scelte e annullamento (§9.4, §10, §11). La 0.12 chiude le decisioni 3, 4, 5, 6 e 11 sull'integrazione con Wayfinderr, e aggiunge alla riga di comando la cancellazione degli ingressi dopo il merge (§10.2, §15, §17). La 0.13 fa chiedere in un terminale se cancellare un file finale che c'è già (§6.4, §10). La 0.14 fissa il runner dei file job e l'immagine Docker: chiavi del job, percorsi, lavori interrotti, `dyadrr.alive`, versioni di ffmpeg e mkvtoolnix, pubblicazione (§14.1, §14.2). La 0.15 fissa lo strumento per misurare le coppie reali della fase 1: elenco delle coppie, cartella dei risultati, verdetto di ogni coppia e riassunto per la taratura (§11.2, §15). Le modifiche principali sono elencate in §20.
 
 ---
 
@@ -788,7 +788,7 @@ Decisione 6 (§17), per la riga di comando. In Wayfinderr la pulizia la fa Wayfi
    - tutte le coppie di tracce provate, con la loro confidenza.
 4. **Misura:**
    - ancore provate, ciascuna con posizione, NCC, rapporto ed esito;
-   - per ogni punto di conferma: posizione richiesta e reale, livello di energia, spostamento, scarto, NCC, rapporto, esito;
+   - per ogni punto di conferma: posizione richiesta e reale, livello di energia, spostamento, scarto, NCC, rapporto, esito; dalla 0.15 anche i picchi misurati prima della decisione (ricerca vicina e su tutto l'intervallo), che servono alla taratura (§15, fase 1, punto 3);
    - S definitivo e dispersione;
    - deriva in ms all'ora e in ms totali;
    - forma di un'eventuale contraddizione;
@@ -819,7 +819,7 @@ Decisione 6 (§17), per la riga di comando. In Wayfinderr la pulizia la fa Wayfi
   2. `decision` e `reasons`: un solo motivo per un rifiuto, un errore (il codice) o un annullamento (`CANCELLED`); nessuno per una coppia idonea;
   3. `inputs`: i due file nell'ordine in cui sono passati, come li legge Dyadrr (impronta, durate, integrità, video, tracce, italiano sì o no); `null` per un file non letto;
   4. `roles`: indici di riferimento e donatore in `inputs`, con il motivo; il controllo del video; lingua originale e lingua di misura; le coppie di tracce provate;
-  5. `measurement`: coppia scelta, ancore con l'esito, diagnosi di velocità, S (dell'ancora, mediana, definitivo, dispersione), deriva, forma della contraddizione, punti di conferma (posizione richiesta e reale, energia, spostamento, scarto, NCC, rapporto, esito), materiale in comune e copertura, ricerche oltre i confini, trasferimento, byte letti; `null` se un controllo strutturale ha già deciso;
+  5. `measurement`: coppia scelta, ancore con l'esito, diagnosi di velocità, S (dell'ancora, mediana, definitivo, dispersione), deriva, forma della contraddizione, punti di conferma (posizione richiesta e reale, energia, spostamento, scarto, NCC, rapporto, esito; dalla 0.15 i picchi misurati `local` e `wide`), materiale in comune e copertura, ricerche oltre i confini, trasferimento, byte letti; `null` se un controllo strutturale ha già deciso;
   6. `checks`: tutti i controlli della decisione, con esito, valore, soglia e codice;
   7. `choices`: tutte le scelte, con l'effetto di ogni valore per quelle necessarie; `null` senza piano;
   8. `plan`: il piano (§5) senza scelte e avvisi, che stanno in `choices` e `warnings`; `null` per una coppia non idonea. I sottotitoli persi ai tagli si leggono dal donatore nella costruzione (§6.5): stanno in `output`, solo nel merge;
@@ -1017,7 +1017,7 @@ Il protocollo di §14 visto dal runner. Wayfinderr ne scrive l'altra metà (§15
   - **Versioni fissate** con il vincolo `~` di apk sulla versione del programma: la revisione di Alpine (`-rN`) può cambiare per una correzione di sicurezza, la versione no. Se Alpine la cambiasse dentro il ramo, la costruzione dell'immagine fallisce e la si rivede a mano. Le versioni usate finiscono comunque in ogni report (§11.2).
   - **Scadenza:** Alpine 3.22 è supportata fino a maggio 2027. Prima si passa a un ramo nuovo, con ffmpeg 8: serve rifare le prove della lettura delle finestre (§4.3, §18) oltre alla suite.
 - **Init:** tini come `ENTRYPOINT`, che inoltra i segnali al runner e raccoglie i processi orfani.
-- **Comandi:** per default il runner (`dyadrr-runner`); `dyadrr` è nel `PATH`, per lanciare la riga di comando a mano nel container.
+- **Comandi:** per default il runner (`dyadrr-runner`); `dyadrr` è nel `PATH`, per lanciare la riga di comando a mano nel container, e dalla 0.15 anche `dyadrr-pairs`, per le coppie reali della fase 1 (§15).
 - **Utente:** quello di default (root). Il Compose gli dà con `user:` lo stesso utente del backend, così i file scritti da uno si possono cancellare dall'altro (§14, volumi).
 - **Costruzione:** il TypeScript si compila una volta sola, sulla piattaforma della build (non ha codice nativo); per arm64 si installano solo i pacchetti di Alpine.
 - **Workflow `Image`**, in questo repo, a ogni PR e a ogni push su `main`:
@@ -1025,7 +1025,7 @@ Il protocollo di §14 visto dal runner. Wayfinderr ne scrive l'altra metà (§15
   - ripete **tutta la suite** (`npm test`) dentro l'immagine amd64: uno stadio di prova che aggiunge all'immagine npm, i sorgenti e i test, con gli stessi Node, ffmpeg e mkvtoolnix;
   - controlla le versioni di Node, ffmpeg e mkvmerge su entrambe le architetture (arm64 in emulazione);
   - su `main` pubblica su GitHub Container Registry, `ghcr.io/tehmaat/dyadrr`, con i tag `latest`, `sha-<7 caratteri del commit>` e la versione di `package.json` (per esempio `0.12.0`), con le credenziali del workflow e nessun segreto.
-- **Le coppie reali** (fase 1, punto 3) e la taratura vanno fatte con le versioni dell'immagine: sono quelle con cui Dyadrr girerà in Wayfinderr.
+- **Le coppie reali** (fase 1, punto 3) e la taratura vanno fatte con le versioni dell'immagine: sono quelle con cui Dyadrr girerà in Wayfinderr. Dalla 0.15 con `dyadrr-pairs`, nell'immagine (§15); il workflow `Image` lo prova con un elenco di una coppia.
 
 ---
 
@@ -1092,6 +1092,55 @@ I test sintetici hanno audio identico bit per bit da entrambe le parti: servono 
 - un film su due dischi.
 
 Su alcune coppie S va controllato anche a mano.
+
+**Come si misurano (0.15).** Con `dyadrr-pairs`, un terzo eseguibile nell'immagine: lancia `dyadrr analyze` su un elenco di coppie, una alla volta, e ne riassume i report per la taratura (decisione 12). Non decide le soglie: le propone chi legge il riassunto, nella PR che chiude la decisione 12.
+
+- **Dove gira:** nell'immagine pubblicata, perché la taratura vale per le versioni di ffmpeg e mkvtoolnix con cui Dyadrr girerà in Wayfinderr (§14.2): `docker run --rm -v <film>:/data/film -v <taratura>:/data/taratura ghcr.io/tehmaat/dyadrr:<versione> dyadrr-pairs taratura/coppie.txt`. Fuori dall'immagine funziona lo stesso, ma le misure valgono per altre versioni (il riassunto le riporta).
+- **L'elenco delle coppie:** un file di testo UTF-8, una sezione per coppia.
+  - `[<id>]` apre una coppia. L'id segue le regole dei job (§14.1: da 1 a 64 tra lettere ASCII, cifre, `-` e `_`, che comincia con una lettera o una cifra), è unico nell'elenco e dà il nome ai file dei risultati.
+  - Sotto, righe `chiave=valore` come nel job (§14.1): la chiave è quello che precede il primo `=`, il valore tutto il resto; le righe vuote si ignorano, un CR in fondo alla riga si toglie. In più, le righe che cominciano con `#` sono commenti.
+
+    | Chiave | Valore |
+    |---|---|
+    | `input` | un percorso, due righe, obbligatorie; relativo alla cartella corrente (nel container `/data`), come per la riga di comando |
+    | `expected` | obbligatoria: `eligible` per una coppia buona (lo stesso film nella stessa versione), `refused` per una coppia da rifiutare (punto 2: versioni diverse, velocità diverse, film diversi) |
+    | `original-language` | un codice di lingua: `--original-language` (§3.3) |
+    | `category` | una categoria (sotto); ripetibile |
+    | `offset-ms` | S controllato a mano, in ms |
+    | `cause` | per una coppia buona rifiutata, la causa trovata guardandola (si aggiunge dopo la misura) |
+    | `note` | testo libero |
+
+  - **Categorie:** le sette del punto 3, `uhd-bd` (UHD Atmos contro vecchio BD 5.1), `long-silences`, `disney-pixar`, `distributor-logos`, `dubbing-card` (cartello del doppiaggio a fine film), `non-english`, `two-discs`; tre del punto 2, `different-cut` (theatrical contro extended), `different-speed` (framerate o velocità diversi), `different-film`; e `other`.
+  - Le scelte (§10.1) e `--expect` non ci sono: in `analyze` non cambiano la decisione, e la taratura riguarda la decisione. Le scelte restano in sospeso nel report.
+  - Sono errori dell'elenco, `BAD_ARGUMENTS`: una riga che non è una sezione, un commento o `chiave=valore`; una chiave prima della prima sezione; un id non valido o ripetuto; una chiave sconosciuta o ripetuta (salvo `input` e `category`); una coppia senza due `input` o senza `expected`; un ingresso vuoto; un valore non valido di `expected`, `category`, `offset-ms` o `original-language`. L'elenco si controlla tutto prima di misurare: un errore nella diciottesima coppia non deve arrivare dopo ore di misure.
+- **Una coppia alla volta,** nell'ordine dell'elenco, con un processo `dyadrr analyze <ingressi> [--original-language …] --report <id>.json --progress json` per coppia, con i percorsi assoluti e la taratura versionata. Un crash o un esaurimento di memoria fanno perdere una coppia, non la serie: se Dyadrr finisce senza report, il report lo scrive `dyadrr-pairs`, come il runner (§14.1: `INTERRUPTED` se un segnale l'ha ucciso, `INTERNAL` altrimenti). Su stderr una riga all'inizio e una alla fine di ogni coppia.
+- **I risultati** vanno in una cartella, `--results <dir>`, per default `<nome dell'elenco senza estensione>-results` accanto all'elenco:
+  - per ogni coppia `<id>.json`, il report di `analyze` intero, e `<id>.log`, lo stderr di Dyadrr (le righe di `--progress json`, con i tempi di ogni fase);
+  - per la serie `summary.json` e `summary.md`, riscritti alla fine di ogni lancio, anche annullato. Su stdout i loro percorsi.
+  - **Ripresa:** una serie di venti film dura ore. Un report che c'è già si riusa se ha la stessa versione di Dyadrr e della taratura, gli stessi ingressi e la stessa lingua originale, e se la decisione è `eligible` o `refused`; altrimenti (un errore, un annullamento, un'altra versione) la coppia si rimisura, e i suoi file vecchi si cancellano prima. `--again` rimisura comunque, `--only <id>` (ripetibile) lancia solo quelle coppie. Il riassunto copre sempre tutto l'elenco. Le impronte degli ingressi non si confrontano, perché costerebbero una lettura: un file sostituito con lo stesso nome va rimisurato con `--again`.
+  - **Dove restano:** i report contengono percorsi e nomi dei file e restano a chi misura. Nel repo entrano il riassunto (`summary.md` nomina le coppie solo con l'id), nella PR della decisione 12, e le conclusioni, in §18.
+- **Annullamento:** un segnale di stop arriva a Dyadrr una volta sola (SIGTERM, come nel runner); la serie si ferma, il riassunto si scrive con le coppie fatte. Un secondo segnale esce subito.
+- **Uscita:** 0 se la serie è finita e il riassunto è scritto, qualunque sia la decisione delle coppie; 30 per un elenco o argomenti sbagliati, o una cartella dei risultati che non si crea, prima di misurare; 40 se il riassunto non si scrive; 50 se la serie è annullata.
+- **Verdetto di ogni coppia,** dalla decisione e da `expected`:
+
+  | Verdetto | Quando |
+  |---|---|
+  | `ok` | idonea e attesa idonea, con S entro la tolleranza per punto da `offset-ms` se c'è; oppure rifiutata e attesa rifiutata |
+  | `good-refused` | una coppia buona rifiutata: ammesso, da documentare con `cause` |
+  | `wrong-merge` | idonea ma attesa rifiutata, oppure S oltre la tolleranza per punto da `offset-ms`: sarebbe un merge sbagliato |
+  | `error` | un errore: da capire e rimisurare |
+  | `cancelled` | annullata |
+  | `missing` | ancora senza report |
+
+- **Il riassunto di ogni coppia:** decisione, motivo e verdetto; lingua e tracce di misura; S dell'ancora e definitivo, dispersione e differenza da `offset-ms`; ancore con NCC, rapporto ed esito; punti di conferma per esito e quelli aggiunti; deriva, forma della contraddizione, copertura, trasferimento; avvisi; durata e byte letti; versioni di Dyadrr, dei programmi e della taratura. E i **margini** rispetto alle soglie provvisorie:
+  - **picchi dei punti di conferma** con energia almeno E_min, in quattro gruppi: sicuri a S (entro la tolleranza per punto dallo S dell'ancora), non sicuri a S, sicuri altrove, non sicuri altrove. Per i sicuri a S il minimo di NCC, rapporto ed energia; per gli altri il massimo di NCC e rapporto. Ogni punto dà al più due picchi: quello della ricerca vicina e, se non è sicuro, quello su tutto l'intervallo. Per questo il report dà anche i picchi misurati (§11.2);
+  - **punti sotto E_min:** quanti, e quanti avevano comunque un picco sicuro a S;
+  - **integrità:** la differenza più grande nei due ingressi tra la fine di una traccia e i suoi tag statistici, o tra la fine dei cluster e la durata dichiarata (§4.8);
+  - **piano:** i buchi senza italiano all'inizio e alla fine e il livello dopo il taglio iniziale.
+- **Il riassunto della serie:**
+  - il **criterio di uscita** della fase 1 (sotto): coppie con un report (almeno 15), categorie del punto 3 coperte e mancanti, merge sbagliati (zero), coppie buone rifiutate con e senza `cause`, e la quota di coppie `uhd-bd` buone rifiutate per salti di 1–2 fotogrammi (`CHECKPOINT_CONTRADICTION` con uno o più salti, tutti di al più 2 fotogrammi arrotondati);
+  - per ogni soglia provvisoria, il valore della taratura accanto ai margini, con la coppia che li dà: per θ_ncc e θ_rapporto il minimo dei picchi sicuri a S nelle coppie buone (quanto si può alzare la soglia), il massimo dei non sicuri a S nelle coppie buone (quanto andrebbe abbassata per recuperarli) e il massimo dei non sicuri altrove in tutte le coppie (sotto quanto non si può scendere); per E_min l'energia più bassa di un picco sicuro a S; per la tolleranza di integrità la differenza più grande; per buco senza italiano e partenza brusca i valori più alti del piano;
+  - le versioni di Dyadrr, dei programmi e della taratura, con un avviso se le coppie non le hanno tutte uguali.
 
 **4. Merge reali e lettori**
 
@@ -1371,3 +1420,9 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
   - **Lavori interrotti:** all'avvio un `.run` senza `.exit` non si rilancia: `.exit` dal report se c'è, altrimenti il nuovo errore `INTERRUPTED`; hostname fisso perché gli avanzi si eliminino (§6.4, §12, §14.1).
   - **`dyadrr.alive`:** ogni 5 s; per Wayfinderr il container è spento dopo 30 s (§14.1).
   - **Immagine:** Alpine 3.22 con Node 22, ffmpeg 6.1.2 e mkvtoolnix 92.0 dai pacchetti di Alpine, tini come init, amd64 e arm64; workflow che ripete la suite sull'immagine e la pubblica su GHCR con i tag `latest`, `sha-…` e la versione (§10, §14, §14.2).
+- **0.15:** strumento per le coppie reali della fase 1.
+  - **`dyadrr-pairs`:** un terzo eseguibile nell'immagine, che lancia `dyadrr analyze` su un elenco di coppie, una alla volta e ognuna nel suo processo, e ne riassume i report; si usa con le versioni dell'immagine (§14.2, §15).
+  - **Elenco:** una sezione `[<id>]` per coppia con righe `chiave=valore` come nel job: ingressi, lingua originale, esito atteso, categorie del punto 3 e del punto 2, S controllato a mano, causa di un rifiuto, note; controllato tutto prima di misurare (§15).
+  - **Risultati:** report e log di ogni coppia, `summary.json` e `summary.md`, in una cartella accanto all'elenco; un report della stessa versione si riusa, così una serie interrotta riprende; i report restano a chi misura, nel repo entrano il riassunto e le conclusioni (§15).
+  - **Verdetti e riassunto:** `ok`, `good-refused`, `wrong-merge`, `error`, `cancelled`, `missing`; margini dei picchi rispetto a θ_ncc e θ_rapporto, punti sotto E_min, integrità, buchi e livelli del piano; criterio di uscita della fase 1 calcolato dalla serie (§15).
+  - **Report:** i picchi misurati di ogni punto di conferma (`local`, `wide`), un campo nuovo che non alza la versione del formato (§11.2, §11.3).

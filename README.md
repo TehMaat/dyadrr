@@ -10,7 +10,8 @@ Il nome viene da *diade*: due elementi che formano una coppia.
 > **Stato:** fase 1, in sviluppo. La riga di comando funziona dalla 0.9.0,
 > l'immagine Docker per Wayfinderr dalla 0.12.0
 > ([docs/CONTAINER.md](docs/CONTAINER.md)); le soglie sono ancora
-> provvisorie, da tarare su coppie reali ([docs/TARATURA.md](docs/TARATURA.md)). Le modifiche sono nel
+> provvisorie, da tarare su coppie reali ([docs/TARATURA.md](docs/TARATURA.md))
+> con `dyadrr-pairs` dalla 0.13.0 ([docs/COPPIE.md](docs/COPPIE.md)). Le modifiche sono nel
 > [CHANGELOG](docs/CHANGELOG.md).
 
 ## Come funziona

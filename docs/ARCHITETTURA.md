@@ -15,7 +15,8 @@ su una cartella condivisa, e il runner nel container lancia la riga di comando
   solo per la coda delle tracce FLAC.
 - **Node:** 22.
 - **Eseguibili** (`bin` in `package.json`): `dyadrr` è `dist/bin.js`,
-  `dyadrr-runner` è `dist/runner-bin.js`.
+  `dyadrr-runner` è `dist/runner-bin.js`, `dyadrr-pairs` è
+  `dist/pairs-bin.js`.
 
 ## Moduli
 
@@ -44,6 +45,8 @@ Il test `test/docs.test.ts` controlla che questa tabella elenchi tutti i file
 | `src/bin.ts` | Il processo `dyadrr`: segnali di stop (SIGINT, SIGTERM, SIGHUP) su un `AbortController`, secondo segnale, domande in un terminale con readline, codice di uscita | §10 |
 | `src/runner.ts` | Runner dei file job (`runRunner`): cartelle nel container e intervalli (`RUNNER`), lettura del job (`parseJob`, `BAD_ARGUMENTS`), percorsi relativi a `/data`, argomenti della riga di comando (`jobArguments`), un lavoro alla volta da `.job` a `.exit`, `.cancel` con un solo SIGTERM, report scritto dal runner (`writeOutcomeReport`) quando Dyadrr non lo scrive, lavori interrotti all'avvio (`INTERRUPTED`), `dyadrr.alive` | §14.1 |
 | `src/runner-bin.ts` | Il processo `dyadrr-runner`, comando di default dell'immagine: `--data`, segnali di stop, secondo segnale | §14.1 |
+| `src/pairs.ts` | Le coppie reali della fase 1 (`runPairs`): lettura dell'elenco (`parsePairList`, `BAD_ARGUMENTS`), argomenti di `analyze` (`pairArguments`), report riusabili (`reusable`), una coppia alla volta nel suo processo, con il report scritto qui se Dyadrr non lo scrive; riassunto di una coppia (`summarizePair`: verdetto, S, punti, margini dei picchi rispetto alle soglie) e della serie (`summarizeSeries`: criterio di uscita della fase 1, margini delle soglie), `summary.json` e `summary.md` ([COPPIE.md](COPPIE.md)) | §15 |
+| `src/pairs-bin.ts` | Il processo `dyadrr-pairs`: argomenti, segnali di stop, secondo segnale | §15 |
 | `src/decision.ts` | Decisione: funzione pura dalle misure e dalla taratura a decisione, controlli, motivi, avvisi, S definitivo, deriva, forma della contraddizione e copertura; `checkStructure` per i soli controlli strutturali, prima di misurare | §4.4–4.7, §9.3–9.4, §9.6 |
 
 ## Immagine
@@ -52,10 +55,12 @@ Il test `test/docs.test.ts` controlla che questa tabella elenchi tutti i file
   della build; `runtime` è l'immagine pubblicata (Alpine 3.22 con Node 22,
   ffmpeg 6.1.2, mkvtoolnix 92.0 e tini, `dist/` e `package.json`);
   `test` aggiunge a `runtime` npm, i sorgenti e i test, per lanciare la suite
-  sull'immagine (studio §14.2).
+  sull'immagine (studio §14.2). Nel `PATH` ci sono `dyadrr`, `dyadrr-runner`
+  e `dyadrr-pairs`.
 - `.github/workflows/image.yml` (workflow **Image**): costruzione per amd64 e
-  arm64, suite sull'immagine, versioni, un job con il runner, pubblicazione su
-  GHCR da `main` ([CONTAINER.md](CONTAINER.md#immagine)).
+  arm64, suite sull'immagine, versioni, un job con il runner, un elenco di
+  coppie con `dyadrr-pairs`, pubblicazione su GHCR da `main`
+  ([CONTAINER.md](CONTAINER.md#immagine)).
 
 ## Moduli previsti
 
@@ -114,4 +119,11 @@ Nessuno: il container (studio §14, decisione 7) è fatto dalla 0.12.0.
   prima di cominciare, id riusati, `dyadrr.alive`), un Dyadrr finto per i
   crash, i processi uccisi, i `.run` rimasti all'avvio e lo stop del runner;
   infine il processo `dyadrr-runner`.
+- `test/pairs.test.ts` prova le coppie reali: l'elenco e i suoi errori, i
+  report riusabili, il riassunto di una coppia sul report vero di un'analisi
+  idonea (MKV di 60 s di rumore rosa) e su sue varianti (rifiuti per salti,
+  errori, picchi deboli), il riassunto della serie e il criterio di uscita;
+  la serie con un Dyadrr finto (riuso, `--only`, `--again`, crash, processo
+  ucciso, annullamento con un solo SIGTERM); infine il processo
+  `dyadrr-pairs` con il Dyadrr vero.
 - Il workflow **Image** ripete tutta la suite dentro l'immagine (sopra).

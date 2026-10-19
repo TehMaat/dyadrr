@@ -4,6 +4,38 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.13.0] - 2026-10-19
+
+### Aggiunto
+- `dyadrr-pairs`, per le coppie reali della fase 1 e la taratura delle
+  soglie: lancia `dyadrr analyze` su un elenco di coppie, una alla volta e
+  ognuna nel suo processo, e ne riassume i report. Nell'immagine è nel
+  `PATH`: `docker run … ghcr.io/tehmaat/dyadrr dyadrr-pairs coppie.txt`
+- Elenco delle coppie: una sezione `[<id>]` per coppia, con `input` (due),
+  `expected` (`eligible` o `refused`), `original-language`, `category` (le
+  categorie dello studio), `offset-ms` (S controllato a mano), `cause` e
+  `note`; controllato tutto prima di misurare (`BAD_ARGUMENTS`, uscita 30)
+- Risultati in `<elenco>-results/` (o `--results`): `<id>.json` e `<id>.log`
+  per coppia, `summary.json` e `summary.md` per la serie. Un report della
+  stessa versione di Dyadrr e della taratura si riusa, così una serie
+  interrotta riprende; `--again` rimisura, `--only <id>` lancia solo quella
+  coppia
+- Riassunto: verdetto di ogni coppia (`ok`, `good-refused`, `wrong-merge`,
+  `error`, `cancelled`, `missing`), S e differenza da quello a mano, punti
+  per esito, margini dei picchi rispetto a θ_ncc e θ_rapporto, punti sotto
+  E_min, integrità, buchi e livelli del piano; criterio di uscita della fase
+  1 (coppie, categorie, merge sbagliati, rifiuti senza causa, quota di
+  coppie UHD + BD rifiutate per salti di 1–2 fotogrammi)
+- Report: i picchi misurati di ogni punto di conferma prima della decisione
+  (`measurement.checkpoints[].local` e `.wide`). Il formato resta 1
+- Libreria: `runPairs`, `parsePairList`, `summarizePair`, `summarizeSeries`,
+  `summaryMarkdown`
+- Documentazione: [COPPIE.md](COPPIE.md); studio di fattibilità 0.15 (§15)
+
+### Modificato
+- Workflow **Image**: controlla anche `dyadrr-pairs --version` e lancia un
+  elenco di una coppia nell'immagine
+
 ## [0.12.0] - 2026-10-19
 
 ### Aggiunto
