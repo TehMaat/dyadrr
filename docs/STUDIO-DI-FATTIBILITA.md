@@ -642,7 +642,7 @@ La decisione è una **funzione pura**: riceve i fatti dei due file e le misure, 
 
 **Contraddizioni e confini**
 - Prima i punti contraddittori (`CHECKPOINT_CONTRADICTION`), poi quelli senza corrispondenza (`CHECKPOINT_UNMATCHED`): per entrambi la soglia è zero (§9.1).
-- **Forma:** i punti con un picco sicuro, in ordine di posizione, si dividono in tratti a spostamento costante (entro la tolleranza dal primo punto del tratto). Due tratti sono **un salto**; più tratti, tutti di almeno due punti, sono **più salti**; altrimenti è **rumore**. Ogni salto ha posizione, ampiezza in ms e in fotogrammi del riferimento.
+- **Forma:** i punti con un picco sicuro, in ordine di posizione, si dividono in tratti a spostamento costante (entro la tolleranza dal primo punto del tratto). Due tratti sono **un salto**; più tratti sono **più salti**, se quelli in mezzo hanno almeno due punti; altrimenti è **rumore**. Il primo e l'ultimo tratto possono avere un punto solo: vicino ai bordi del film i punti sono pochi, e un salto lì ne sposta uno o due (dalla 0.17). Ogni salto ha posizione, ampiezza in ms e in fotogrammi del riferimento.
 - Un picco sicuro prima del confine iniziale o oltre quello finale, a uno spostamento diverso da S oltre la tolleranza, vuol dire che il film continua a un altro spostamento: `CHECKPOINT_CONTRADICTION` (§4.6).
 
 **Video (§3.2)**

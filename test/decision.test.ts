@@ -290,6 +290,15 @@ test('CHECKPOINT_CONTRADICTION: più salti, oppure rumore', () => {
   const outlier = decide(base({ checkpoints: series((p) => (p === pos[12] ? S + 300 : S), pos) }), cal);
   assert.deepEqual(reasons(outlier), ['CHECKPOINT_CONTRADICTION']);
   assert.equal(outlier.contradiction?.kind, 'noise');
+
+  // Come Thor: Ragnarok (UHD e BD), un punto solo a ciascun bordo, -27 ms
+  // all'inizio e un fotogramma nei titoli di coda: due salti, non rumore.
+  const edges = decide(base({
+    checkpoints: series((p) => (p === pos[0] ? S - 27 : p === pos[29] ? S + 42 : S), pos),
+  }), cal);
+  assert.deepEqual(reasons(edges), ['CHECKPOINT_CONTRADICTION']);
+  assert.equal(edges.contradiction?.kind, 'multiple-jumps');
+  assert.deepEqual(edges.contradiction.jumps.map((j) => Math.round(Math.abs(j.frames))), [1, 1]);
 });
 
 test('CHECKPOINT_CONTRADICTION: il film continua a un altro spostamento oltre il confine', () => {

@@ -262,8 +262,10 @@ function theilSen(points: readonly Point[]): { slope: number; intercept: number 
 /**
  * Divide i punti, in ordine di posizione, in tratti a spostamento costante: un
  * tratto finisce quando un punto si allontana dal primo del tratto più della
- * tolleranza. Un tratto lungo è un salto; più tratti di almeno due punti sono
- * più salti; tratti di un punto solo sono rumore.
+ * tolleranza. Due tratti sono un salto; più tratti sono più salti, se quelli in
+ * mezzo hanno almeno due punti; un punto solo tra due tratti è rumore. Il primo
+ * e l'ultimo tratto possono avere un punto solo: vicino ai bordi del film i
+ * punti sono pochi, e un salto lì li sposta tutti (§4.5, punto 6).
  */
 function contradictionShape(points: readonly Point[], toleranceMs: number, fps: number): ContradictionShape | null {
   const sorted = [...points].sort((a, b) => a.x - b.x);
@@ -290,7 +292,7 @@ function contradictionShape(points: readonly Point[], toleranceMs: number, fps: 
   });
   const kind =
     segments.length === 2 ? 'single-jump'
-    : segments.every((s) => s.length >= 2) ? 'multiple-jumps'
+    : segments.slice(1, -1).every((s) => s.length >= 2) ? 'multiple-jumps'
     : 'noise';
   return { kind, jumps };
 }
