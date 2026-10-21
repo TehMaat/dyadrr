@@ -17,6 +17,7 @@ import {
   checkStructure,
   decide,
   isConfident,
+  transferResult,
   type AnchorMeasure,
   type CheckpointMeasure,
   type CheckpointOutcome,
@@ -109,6 +110,13 @@ export interface MeasuredCheckpoint extends CheckpointMeasure {
   requestedMs: number;
 }
 
+/** Una traccia provata nel controllo di trasferimento: spostamento mediano e picchi sicuri. */
+export interface TransferCandidate {
+  trackId: number;
+  offsetMs: number | null;
+  confident: number;
+}
+
 export interface MeasuredTransferProbe extends TransferProbe {
   /** Segnale usato: `side` se le tracce non hanno il centrale, `leftRight` se `side` è muto. */
   mix: Mix;
@@ -130,7 +138,15 @@ export interface Measurement {
   boundaries: { startMs: number; endMs: number } | null;
   checkpoints: MeasuredCheckpoint[] | null;
   edgeProbes: EdgeProbe[] | null;
-  transfer: { measureTrackId: number; italianTrackId: number; probes: MeasuredTransferProbe[] } | null;
+  /** Le tracce principali sull'ancora accettata (§4.2), se la coppia scelta è un'altra. */
+  mainPair: (TrackPair & { match: Match | null }) | null;
+  transfer: {
+    measureTrackId: number;
+    italianTrackId: number;
+    probes: MeasuredTransferProbe[];
+    /** Ogni traccia della lingua di misura provata (§4.7), con il suo esito. */
+    candidates: TransferCandidate[];
+  } | null;
   /** Byte letti da ogni file (§11.2, punto 4). */
   bytesRead: { reference: number; donor: number };
 }
@@ -281,12 +297,25 @@ const pairIds = (p: Pair): TrackPair => ({ referenceTrackId: p.reference.id, don
  * audiodescrizioni. Se in un file restano solo quelli, si usano comunque.
  */
 export function candidatePairs(reference: InputFile, donor: InputFile, language: string): Pair[] {
-  const tracks = (f: InputFile) => {
-    const all = f.audio.filter((t) => trackLanguage(t) === language);
-    const clean = all.filter((t) => !isCommentaryOrDescription(t));
-    return clean.length > 0 ? clean : all;
-  };
+  const tracks = (f: InputFile) => measureTracks(f.audio, language);
   return tracks(reference).flatMap((r) => tracks(donor).map((d) => ({ reference: r, donor: d, mix: analysisMix(r, d) })));
+}
+
+/** Le tracce di una lingua, esclusi commenti e audiodescrizioni se ne resta qualcuna. */
+export function measureTracks<T extends InputTrack>(audio: readonly T[], language: string): T[] {
+  const all = audio.filter((t) => trackLanguage(t) === language);
+  const clean = all.filter((t) => !isCommentaryOrDescription(t));
+  return clean.length > 0 ? clean : all;
+}
+
+/**
+ * La traccia principale di un file nella lingua di misura (§4.2): quella con
+ * più canali, poi senza perdite, poi la prima. Un commento non segnato è quasi
+ * sempre stereo, e il film no.
+ */
+export function mainTrack<T extends Pick<InputTrack, 'channels' | 'codec' | 'codecId'>>(tracks: readonly T[]): T | null {
+  const score = (t: T) => (t.channels ?? 0) * 2 + (isLossless(t) ? 1 : 0);
+  return tracks.reduce<T | null>((best, t) => (best === null || score(t) > score(best) ? t : best), null);
 }
 
 /**
@@ -394,6 +423,13 @@ export async function measurePair(
 
   // Senza ancore sicure si tiene la coppia più somigliante.
   const pick = chosen ?? bestPair(pairs.map((_, i) => i), pairs, (i) => Math.max(...perPair[i]!.map((a) => a.ncc)));
+  // Le tracce principali sull'ancora accettata, se la coppia scelta è un'altra:
+  // fino a quell'ancora sono state misurate tutte le coppie.
+  const mainIndex = pairs.findIndex((p) =>
+    p.reference === mainTrack(pairs.map((x) => x.reference)) && p.donor === mainTrack(pairs.map((x) => x.donor)));
+  const acceptedAt = chosen === null ? -1 : perPair[chosen]!.findIndex((a) => isConfident(a, cal));
+  const mainMeasure = mainIndex === -1 || mainIndex === chosen || acceptedAt === -1 ? undefined : perPair[mainIndex]![acceptedAt];
+  const mainPair = mainMeasure ? { ...pairIds(pairs[mainIndex]!), match: { offsetMs: mainMeasure.offsetMs, ncc: mainMeasure.ncc, ratio: mainMeasure.ratio } } : null;
   const result = (fields: Partial<Measurement>): Measurement => ({
     measureLanguage,
     pairs: trials,
@@ -404,6 +440,7 @@ export async function measurePair(
     boundaries: null,
     checkpoints: null,
     edgeProbes: null,
+    mainPair,
     transfer: null,
     ...fields,
     bytesRead: { reference: ref.bytes, donor: donor.bytes },
@@ -649,16 +686,26 @@ export async function measurePair(
   if (italian === null) throw new DyadrrError('INTERNAL', 'the donor has no Italian audio track');
   const transferAt = transferPositions(startMs, endMs, Lc).map((x) => x - S);
   progress('transfer', 0, transferAt.length);
-  const transferProbes = (await transferProbesIn(donor, pair.donor, italian, transferAt, cal))
-    .map((probe) => ({ ...probe, positionMs: round3(probe.positionMs + S) }));
-  progress('transfer', transferProbes.length, transferAt.length);
+  const candidates = transferCandidates(measureTracks(donor.file.audio, measureLanguage), italian, pair.donor.id);
+  const perTrack = (await transferProbesIn(donor, candidates, italian, transferAt, cal))
+    .map((probes) => probes.map((probe) => ({ ...probe, positionMs: round3(probe.positionMs + S) })));
+  const best = bestTransfer(candidates, perTrack, cal);
+  progress('transfer', transferAt.length, transferAt.length);
 
   return result({
     anchorOffsetMs: S,
     boundaries,
     checkpoints,
     edgeProbes,
-    transfer: { measureTrackId: pair.donor.id, italianTrackId: italian.id, probes: transferProbes },
+    transfer: {
+      measureTrackId: candidates[best]!.id,
+      italianTrackId: italian.id,
+      probes: perTrack[best]!,
+      candidates: candidates.map((t, i) => {
+        const r = transferResult(perTrack[i]!, cal);
+        return { trackId: t.id, offsetMs: r.offsetMs, confident: r.confident };
+      }),
+    },
   });
 }
 
@@ -673,68 +720,102 @@ export function transferPositions(fromMs: number, toMs: number, windowMs: number
 }
 
 /**
+ * Le tracce della lingua di misura da provare nel controllo di trasferimento
+ * (§4.7), in ordine di preferenza: lo stesso codec dell'italiano, poi la stessa
+ * classe (con o senza perdite), poi la traccia `preferredId` (quella della
+ * misura), poi l'ordine del file. Tracce di codec diversi possono essere
+ * sfasate tra loro di qualche decina di ms anche nello stesso disco.
+ */
+export function transferCandidates<T extends Pick<InputTrack, 'id' | 'codec' | 'codecId'>>(
+  tracks: readonly T[],
+  italian: Pick<InputTrack, 'codec' | 'codecId'>,
+  preferredId: number,
+): T[] {
+  const codec = (t: Pick<InputTrack, 'codec' | 'codecId'>) => t.codecId ?? t.codec;
+  const score = (t: T) => (codec(t) === codec(italian) ? 4 : 0) + (isLossless(t) === isLossless(italian) ? 2 : 0) +
+    (t.id === preferredId ? 1 : 0);
+  return tracks.map((t, i) => ({ t, i })).sort((a, b) => score(b.t) - score(a.t) || a.i - b.i).map((x) => x.t);
+}
+
+/** La traccia che il controllo di trasferimento usa: più picchi sicuri, poi l'ordine di preferenza. */
+export function bestTransfer(candidates: readonly unknown[], tried: readonly (readonly TransferProbe[])[], cal: Calibration): number {
+  let best = 0;
+  candidates.forEach((_, i) => {
+    if (transferResult(tried[i]!, cal).confident > transferResult(tried[best]!, cal).confident) best = i;
+  });
+  return best;
+}
+
+/**
  * Il controllo di trasferimento in un file (§4.7): in ogni posizione, la
- * finestra della lingua di misura cercata nell'italiano vicino allo
- * spostamento zero (±1 s), sui canali non centrali. Lo spostamento è come S:
- * posizione nella lingua di misura − posizione nell'italiano. Posizioni sulla
- * linea del tempo del file.
+ * finestra di ogni traccia della lingua di misura cercata nell'italiano vicino
+ * allo spostamento zero (±1 s), sui canali non centrali, in una sola lettura.
+ * Lo spostamento è come S: posizione nella lingua di misura − posizione
+ * nell'italiano. Posizioni sulla linea del tempo del file; un elenco di punti
+ * per traccia.
  */
 async function transferProbesIn(
   side: Side,
-  measure: InputTrack,
+  measures: readonly InputTrack[],
   italian: InputTrack,
   positions: readonly number[],
   cal: Calibration,
-): Promise<MeasuredTransferProbe[]> {
+): Promise<MeasuredTransferProbe[][]> {
   const len = cal.values.checkpointWindowMs;
-  const mix = transferMix(measure, italian);
-  const signals: TrackSignal[] = [{ track: measure, mix }, { track: italian, mix }];
-  if (mix === 'side') signals.push({ track: measure, mix: 'leftRight' }, { track: italian, mix: 'leftRight' });
-  const probes: MeasuredTransferProbe[] = [];
+  const mixes = measures.map((m) => transferMix(m, italian));
+  const signals = [...new Map(measures.flatMap((m, i): TrackSignal[] => [
+    { track: m, mix: mixes[i]! }, { track: italian, mix: mixes[i]! },
+    ...(mixes[i] === 'side' ? [{ track: m, mix: 'leftRight' as Mix }, { track: italian, mix: 'leftRight' as Mix }] : []),
+  ]).map((x) => [key(x), x])).values()];
+  const probes: MeasuredTransferProbe[][] = measures.map(() => []);
   for (const x of positions) {
     const w = await side.read(signals, x - LOCAL_SEARCH_MS, x + len + LOCAL_SEARCH_MS);
-    if (!w) {
-      probes.push({ positionMs: round3(x), match: null, mix });
-      continue;
-    }
-    let used = mix;
-    let needle = slice(w[0]!, x, x + len);
-    let hay = w[1]!;
-    // (L − R)/2 è muto se la traccia è un mono su due canali: si torna a L+R.
-    if (mix === 'side' && energy(needle) < cal.values.silenceDbfs) {
-      used = 'leftRight';
-      needle = slice(w[2]!, x, x + len);
-      hay = w[3]!;
-    }
-    probes.push({ positionMs: round3(needle.startMs), match: search([needle], hay, cal)[0]!, mix: used });
+    measures.forEach((m, i) => {
+      const mix = mixes[i]!;
+      if (!w) {
+        probes[i]!.push({ positionMs: round3(x), match: null, mix });
+        return;
+      }
+      const at = (track: InputTrack, which: Mix) => w[signals.findIndex((sg) => key(sg) === key({ track, mix: which }))]!;
+      let used = mix;
+      let needle = slice(at(m, mix), x, x + len);
+      let hay = at(italian, mix);
+      // (L − R)/2 è muto se la traccia è un mono su due canali: si torna a L+R.
+      if (mix === 'side' && energy(needle) < cal.values.silenceDbfs) {
+        used = 'leftRight';
+        needle = slice(at(m, 'leftRight'), x, x + len);
+        hay = at(italian, 'leftRight');
+      }
+      probes[i]!.push({ positionMs: round3(needle.startMs), match: search([needle], hay, cal)[0]!, mix: used });
+    });
   }
   return probes;
 }
 
 /**
- * Il controllo di trasferimento nel file finale (§9.5): la traccia della
- * lingua di misura del riferimento contro l'italiano principale, che lì
- * devono correlare a spostamento circa zero. Posizioni sulla linea del tempo
- * del file.
+ * Il controllo di trasferimento nel file finale (§9.5): le tracce della lingua
+ * di misura del riferimento contro l'italiano principale, che lì devono
+ * correlare a spostamento circa zero. Posizioni sulla linea del tempo del
+ * file; un elenco di punti per traccia, nell'ordine di `measureTrackIds`.
  *
  * Errori: quelli della lettura delle finestre (`INPUT_UNREADABLE`,
  * `INPUT_BUSY`, `TOOL_MISSING`).
  */
 export async function measureTransfer(
   file: InputFile,
-  measureTrackId: number,
+  measureTrackIds: readonly number[],
   italianTrackId: number,
   positions: readonly number[],
   cal: Calibration,
   options: MeasureOptions = {},
-): Promise<{ probes: MeasuredTransferProbe[]; bytesRead: number }> {
+): Promise<{ probes: MeasuredTransferProbe[][]; bytesRead: number }> {
   const side = new Side(file, options.tools ?? DEFAULT_TOOLS, options.signal);
   const track = (id: number) => {
     const t = file.audio.find((x) => x.id === id);
     if (!t) throw new DyadrrError('INTERNAL', `${file.path}: no audio track with ID ${id}`);
     return t;
   };
-  const probes = await transferProbesIn(side, track(measureTrackId), track(italianTrackId), positions, cal);
+  const probes = await transferProbesIn(side, measureTrackIds.map(track), track(italianTrackId), positions, cal);
   return { probes, bytesRead: side.bytes };
 }
 
@@ -746,6 +827,7 @@ export function decisionMeasures(m: Measurement): Omit<DecisionInput, 'files' | 
     ...(m.checkpoints ? { checkpoints: m.checkpoints } : {}),
     ...(m.boundaries && m.edgeProbes ? { commonMaterial: { ...m.boundaries, probes: m.edgeProbes } } : {}),
     ...(m.transfer ? { transfer: m.transfer.probes } : {}),
+    mainPair: m.mainPair,
   };
 }
 

@@ -95,6 +95,11 @@ export interface DecisionInput {
   checkpoints?: readonly CheckpointMeasure[];
   commonMaterial?: { startMs: number; endMs: number; probes: readonly EdgeProbe[] };
   transfer?: readonly TransferProbe[];
+  /**
+   * Le tracce principali (§4.2) sull'ancora accettata, se la coppia scelta è
+   * un'altra; `null` o assente se è la stessa.
+   */
+  mainPair?: { referenceTrackId: number; donorTrackId: number; match: Match | null } | null;
 }
 
 // ---------------------------------------------------------------- report
@@ -262,8 +267,10 @@ function theilSen(points: readonly Point[]): { slope: number; intercept: number 
 /**
  * Divide i punti, in ordine di posizione, in tratti a spostamento costante: un
  * tratto finisce quando un punto si allontana dal primo del tratto più della
- * tolleranza. Un tratto lungo è un salto; più tratti di almeno due punti sono
- * più salti; tratti di un punto solo sono rumore.
+ * tolleranza. Due tratti sono un salto; più tratti sono più salti, se quelli in
+ * mezzo hanno almeno due punti; un punto solo tra due tratti è rumore. Il primo
+ * e l'ultimo tratto possono avere un punto solo: vicino ai bordi del film i
+ * punti sono pochi, e un salto lì li sposta tutti (§4.5, punto 6).
  */
 function contradictionShape(points: readonly Point[], toleranceMs: number, fps: number): ContradictionShape | null {
   const sorted = [...points].sort((a, b) => a.x - b.x);
@@ -290,7 +297,7 @@ function contradictionShape(points: readonly Point[], toleranceMs: number, fps: 
   });
   const kind =
     segments.length === 2 ? 'single-jump'
-    : segments.every((s) => s.length >= 2) ? 'multiple-jumps'
+    : segments.slice(1, -1).every((s) => s.length >= 2) ? 'multiple-jumps'
     : 'noise';
   return { kind, jumps };
 }
@@ -496,6 +503,16 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
   }
 
   const anchorS = accepted.offsetMs;
+  // Una coppia diversa da quella delle tracce principali, per esempio due
+  // commenti identici, può dare uno S che le tracce del film non confermano.
+  const main = input.mainPair;
+  if (main && isConfident(main.match, cal) && Math.abs(main.match!.offsetMs - anchorS) > tol) {
+    warn(
+      'MAIN_TRACKS_DISAGREE',
+      `the main tracks (reference ${main.referenceTrackId}, donor ${main.donorTrackId}) give an offset of ${round1(main.match!.offsetMs)} ms, the measure pair ${round1(anchorS)} ms`,
+      round1(main.match!.offsetMs - anchorS),
+    );
+  }
   if (Math.abs(anchorS) > v.maxOffsetMs) {
     return fail('offset-range', 'OFFSET_TOO_LARGE', `offset ${round1(anchorS)} ms is beyond the maximum`, {
       measured: round1(anchorS),

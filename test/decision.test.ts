@@ -244,6 +244,19 @@ test('MEASURE_MIX_DIFFERS: somiglianza nella fascia bassa ma sufficiente', () =>
   assert.deepEqual(warnings(r), ['MEASURE_MIX_DIFFERS']);
 });
 
+test('MAIN_TRACKS_DISAGREE: le tracce principali danno un altro S', () => {
+  // Come Scott Pilgrim: misura su due commenti identici (S), il film a S + 27 ms.
+  const main = (offsetMs: number, ncc = 0.78, ratio = 4) => ({ referenceTrackId: 1, donorTrackId: 1, match: match(offsetMs, ncc, ratio) });
+  const r = decide(base({ mainPair: main(S + 27) }), cal);
+  assert.equal(r.decision, 'eligible');
+  assert.deepEqual(warnings(r), ['MAIN_TRACKS_DISAGREE']);
+  assert.ok(Math.abs(r.warnings[0]!.value! - 27) < 2, String(r.warnings[0]!.value));
+  // Entro la tolleranza, o senza un picco sicuro, nessun avviso.
+  assert.deepEqual(warnings(decide(base({ mainPair: main(S + 5) }), cal)), []);
+  assert.deepEqual(warnings(decide(base({ mainPair: main(S + 80, 0.3, 1.1) }), cal)), []);
+  assert.deepEqual(warnings(decide(base({ mainPair: null }), cal)), []);
+});
+
 test('DRIFT: lo spostamento cresce nel tempo, e risulta deriva e non contraddizione', () => {
   // 30 ms su tutto il film: molti punti sono fuori tolleranza dallo S delle ancore.
   const drifting = (p: number) => S + (30 * p) / DURATION;
@@ -290,6 +303,15 @@ test('CHECKPOINT_CONTRADICTION: più salti, oppure rumore', () => {
   const outlier = decide(base({ checkpoints: series((p) => (p === pos[12] ? S + 300 : S), pos) }), cal);
   assert.deepEqual(reasons(outlier), ['CHECKPOINT_CONTRADICTION']);
   assert.equal(outlier.contradiction?.kind, 'noise');
+
+  // Come Thor: Ragnarok (UHD e BD), un punto solo a ciascun bordo, -27 ms
+  // all'inizio e un fotogramma nei titoli di coda: due salti, non rumore.
+  const edges = decide(base({
+    checkpoints: series((p) => (p === pos[0] ? S - 27 : p === pos[29] ? S + 42 : S), pos),
+  }), cal);
+  assert.deepEqual(reasons(edges), ['CHECKPOINT_CONTRADICTION']);
+  assert.equal(edges.contradiction?.kind, 'multiple-jumps');
+  assert.deepEqual(edges.contradiction.jumps.map((j) => Math.round(Math.abs(j.frames))), [1, 1]);
 });
 
 test('CHECKPOINT_CONTRADICTION: il film continua a un altro spostamento oltre il confine', () => {

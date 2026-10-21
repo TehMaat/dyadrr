@@ -10,6 +10,8 @@ import {
   candidatePairs,
   decisionMeasures,
   isLossless,
+  mainTrack,
+  transferCandidates,
   transferMix,
   type PairAnalysis,
 } from '../src/measure.js';
@@ -213,6 +215,25 @@ test('coppie di tracce: esclusi i commenti, centrale solo se lo hanno entrambe; 
   assert.equal(transferMix(layout('5.1'), layout('mono', 1)), 'leftRight');
 });
 
+test('traccia principale e tracce del trasferimento: come Scott Pilgrim e Cattivissimo me 4', () => {
+  const t = (id: number, codec: string, codecId: string, channels: number) => ({ id, codec, codecId, channels });
+  // Scott Pilgrim, UHD: TrueHD 7.1, AC-3 5.1 e quattro commenti stereo senza flag.
+  const uhd = [t(1, 'TrueHD Atmos', 'A_TRUEHD', 8), t(2, 'AC-3', 'A_AC3', 6), t(3, 'AC-3', 'A_AC3', 2), t(4, 'AC-3', 'A_AC3', 2)];
+  assert.equal(mainTrack(uhd)?.id, 1);
+  // BD: DTS-HD MA 5.1 e il suo core DTS 5.1, alla pari di canali: vince il lossless.
+  const bd = [t(2, 'DTS', 'A_DTS', 6), t(1, 'DTS-HD Master Audio', 'A_DTS', 6), t(3, 'AC-3', 'A_AC3', 2)];
+  assert.equal(mainTrack(bd)?.id, 1);
+  assert.equal(mainTrack([]), null);
+
+  // Italiano DTS 5.1: prima lo stesso codec e la stessa classe (il core DTS),
+  // poi lo stesso codec (DTS-HD), poi la traccia della misura, poi l'ordine.
+  const ita = { codec: 'DTS', codecId: 'A_DTS' };
+  assert.deepEqual(transferCandidates(bd, ita, 3).map((x) => x.id), [2, 1, 3]);
+  // Cattivissimo me 4: italiano E-AC-3, inglese TrueHD (la misura) e AC-3: prima l'AC-3, lossy come l'italiano.
+  const dm4 = [t(1, 'TrueHD Atmos', 'A_TRUEHD', 8), t(2, 'AC-3', 'A_AC3', 6)];
+  assert.deepEqual(transferCandidates(dm4, { codec: 'E-AC-3', codecId: 'A_EAC3' }, 1).map((x) => x.id), [2, 1]);
+});
+
 test('spostamenti noti con --sync, di entrambi i segni: S dai timestamp dei file prodotti, al decimo di ms', async () => {
   for (const [donor, sign] of [['donor-plus', 1], ['donor-minus', -1]] as const) {
     const shift = realShift(p('donor.mkv'), p(`${donor}.mkv`));
@@ -239,6 +260,9 @@ test('spostamenti noti con --sync, di entrambi i segni: S dai timestamp dei file
     assert.equal(a.report.transfer?.confident, 5);
     assert.ok(Math.abs(a.report.transfer!.offsetMs!) < 0.5);
     assert.ok(m.transfer!.probes.every((x) => x.mix === 'leftRight'));
+    // Una sola traccia inglese nel donatore: è quella del trasferimento; nessuna coppia diversa da quella principale.
+    assert.deepEqual(m.transfer!.candidates.map((c) => [c.trackId, c.confident]), [[2, 5]]);
+    assert.equal(m.mainPair, null);
     assert.ok(m.bytesRead.reference > 0 && m.bytesRead.donor > m.bytesRead.reference);
   }
 });
