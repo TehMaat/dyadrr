@@ -65,6 +65,7 @@ Non cambiano la decisione: finiscono nel report.
 | `VIDEO_QUALITY_UNCERTAIN` | Video confrontabile solo in modo incerto |
 | `ORIGINAL_LANGUAGE_NOT_COMMON` | La lingua originale indicata non è presente in entrambi i file |
 | `MEASURE_MIX_DIFFERS` | La somiglianza della coppia di misura è in una fascia bassa ma sufficiente |
+| `MAIN_TRACKS_DISAGREE` | La coppia di misura non è quella delle tracce principali, e le tracce principali danno un altro S oltre la tolleranza, con la differenza: per esempio una misura su due commenti identici |
 | `ITALIAN_TRANSFER_OFFSET` | L'italiano è sfasato rispetto alla lingua di misura dentro il donatore |
 | `ITALIAN_UNVERIFIED` | L'allineamento dell'italiano con la lingua di misura non si è potuto verificare |
 | `ITALIAN_TRACKS_SKIPPED` | Una traccia audio italiana scartata con `--italian main`: un avviso per traccia |
@@ -152,6 +153,7 @@ citato esista e usi quel codice.
 | `VIDEO_QUALITY_UNCERTAIN` | `test/decision.test.ts` › VIDEO_QUALITY_UNCERTAIN: stessa risoluzione, HDR e codec, bitrate del donatore oltre il margine |
 | `ORIGINAL_LANGUAGE_NOT_COMMON` | `test/decision.test.ts` › ORIGINAL_LANGUAGE_NOT_COMMON: la lingua originale non è in entrambi i file |
 | `MEASURE_MIX_DIFFERS` | `test/decision.test.ts` › MEASURE_MIX_DIFFERS: somiglianza nella fascia bassa ma sufficiente |
+| `MAIN_TRACKS_DISAGREE` | `test/decision.test.ts` › MAIN_TRACKS_DISAGREE: le tracce principali danno un altro S |
 | `ITALIAN_TRANSFER_OFFSET` | `test/decision.test.ts` › ITALIAN_TRANSFER_OFFSET: nel donatore l'italiano è sfasato rispetto alla lingua di misura |
 | `ITALIAN_UNVERIFIED` | `test/decision.test.ts` › ITALIAN_UNVERIFIED: l'italiano non correla con la lingua di misura |
 | `ITALIAN_TRACKS_SKIPPED` | `test/plan.test.ts` › ITALIAN_TRACKS_SKIPPED: con --italian main si prende solo la traccia principale |

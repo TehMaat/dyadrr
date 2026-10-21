@@ -95,6 +95,11 @@ export interface DecisionInput {
   checkpoints?: readonly CheckpointMeasure[];
   commonMaterial?: { startMs: number; endMs: number; probes: readonly EdgeProbe[] };
   transfer?: readonly TransferProbe[];
+  /**
+   * Le tracce principali (§4.2) sull'ancora accettata, se la coppia scelta è
+   * un'altra; `null` o assente se è la stessa.
+   */
+  mainPair?: { referenceTrackId: number; donorTrackId: number; match: Match | null } | null;
 }
 
 // ---------------------------------------------------------------- report
@@ -498,6 +503,16 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
   }
 
   const anchorS = accepted.offsetMs;
+  // Una coppia diversa da quella delle tracce principali, per esempio due
+  // commenti identici, può dare uno S che le tracce del film non confermano.
+  const main = input.mainPair;
+  if (main && isConfident(main.match, cal) && Math.abs(main.match!.offsetMs - anchorS) > tol) {
+    warn(
+      'MAIN_TRACKS_DISAGREE',
+      `the main tracks (reference ${main.referenceTrackId}, donor ${main.donorTrackId}) give an offset of ${round1(main.match!.offsetMs)} ms, the measure pair ${round1(anchorS)} ms`,
+      round1(main.match!.offsetMs - anchorS),
+    );
+  }
   if (Math.abs(anchorS) > v.maxOffsetMs) {
     return fail('offset-range', 'OFFSET_TOO_LARGE', `offset ${round1(anchorS)} ms is beyond the maximum`, {
       measured: round1(anchorS),

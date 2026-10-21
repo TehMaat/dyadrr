@@ -244,6 +244,19 @@ test('MEASURE_MIX_DIFFERS: somiglianza nella fascia bassa ma sufficiente', () =>
   assert.deepEqual(warnings(r), ['MEASURE_MIX_DIFFERS']);
 });
 
+test('MAIN_TRACKS_DISAGREE: le tracce principali danno un altro S', () => {
+  // Come Scott Pilgrim: misura su due commenti identici (S), il film a S + 27 ms.
+  const main = (offsetMs: number, ncc = 0.78, ratio = 4) => ({ referenceTrackId: 1, donorTrackId: 1, match: match(offsetMs, ncc, ratio) });
+  const r = decide(base({ mainPair: main(S + 27) }), cal);
+  assert.equal(r.decision, 'eligible');
+  assert.deepEqual(warnings(r), ['MAIN_TRACKS_DISAGREE']);
+  assert.ok(Math.abs(r.warnings[0]!.value! - 27) < 2, String(r.warnings[0]!.value));
+  // Entro la tolleranza, o senza un picco sicuro, nessun avviso.
+  assert.deepEqual(warnings(decide(base({ mainPair: main(S + 5) }), cal)), []);
+  assert.deepEqual(warnings(decide(base({ mainPair: main(S + 80, 0.3, 1.1) }), cal)), []);
+  assert.deepEqual(warnings(decide(base({ mainPair: null }), cal)), []);
+});
+
 test('DRIFT: lo spostamento cresce nel tempo, e risulta deriva e non contraddizione', () => {
   // 30 ms su tutto il film: molti punti sono fuori tolleranza dallo S delle ancore.
   const drifting = (p: number) => S + (30 * p) / DURATION;

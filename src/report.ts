@@ -7,7 +7,7 @@ import { CHOICES, type ChoiceName, type GivenChoices } from './choices.js';
 import { DyadrrError, type Decision, type ErrorCode, type RefusalCode } from './codes.js';
 import type { Check, DecisionReport, Match, Warning } from './decision.js';
 import type { Fingerprint, InputFile } from './inputs.js';
-import type { MeasuredTransferProbe, Measurement, PairAnalysis, PairTrial, TrackPair } from './measure.js';
+import type { MeasuredTransferProbe, Measurement, TransferCandidate, PairAnalysis, PairTrial, TrackPair } from './measure.js';
 import type { Plan, PlanChoice } from './plan.js';
 import type { ToolVersions } from './tools.js';
 import type { Verification } from './verify.js';
@@ -114,6 +114,7 @@ export interface ReportMeasurement {
     offsetMs: number | null;
     confident: number;
     probes: MeasuredTransferProbe[];
+    candidates: TransferCandidate[];
   } | null;
   bytesRead: Measurement['bytesRead'];
 }
@@ -205,6 +206,7 @@ export function analysisSections(analysis: PairAnalysis): Pick<Report, 'roles' |
       offsetMs: d.transfer.offsetMs,
       confident: d.transfer.confident,
       probes: m.transfer.probes,
+      candidates: m.transfer.candidates,
     },
     bytesRead: m.bytesRead,
   };

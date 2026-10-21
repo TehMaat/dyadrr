@@ -4,6 +4,33 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.14.0] - 2026-10-21
+
+### Aggiunto
+- Avviso `MAIN_TRACKS_DISAGREE`: la coppia di misura non è quella delle tracce
+  principali (più canali, poi lossless), e le tracce principali danno un altro
+  S oltre la tolleranza. Su Scott Pilgrim la misura era su due commenti
+  identici, a 0 ms, mentre il film dava 27 e 80 ms
+- Report: `measurement.transfer.candidates` e
+  `output.verification.transfer.candidates`, ogni traccia della lingua di
+  misura provata nel controllo di trasferimento, con spostamento e picchi
+  sicuri
+
+### Modificato
+- Controllo di trasferimento, nel donatore e nel file finale: prova tutte le
+  tracce della lingua di misura e usa quella con più picchi sicuri; a parità
+  lo stesso codec dell'italiano, poi la stessa classe (con o senza perdite),
+  poi la traccia della misura. Prima usava solo la traccia della coppia
+  scelta: con un commento dava `ITALIAN_UNVERIFIED`, e contro un TrueHD
+  segnalava lo scarto di circa 23 ms tra tracce lossy e lossless
+- Documentazione: studio di fattibilità 0.17 (§4.2, §4.5, §4.7, §9.5, §9.6)
+
+### Corretto
+- Forma della contraddizione: un tratto di un punto solo all'inizio o alla
+  fine del film è un salto, non rumore. Su Thor: Ragnarok due salti di −27 ms
+  e di un fotogramma risultavano `noise`, e `dyadrr-pairs` non li contava tra
+  i salti di 1–2 fotogrammi
+
 ## [0.13.1] - 2026-10-19
 
 ### Corretto

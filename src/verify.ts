@@ -4,7 +4,16 @@ import type { Calibration } from './calibration.js';
 import { DyadrrError } from './codes.js';
 import { transferResult, type Warning } from './decision.js';
 import { readInput, type InputFile, type InputTrack } from './inputs.js';
-import { measureTransfer, transferPositions, type MeasuredTransferProbe } from './measure.js';
+import { trackLanguage } from './languages.js';
+import {
+  bestTransfer,
+  measureTracks,
+  measureTransfer,
+  transferCandidates,
+  transferPositions,
+  type MeasuredTransferProbe,
+  type TransferCandidate,
+} from './measure.js';
 import type { Plan } from './plan.js';
 import { DEFAULT_TOOLS, runTool, type RunOptions, type ToolPaths } from './tools.js';
 
@@ -102,6 +111,8 @@ export interface Verification {
     offsetMs: number | null;
     confident: number;
     probes: MeasuredTransferProbe[];
+    /** Ogni traccia della lingua di misura del riferimento provata, con il suo esito. */
+    candidates: TransferCandidate[];
   } | null;
   /** `OUTPUT_TRANSFER_OFFSET` o `OUTPUT_TRANSFER_UNVERIFIED`. */
   warnings: Warning[];
@@ -120,7 +131,11 @@ export interface VerifyRequest {
   reference: InputFile;
   /** Il piano da cui è stato costruito il file. */
   plan: Plan;
-  /** Traccia della lingua di misura del riferimento usata nella misura (`Measurement.pair.referenceTrackId`). */
+  /**
+   * Traccia della lingua di misura del riferimento usata nella misura
+   * (`Measurement.pair.referenceTrackId`). Il trasferimento prova tutte le
+   * tracce del riferimento in quella lingua; a parità preferisce questa.
+   */
   measureTrackId: number;
 }
 
@@ -420,26 +435,33 @@ async function verify(request: VerifyRequest, build: Build, cal: Calibration, op
     add('duration', problems);
   }
 
-  // 6. Trasferimento (§4.7) sul file finale: la lingua di misura del
-  // riferimento e l'italiano principale, a spostamento circa zero. Solo avvisi.
+  // 6. Trasferimento (§4.7) sul file finale: le tracce della lingua di misura
+  // del riferimento e l'italiano principale, a spostamento circa zero; vale la
+  // traccia con più picchi sicuri (§4.7). Solo avvisi.
   const warnings: Warning[] = [];
   let transfer: Verification['transfer'] = null;
   let bytesRead = 0;
   const blockingFailed = checks.some((c) => c.blocking && c.result !== 'pass');
   const italianIndex = expected.findIndex((e) => e.source === 'donor' && e.type === 'audio' && e.default);
   const measureIndex = expected.findIndex((e) => e.source === 'reference' && e.sourceTrackId === request.measureTrackId && e.type === 'audio');
+  const measureSource = reference.audio.find((t) => t.id === request.measureTrackId);
   if (blockingFailed) {
     skip('transfer', 'a blocking check failed', false);
-  } else if (italianIndex === -1 || measureIndex === -1) {
+  } else if (italianIndex === -1 || measureIndex === -1 || !measureSource) {
     skip('transfer', `no ${italianIndex === -1 ? 'main Italian' : `measure language (reference track ${request.measureTrackId})`} audio track in the final file`, false);
   } else {
     const e = expected[italianIndex]!;
     const from = Math.max(plan.commonMaterial.startMs, e.expectedStartMs!);
     const to = Math.min(plan.commonMaterial.endMs, e.expectedEndMs!);
+    // Le tracce del riferimento nella lingua di misura, con gli ID del file finale.
+    const language = trackLanguage(measureSource);
+    const sources = new Set(measureTracks(reference.audio, language ?? '').map((t) => t.id));
+    const inOutput = expected.flatMap((x, i) => (x.source === 'reference' && x.type === 'audio' && sources.has(x.sourceTrackId) ? [outTrack(i)] : []));
+    const candidates = transferCandidates(inOutput.length > 0 ? inOutput : [outTrack(measureIndex)], outTrack(italianIndex), outTrack(measureIndex).id);
     step();
     const measured = await measureTransfer(
       out,
-      outTrack(measureIndex).id,
+      candidates.map((t) => t.id),
       outTrack(italianIndex).id,
       transferPositions(from, to, cal.values.checkpointWindowMs),
       cal,
@@ -449,8 +471,19 @@ async function verify(request: VerifyRequest, build: Build, cal: Calibration, op
       throw err;
     });
     bytesRead = measured.bytesRead;
-    const { offsetMs, confident } = transferResult(measured.probes, cal);
-    transfer = { measureTrackId: outTrack(measureIndex).id, italianTrackId: outTrack(italianIndex).id, offsetMs, confident, probes: measured.probes };
+    const best = bestTransfer(candidates, measured.probes, cal);
+    const { offsetMs, confident } = transferResult(measured.probes[best]!, cal);
+    transfer = {
+      measureTrackId: candidates[best]!.id,
+      italianTrackId: outTrack(italianIndex).id,
+      offsetMs,
+      confident,
+      probes: measured.probes[best]!,
+      candidates: candidates.map((t, i) => {
+        const r = transferResult(measured.probes[i]!, cal);
+        return { trackId: t.id, offsetMs: r.offsetMs, confident: r.confident };
+      }),
+    };
     const tol = cal.values.toleranceMs;
     if (offsetMs === null) {
       const message = 'in the final file the Italian track does not correlate with the measure language of the reference';
