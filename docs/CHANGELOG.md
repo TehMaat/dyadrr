@@ -4,6 +4,28 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.15.0] - 2026-10-24
+
+### Aggiunto
+- `dyadrr-pairs`: chiave `report` nell'elenco delle coppie, il percorso di un
+  report di `dyadrr analyze` già fatto. La coppia non si misura: entra nel
+  riassunto con quel report, anche se i file non ci sono più. Così dopo
+  l'analisi (e il merge) i rip si possono cancellare: restano il report e
+  l'elenco. Si controlla prima di misurare che il report sia un'analisi
+  `eligible` o `refused`, degli stessi file (per nome) e con la stessa lingua
+  originale; altrimenti `BAD_ARGUMENTS`
+- Verdetto `stale`: un report importato che non vale più, perché di un altro
+  formato, di un'altra taratura, di prima della 0.13.0 o di una versione che
+  una modifica successiva dell'analisi rende superata. Non conta tra le coppie
+  misurate
+- Riassunto: `imported` per ogni coppia (versione del report e differenze da
+  oggi); in `summary.md` l'elenco dei report importati
+- Elenco nel codice delle versioni che hanno cambiato l'analisi
+  (`ANALYSIS_CHANGES` in `src/pairs.ts`), con la 0.14.0: una PR che cambia cosa
+  scrive `analyze` ci aggiunge la sua versione, così `dyadrr-pairs` riconosce i
+  report superati
+- Documentazione: studio di fattibilità 0.18 (§15)
+
 ## [0.14.0] - 2026-10-21
 
 ### Aggiunto

@@ -7,8 +7,12 @@ import { loadCalibration, parseCalibration } from '../src/calibration.js';
 import { runCli } from '../src/cli.js';
 import { DyadrrError } from '../src/codes.js';
 import {
+  ANALYSIS_CHANGES,
+  IMPORT_SINCE,
   PHASE1_CATEGORIES,
   SUMMARY_FIELDS,
+  checkImport,
+  compareVersions,
   defaultResults,
   pairArguments,
   parsePairList,
@@ -115,6 +119,7 @@ const spec = (over: Partial<PairSpec> = {}): PairSpec => ({
   offsetMs: null,
   cause: null,
   note: null,
+  report: null,
   ...over,
 });
 
@@ -219,6 +224,7 @@ test('elenco delle coppie: sezioni, chiavi e commenti; BAD_ARGUMENTS per un elen
     'expected=refused',
     'category=different-cut',
     'cause=',
+    'report=taratura/importati/cut.analyze.json',
   ].join('\n'));
   assert.deepEqual(pairs, [
     {
@@ -230,6 +236,7 @@ test('elenco delle coppie: sezioni, chiavi e commenti; BAD_ARGUMENTS per un elen
       offsetMs: -1234.5,
       cause: null,
       note: 'S controllato a mano a 1:02:00',
+      report: null,
     },
     {
       id: 'cut_2',
@@ -240,6 +247,7 @@ test('elenco delle coppie: sezioni, chiavi e commenti; BAD_ARGUMENTS per un elen
       offsetMs: null,
       cause: '',
       note: null,
+      report: 'taratura/importati/cut.analyze.json',
     },
   ]);
 
@@ -260,6 +268,8 @@ test('elenco delle coppie: sezioni, chiavi e commenti; BAD_ARGUMENTS per un elen
   assert.throws(() => parsePairList(pair('category=anime')), bad(/unknown category "anime"/));
   assert.throws(() => parsePairList(pair('offset-ms=1,5')), bad(/offset-ms "1,5" is not a number/));
   assert.throws(() => parsePairList(pair('original-language=xx1')), bad(/--original-language: "xx1"/));
+  assert.throws(() => parsePairList(pair('report=')), bad(/\[x\]: report is empty/));
+  assert.throws(() => parsePairList(pair('report=a.json', 'report=b.json')), bad(/"report" is given more than once/));
 });
 
 test('argomenti di analyze, cartella dei risultati per default e report riusabili', () => {
@@ -361,7 +371,7 @@ test('riassunto della serie: criterio di uscita, coppie uhd-bd rifiutate per sal
   assert.deepEqual(s.criterion.goodRefused, { withCause: ['jump-1', 'jump-3'], withoutCause: [] });
   assert.deepEqual(s.criterion.uhdBdSmallJumps, { pairs: 3, refused: 1, fraction: 0.333 });
   assert.equal(s.criterion.met, true);
-  assert.deepEqual(s.verdicts, { ok: 15, 'good-refused': 2, 'wrong-merge': 0, error: 1, cancelled: 0, missing: 1 });
+  assert.deepEqual(s.verdicts, { ok: 15, 'good-refused': 2, 'wrong-merge': 0, stale: 0, error: 1, cancelled: 0, missing: 1 });
   assert.deepEqual(s.versions, { dyadrr: [eligible.dyadrr], calibration: [cal.version], tools: [eligible.tools], mixed: false });
 
   const t = s.thresholds;
@@ -477,6 +487,90 @@ test('la serie: una coppia alla volta, report riusati, --only e --again, riassun
   // --results altrove, relativo alla cartella corrente.
   assert.equal(await runPairs({ list: path, results: 'altrove', cwd: dir, dyadrr: fake.command, env: fake.env }), 0);
   assert.ok(existsSync(p('altrove/summary.md')) && existsSync(p('altrove/first.json')));
+});
+
+test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassunto senza misurare', async () => {
+  assert.ok(compareVersions('0.13.1', '0.14.0') < 0 && compareVersions('0.14.0', '0.13.1') > 0);
+  assert.equal(compareVersions('0.14.0', '0.14.0'), 0);
+  assert.ok(compareVersions('0.9.0', '0.13.0') < 0, 'numeri, non testo');
+  assert.ok(ANALYSIS_CHANGES.every((c) => compareVersions(c.version, IMPORT_SINCE) > 0 && compareVersions(c.version, dyadrrVersion()) <= 0));
+
+  // Gli ingressi si confrontano per nome, in qualsiasi ordine: il rip può essere stato spostato o cancellato.
+  const current = { dyadrr: dyadrrVersion(), calibration: cal.version };
+  const moved = spec({ inputs: ['c/Watcher/donor.mkv', 'c/Watcher/reference.mkv'], report: 'r.json' });
+  assert.deepEqual(checkImport(eligible, moved, current), { from: eligible.dyadrr, differences: [], stale: null });
+  const old = variant((r) => (r.dyadrr = '0.13.1'));
+  assert.deepEqual(checkImport(old, moved, current), {
+    from: '0.13.1',
+    differences: ANALYSIS_CHANGES.filter((c) => c.version === '0.14.0' && !c.stale(old)).map((c) => `${c.version}: ${c.what}`),
+    stale: null,
+  });
+  assert.equal(checkImport(old, moved, current).differences.length, 3);
+  const oldJumps = jumps(1);
+  oldJumps.dyadrr = '0.13.1';
+  assert.match(checkImport(oldJumps, moved, current).stale!, /^Dyadrr 0\.13\.1, changed in 0\.14\.0: contradiction shape/);
+  assert.equal(checkImport(variant((r) => (r.dyadrr = '0.12.0')), moved, current).stale, `Dyadrr 0.12.0, imports start from ${IMPORT_SINCE}`);
+  assert.match(checkImport(eligible, moved, { ...current, calibration: cal.version + 1 }).stale!, /^calibration \d+, now \d+$/);
+  assert.match(checkImport(variant((r) => (r.format = 0)), moved, current).stale!, /^report format 0/);
+
+  // Un report che non è di questa coppia è un errore dell'elenco.
+  assert.throws(() => checkImport(null, moved, current), bad(/\[film\]: report r\.json: cannot be read/));
+  assert.throws(() => checkImport(variant((r) => (r.mode = 'merge')), moved, current), bad(/is not an analysis \(mode merge\)/));
+  assert.throws(() => checkImport(errorReport('INPUT_BUSY'), moved, current), bad(/has decision error/));
+  assert.throws(() => checkImport(eligible, spec({ inputs: ['a.mkv', 'donor.mkv'], report: 'r.json' }), current), bad(/is about other files \(donor\.mkv, reference\.mkv\)/));
+  assert.throws(() => checkImport(eligible, { ...moved, originalLanguage: 'eng' }, current), bad(/has original language none, the list eng/));
+
+  // Nel riassunto di una coppia: importato vale come misurato; superato no.
+  const ok = summarizePair(moved, old, '/data/r.json', false, checkImport(old, moved, current));
+  assert.deepEqual([ok.verdict, ok.decision, ok.report, ok.reused, ok.imported!.from], ['ok', 'eligible', '/data/r.json', false, '0.13.1']);
+  assert.ok(ok.margins !== null);
+  const stale = summarizePair(moved, oldJumps, '/data/r.json', false, checkImport(oldJumps, moved, current));
+  assert.deepEqual([stale.verdict, stale.decision, stale.report, stale.dyadrr, stale.margins], ['stale', null, '/data/r.json', '0.13.1', null]);
+  assert.match(stale.detail!, /changed in 0\.14\.0/);
+  assert.equal(summarizePair(spec(), eligible, 'film.json', false).imported, null);
+
+  // La serie: le coppie con report non si misurano, nemmeno con --again; una superata non conta tra le misurate.
+  const fake = fakeDyadrr();
+  const d = p('imports');
+  mkdirSync(d, { recursive: true });
+  writeFileSync(join(d, 'old.json'), JSON.stringify(old));
+  writeFileSync(join(d, 'jumps.json'), JSON.stringify(oldJumps));
+  const pairs = (third: string) => [
+    '[measured]', 'input=reference.mkv', 'input=donor.mkv', 'expected=eligible', '',
+    '[imported]', 'input=gone/reference.mkv', 'input=gone/donor.mkv', 'report=imports/old.json', 'expected=eligible', 'category=uhd-bd', '',
+    '[outdated]', 'input=gone/reference.mkv', 'input=gone/donor.mkv', `report=${third}`, 'expected=eligible',
+  ].join('\n');
+  const { path, results } = list('imported-series', pairs('imports/jumps.json'));
+  const lines: string[] = [];
+  assert.equal(await runPairs({ list: path, cwd: dir, dyadrr: fake.command, env: fake.env, log: (l) => lines.push(l), again: true }), 0);
+  assert.deepEqual(fake.calls(), ['measured']);
+  assert.equal(lines[2], '[2/3] imported: report imported (eligible, Dyadrr 0.13.1)');
+  assert.match(lines[3]!, /^\[3\/3\] outdated: report imported \(stale: Dyadrr 0\.13\.1, changed in 0\.14\.0: /);
+  assert.equal(lines.at(-1), '2 of 3 pairs measured; exit criterion met: no');
+  const summary = json<Summary>(join(results, 'summary.json'));
+  assert.deepEqual(summary.pairs.map((x) => [x.id, x.verdict, x.imported?.from ?? null]), [
+    ['measured', 'ok', null],
+    ['imported', 'ok', '0.13.1'],
+    ['outdated', 'stale', '0.13.1'],
+  ]);
+  assert.equal(summary.pairs[1]!.report, join(d, 'old.json'));
+  assert.ok(!existsSync(join(results, 'imported.json')), 'an imported report is not copied');
+  assert.deepEqual(summary.versions.dyadrr, [dyadrrVersion(), '0.13.1']);
+  assert.equal(summary.versions.mixed, true);
+  const md = read(join(results, 'summary.md'));
+  assert.match(md, /Imported reports \(not measured by this run\):/);
+  assert.match(md, /- imported: Dyadrr 0\.13\.1; differences: 0\.14\.0: contradiction shape.*; 0\.14\.0: warning MAIN_TRACKS_DISAGREE; /);
+  assert.match(md, /- outdated: Dyadrr 0\.13\.1, stale \(Dyadrr 0\.13\.1, changed in 0\.14\.0: /);
+  assert.match(md, /\| imported \| uhd-bd \| eligible \| eligible \| ok \(imported, 0\.13\.1\) \|/);
+  assert.match(md, /\| outdated \| stale \| — \| Dyadrr 0\.13\.1, changed in 0\.14\.0/);
+
+  // Un report sbagliato o che non c'è ferma la serie prima di misurare.
+  const broken = list('imported-broken', pairs('imports/nothing.json'));
+  const errors: string[] = [];
+  assert.equal(await runPairs({ list: broken.path, cwd: dir, dyadrr: fake.command, env: fake.env, log: (l) => errors.push(l) }), 30);
+  assert.deepEqual(errors, ['BAD_ARGUMENTS: pair list: [outdated]: report imports/nothing.json: cannot be read as a Dyadrr report']);
+  assert.ok(!existsSync(broken.results));
+  assert.deepEqual(fake.calls(), ['measured']);
 });
 
 test('annullamento, crash e Dyadrr ucciso: un solo SIGTERM, report scritto da dyadrr-pairs, riassunto con le coppie fatte', async () => {
