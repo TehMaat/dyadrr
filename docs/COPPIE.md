@@ -1,7 +1,8 @@
 # Coppie reali
 
-> **Stato:** implementato dalla 0.13.0 (studio §15, fase 1, punto 3). Le
-> coppie reali e la taratura (decisione 12) sono da fare.
+> **Stato:** implementato dalla 0.13.0 (studio §15, fase 1, punto 3); report
+> importati dalla 0.15.0. Le coppie reali e la taratura (decisione 12) sono da
+> fare.
 
 Le soglie provvisorie ([TARATURA.md](TARATURA.md)) si tarano su coppie reali:
 almeno 15–20, che coprano le categorie dello studio (§15, punto 3).
@@ -19,7 +20,7 @@ mkvtoolnix, quelle con cui Dyadrr gira in Wayfinderr
 ```bash
 docker run --rm --user "$(id -u):$(id -g)" \
   -v /film:/data/film:ro -v ~/taratura:/data/taratura \
-  ghcr.io/tehmaat/dyadrr:0.14.0 dyadrr-pairs taratura/coppie.txt
+  ghcr.io/tehmaat/dyadrr:0.15.0 dyadrr-pairs taratura/coppie.txt
 ```
 
 La cartella di lavoro del container è `/data`: i percorsi dell'elenco sono
@@ -87,6 +88,7 @@ codice.
 | Chiave | Valore |
 |---|---|
 | `input` | Un percorso, due righe, obbligatorie. Relativo alla cartella corrente (nel container `/data`) |
+| `report` | Un report di `dyadrr analyze` già fatto, relativo come `input`: la coppia non si misura ([sotto](#report-importati)) |
 | `expected` | Obbligatoria: `eligible` per una coppia buona (lo stesso film nella stessa versione), `refused` per una da rifiutare |
 | `original-language` | Un codice di lingua, passato con `--original-language` ([CLI.md](CLI.md)) |
 | `category` | Una categoria (sotto); ripetibile |
@@ -103,6 +105,49 @@ sezione; un id non valido o ripetuto; una chiave sconosciuta o ripetuta (salvo
 `input` e `category`); una coppia senza due `input` o senza `expected`; un
 ingresso vuoto; un valore non valido di `expected`, `category`, `offset-ms` o
 `original-language`.
+
+## Report importati
+
+Con `report` la coppia non si misura mai, nemmeno con `--again`: entra nel
+riassunto con quel report, così com'è, anche se gli ingressi non ci sono più.
+Serve a non tenere i rip: dopo `dyadrr analyze` (e il merge) si tengono il
+report e l'elenco, e i file si possono cancellare. Gli `input` restano
+obbligatori, perché dicono di quali file è il report.
+
+```
+[scott-pilgrim]
+input=c/Watcher/Scott Pilgrim vs. the World.mkv
+input=c/Watcher/Scott Pilgrim vs the World.mkv
+report=c/Watcher/scott-pilgrim.analyze.json
+expected=eligible
+original-language=eng
+category=uhd-bd
+```
+
+**Prima di misurare** si leggono tutti i report importati. Sono errori
+dell'elenco (`BAD_ARGUMENTS`, uscita 30): un report che non si legge o non è
+di Dyadrr, un report che non è di un'analisi, una decisione diversa da
+`eligible` o `refused` (un errore o un annullamento non hanno misurato),
+ingressi con altri nomi di file (si confronta il nome, non il percorso, in
+qualsiasi ordine), un'altra lingua originale.
+
+**Report superati** (verdetto `stale`): un report di un altro formato, di
+un'altra versione della taratura, di prima della 0.13.0, o che una modifica
+successiva dell'analisi rende superato. Non conta tra le coppie misurate: va
+rimisurata, con i file. Le versioni che hanno cambiato cosa scrive `analyze`
+sugli stessi file sono elencate nel codice (`ANALYSIS_CHANGES` in
+`src/pairs.ts`), ognuna con quello che cambia e quando rende superato un
+report di prima:
+
+| Versione | Cosa cambia | Report di prima superato se |
+|---|---|---|
+| 0.14.0 | Forma della contraddizione: un tratto di un punto solo a un bordo del film è un salto | ha una contraddizione |
+| 0.14.0 | Avviso `MAIN_TRACKS_DISAGREE` | mai: è solo un avviso in più |
+| 0.14.0 | Controllo di trasferimento su ogni traccia della lingua di misura | mai: cambiano solo trasferimento e avvisi |
+
+Un report importato più vecchio ma valido entra con le sue differenze da oggi
+(`imported.differences`). Se le versioni delle coppie non sono tutte uguali,
+il riassunto lo segnala (`versions.mixed`).
 
 ## Categorie
 
@@ -143,7 +188,8 @@ annullamento, un'altra versione) la coppia si rimisura, e i suoi file vecchi si
 cancellano prima. Le impronte non si confrontano: un file sostituito con lo
 stesso nome va rimisurato con `--again`. Così una serie interrotta riprende
 dalla coppia a cui era arrivata, e una `cause` aggiunta dopo la misura entra
-nel riassunto senza rimisurare.
+nel riassunto senza rimisurare. Un report importato con `report` non si copia
+nella cartella dei risultati: si legge a ogni lancio dal suo percorso.
 
 **Cosa entra nel repo.** I report contengono percorsi e nomi dei file e
 restano a chi misura. Nel repo entrano `summary.md`, nella PR della decisione
@@ -159,6 +205,7 @@ codice.
 | `ok` | Idonea e attesa idonea, con S entro la tolleranza per punto da `offset-ms` se c'è; oppure rifiutata e attesa rifiutata |
 | `good-refused` | Una coppia buona rifiutata: ammesso, da documentare con `cause` |
 | `wrong-merge` | Idonea ma attesa rifiutata, oppure S oltre la tolleranza per punto da `offset-ms`: sarebbe un merge sbagliato |
+| `stale` | Un report importato superato ([sopra](#report-importati)): da rimisurare con i file |
 | `error` | Un errore: da capire e rimisurare |
 | `cancelled` | Annullata |
 | `missing` | Ancora senza report |
@@ -182,7 +229,8 @@ nel report.
 | `pairs` | Il riassunto di ogni coppia, nell'ordine dell'elenco (sotto) |
 
 **Ogni coppia** (`pairs`): id, categorie, `expected`, S a mano, `cause` e
-`note`; il report e se è stato riusato; verdetto con il dettaglio; decisione,
+`note`; il report, se è stato riusato e, se è importato, la sua versione e
+le differenze da oggi (`imported`); verdetto con il dettaglio; decisione,
 codice e messaggio; versioni di Dyadrr, dei programmi e della taratura; durata
 e byte letti; lingua e tracce di misura; S dell'ancora e definitivo,
 dispersione e differenza da `offset-ms`; ancore con spostamento, NCC, rapporto

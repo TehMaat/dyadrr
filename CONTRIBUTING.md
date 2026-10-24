@@ -107,6 +107,7 @@ documenti che tocca**, nella stessa PR.
 | File in `src/` aggiunti, rinominati o tolti | [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md) |
 | Runner, file job, `Dockerfile`, versioni nell'immagine, workflow **Image** | [docs/CONTAINER.md](docs/CONTAINER.md); per le versioni e il protocollo anche lo studio (§14.1–14.2) |
 | `dyadrr-pairs`: elenco delle coppie, categorie, verdetti, riassunto | [docs/COPPIE.md](docs/COPPIE.md); per una regola nuova anche lo studio (§15) |
+| Cosa scrive `dyadrr analyze` sugli stessi file: misure, decisione, avvisi | una voce in `ANALYSIS_CHANGES` (`src/pairs.ts`) con la nuova versione, e la tabella dei report superati in [docs/COPPIE.md](docs/COPPIE.md#report-importati): così `dyadrr-pairs` riconosce i report importati superati |
 | Una voce passa da "previsto" a implementata | la colonna o la riga **Stato** in [docs/CLI.md](docs/CLI.md) |
 | Una decisione di progetto o una regola del metodo | [docs/STUDIO-DI-FATTIBILITA.md](docs/STUDIO-DI-FATTIBILITA.md), con una voce nella cronologia (§20) |
 

@@ -16,8 +16,10 @@ import type { ToolVersions } from './tools.js';
 // `dyadrr analyze` su un elenco di coppie, una alla volta e ognuna nel suo
 // processo, e ne riassume i report per la taratura (decisione 12). Nella
 // cartella dei risultati `<id>.json` (il report) e `<id>.log` (lo stderr di
-// Dyadrr) per ogni coppia, `summary.json` e `summary.md` per la serie. Il
-// processo (segnali, argomenti) sta in `pairs-bin.ts`.
+// Dyadrr) per ogni coppia, `summary.json` e `summary.md` per la serie. Una
+// coppia con `report` non si misura: entra nel riassunto con quel report,
+// importato, anche senza i file. Il processo (segnali, argomenti) sta in
+// `pairs-bin.ts`.
 
 /** Le categorie di una coppia: le sette del punto 3, tre del punto 2 e `other` (§15). */
 export const PAIR_CATEGORIES = {
@@ -50,11 +52,43 @@ export const PHASE1_CATEGORIES: readonly PairCategory[] = [
 export const PHASE1 = { minPairs: 15, smallJumpFrames: 2 } as const;
 
 /** Le chiavi di una coppia nell'elenco. */
-export const PAIR_KEYS = ['input', 'expected', 'original-language', 'category', 'offset-ms', 'cause', 'note'] as const;
+export const PAIR_KEYS = ['input', 'report', 'expected', 'original-language', 'category', 'offset-ms', 'cause', 'note'] as const;
 
 /** I verdetti di una coppia (§15). */
-export const VERDICTS = ['ok', 'good-refused', 'wrong-merge', 'error', 'cancelled', 'missing'] as const;
+export const VERDICTS = ['ok', 'good-refused', 'wrong-merge', 'stale', 'error', 'cancelled', 'missing'] as const;
 export type Verdict = (typeof VERDICTS)[number];
+
+/** Una versione di Dyadrr che ha cambiato cosa scrive `analyze` sugli stessi file. */
+export interface AnalysisChange {
+  version: string;
+  /** Cosa è cambiato, in inglese come il riassunto. */
+  what: string;
+  /** Se un report di prima di questa versione non vale più; altrimenti è solo una differenza. */
+  stale: (report: Report) => boolean;
+}
+
+/**
+ * I report importati (§15) valgono dalla prima versione di `dyadrr-pairs`,
+ * con i picchi misurati dei punti di conferma.
+ */
+export const IMPORT_SINCE = '0.13.0';
+
+/**
+ * Le versioni dopo `IMPORT_SINCE` che hanno cambiato cosa scrive `analyze`
+ * sugli stessi file (§15): misure, decisione, avvisi. Un report importato di
+ * prima vale se nessuna lo rende superato (`stale`); le altre sono differenze,
+ * elencate nel riassunto. Ogni PR che cambia l'analisi aggiunge qui la sua
+ * versione (CONTRIBUTING.md).
+ */
+export const ANALYSIS_CHANGES: readonly AnalysisChange[] = [
+  {
+    version: '0.14.0',
+    what: 'contradiction shape: a one-point stretch at an edge of the film is a jump',
+    stale: (r) => r.measurement?.contradiction != null,
+  },
+  { version: '0.14.0', what: 'warning MAIN_TRACKS_DISAGREE', stale: () => false },
+  { version: '0.14.0', what: 'transfer check on every track of the measure language', stale: () => false },
+];
 
 /** I campi di `summary.json`, nell'ordine in cui si scrivono. */
 export const SUMMARY_FIELDS = [
@@ -84,6 +118,8 @@ export interface PairSpec {
   /** Per una coppia buona rifiutata, la causa trovata guardandola. */
   cause: string | null;
   note: string | null;
+  /** Un report di `dyadrr analyze` già fatto, come nell'elenco: la coppia non si misura. */
+  report: string | null;
 }
 
 const badList = (message: string) => new DyadrrError('BAD_ARGUMENTS', `pair list: ${message}`);
@@ -128,6 +164,7 @@ export function parsePairList(text: string): PairSpec[] {
     const inputs = values.get('input') ?? [];
     if (inputs.length !== 2) throw bad(`expected two input lines, found ${inputs.length}`);
     if (inputs.some((p) => p === '')) throw bad('an input is empty');
+    if (one('report') === '') throw bad('report is empty');
     const expected = one('expected');
     if (expected === null) throw bad('expected is missing: eligible or refused');
     if (expected !== 'eligible' && expected !== 'refused') throw bad(`expected "${expected}": eligible or refused`);
@@ -154,6 +191,7 @@ export function parsePairList(text: string): PairSpec[] {
       offsetMs: offset === null ? null : Number(offset),
       cause: one('cause'),
       note: one('note'),
+      report: one('report'),
     };
   });
 }
@@ -194,6 +232,60 @@ export function reusable(
     && (report.arguments.originalLanguage ?? null) === spec.originalLanguage;
 }
 
+/** Confronta due versioni `x.y.z`: negativo se `a` è più vecchia. */
+export function compareVersions(a: string, b: string): number {
+  const parts = (v: string) => v.split('-')[0]!.split('.').map((n) => Number(n) || 0);
+  const [x, y] = [parts(a), parts(b)];
+  for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
+  return 0;
+}
+
+/** Un report importato: la sua versione, le differenze da oggi, e perché non vale più. */
+export interface Imported {
+  from: string;
+  differences: string[];
+  /** `null` se vale. */
+  stale: string | null;
+}
+
+/**
+ * Controlla un report importato (§15). Un report che non è di questa coppia è
+ * un errore dell'elenco, `BAD_ARGUMENTS`: non è un'analisi, non ha misurato
+ * (`error`, `cancelled`), ha altri file (per nome, in qualsiasi ordine) o
+ * un'altra lingua originale. Uno di un altro formato, di prima di
+ * `IMPORT_SINCE`, di un'altra taratura o superato da `ANALYSIS_CHANGES` è
+ * `stale`: la coppia va rimisurata.
+ */
+export function checkImport(
+  report: Report | null,
+  spec: PairSpec,
+  current: { dyadrr: string; calibration: number },
+): Imported {
+  const bad = (message: string) => badList(`[${spec.id}]: report ${spec.report}: ${message}`);
+  if (report === null) throw bad('cannot be read as a Dyadrr report');
+  if (report.mode !== 'analyze') throw bad(`is not an analysis (mode ${report.mode})`);
+  if (report.decision !== 'eligible' && report.decision !== 'refused') {
+    throw bad(`has decision ${report.decision}: only eligible or refused can be imported`);
+  }
+  const names = (paths: readonly string[]) => paths.map((f) => f.split(/[\\/]/).pop()!).sort();
+  const files = report.arguments?.files ?? [];
+  if (files.length !== 2 || JSON.stringify(names(files)) !== JSON.stringify(names(spec.inputs))) {
+    throw bad(`is about other files (${names(files).join(', ')})`);
+  }
+  if ((report.arguments.originalLanguage ?? null) !== spec.originalLanguage) {
+    throw bad(`has original language ${report.arguments.originalLanguage ?? 'none'}, the list ${spec.originalLanguage ?? 'none'}`);
+  }
+  const from = report.dyadrr;
+  const later = ANALYSIS_CHANGES.filter((c) => compareVersions(c.version, from) > 0);
+  const outdated = later.find((c) => c.stale(report));
+  const stale = report.format !== REPORT_FORMAT ? `report format ${report.format}, now ${REPORT_FORMAT}`
+    : compareVersions(from, IMPORT_SINCE) < 0 ? `Dyadrr ${from}, imports start from ${IMPORT_SINCE}`
+    : report.calibration?.version !== current.calibration ? `calibration ${report.calibration?.version ?? 'none'}, now ${current.calibration}`
+    : outdated ? `Dyadrr ${from}, changed in ${outdated.version}: ${outdated.what}`
+    : null;
+  return { from, differences: later.filter((c) => !c.stale(report)).map((c) => `${c.version}: ${c.what}`), stale };
+}
+
 // ---------------------------------------------------------------- riassunto di una coppia
 
 /** Un gruppo di picchi: quanti, e il minimo (sicuri a S) o il massimo (gli altri) di NCC e rapporto. */
@@ -231,6 +323,8 @@ export interface PairSummary {
   report: string | null;
   /** Il report c'era già ed è stato riusato. */
   reused: boolean;
+  /** Il report è stato importato con `report`: la sua versione e le differenze da oggi. */
+  imported: { from: string; differences: string[] } | null;
   verdict: Verdict;
   detail: string | null;
   decision: Decision | null;
@@ -337,8 +431,27 @@ function marginsOf(report: Report, cal: Calibration): PairMargins | null {
   };
 }
 
-/** Il riassunto di una coppia dal suo report (§15); `report` è `null` se manca. */
-export function summarizePair(spec: PairSpec, report: Report | null, file: string | null, reused: boolean): PairSummary {
+/**
+ * Il riassunto di una coppia dal suo report (§15); `report` è `null` se manca.
+ * Un report importato superato non entra nelle misure: verdetto `stale`.
+ */
+export function summarizePair(
+  spec: PairSpec,
+  report: Report | null,
+  file: string | null,
+  reused: boolean,
+  imported: Imported | null = null,
+): PairSummary {
+  if (imported?.stale) {
+    return {
+      ...summarizePair(spec, null, null, false),
+      report: file,
+      imported: { from: imported.from, differences: imported.differences },
+      verdict: 'stale',
+      detail: imported.stale,
+      dyadrr: imported.from,
+    };
+  }
   const cal = report?.calibration ?? null;
   const m = report?.measurement ?? null;
   const offset = m?.offset ?? null;
@@ -352,6 +465,7 @@ export function summarizePair(spec: PairSpec, report: Report | null, file: strin
     note: spec.note,
     report: report === null ? null : file,
     reused: report !== null && reused,
+    imported: report !== null && imported ? { from: imported.from, differences: imported.differences } : null,
     ...verdictOf(spec, report, cal?.values.toleranceMs ?? null),
     decision: report?.decision ?? null,
     code: report?.reasons[0]?.code ?? null,
@@ -531,6 +645,20 @@ const cell = (text: string | number | null | undefined) =>
 const yes = (ok: boolean) => (ok ? 'yes' : 'no');
 const margin = (m: SeriesMargin | null | undefined) => (m ? `${m.value} (${m.pair})` : '—');
 
+/** Le coppie con un report importato, con la versione e le differenze da oggi. */
+function importedLines(pairs: readonly PairSummary[]): string[] {
+  const imported = pairs.filter((p) => p.imported !== null);
+  if (imported.length === 0) return [];
+  return [
+    '',
+    'Imported reports (not measured by this run):',
+    '',
+    ...imported.map((p) => `- ${cell(p.id)}: Dyadrr ${p.imported!.from}`
+      + `${p.verdict === 'stale' ? `, stale (${cell(p.detail)})` : ''}`
+      + `${p.imported!.differences.length > 0 ? `; differences: ${p.imported!.differences.map(cell).join('; ')}` : ''}`),
+  ];
+}
+
 /** `summary.md`: il riassunto da leggere e da portare nella PR della decisione 12. Nomina le coppie solo con l'id. */
 export function summaryMarkdown(s: Summary): string {
   const c = s.criterion;
@@ -541,6 +669,7 @@ export function summaryMarkdown(s: Summary): string {
     `Written by dyadrr-pairs ${s.dyadrr} on ${s.writtenAt}. Reports: Dyadrr ${s.versions.dyadrr.join(', ') || '—'}, `
       + `calibration ${s.versions.calibration.join(', ') || '—'}, ${tools}.`,
     ...(s.versions.mixed ? ['', '**Warning:** the pairs were not all measured with the same versions.'] : []),
+    ...importedLines(s.pairs),
     '',
     '## Phase 1 exit criterion',
     '',
@@ -566,7 +695,7 @@ export function summaryMarkdown(s: Summary): string {
       const secure = p.anchors.filter((a) => a.outcome === 'accepted' || a.outcome === 'agrees' || a.outcome === 'disagrees').length;
       const m = p.margins?.secureAtS;
       return `| ${cell(p.id)} | ${cell(p.categories.join(', '))} | ${p.expected} | ${cell(p.decision === null ? null : `${p.decision}${p.code ? ` ${p.code}` : ''}`)} `
-        + `| ${p.verdict}${p.detail ? ` (${cell(p.detail)})` : ''} | ${cell(p.offset?.offsetMs)} | ${cell(p.offset?.dispersionMs)} `
+        + `| ${p.verdict}${p.detail ? ` (${cell(p.detail)})` : ''}${p.imported ? ` (imported, ${p.imported.from})` : ''} | ${cell(p.offset?.offsetMs)} | ${cell(p.offset?.dispersionMs)} `
         + `| ${p.anchors.length === 0 ? '—' : `${secure} of ${p.anchors.length}`} `
         + `| ${k ? `${k.consistent}/${k.inconclusive}/${k.contradictory}/${k.unmatched}` : '—'} | ${cell(p.coverage === null ? null : round3(p.coverage))} `
         + `| ${m && m.count > 0 ? `${m.ncc} / ${m.ratio}` : '—'} | ${cell([...new Set(p.warnings)].join(', '))} |`;
@@ -586,8 +715,8 @@ export function summaryMarkdown(s: Summary): string {
     '| Pair | Verdict | Code | Message | Cause |',
     '|---|---|---|---|---|',
     ...s.pairs
-      .filter((p) => p.decision === 'refused' || p.decision === 'error')
-      .map((p) => `| ${cell(p.id)} | ${p.verdict} | ${cell(p.code)} | ${cell(p.message)} | ${cell(p.cause)} |`),
+      .filter((p) => p.decision === 'refused' || p.decision === 'error' || p.verdict === 'stale')
+      .map((p) => `| ${cell(p.id)} | ${p.verdict} | ${cell(p.code)} | ${cell(p.message ?? p.detail)} | ${cell(p.cause)} |`),
     '',
   ];
   return lines.join('\n');
@@ -668,6 +797,23 @@ export async function runPairs(o: PairsOptions): Promise<number> {
     return exitCodeFor('error', e.code);
   }
 
+  const calibration = loadCalibration();
+  const current = { dyadrr: dyadrrVersion(), calibration: calibration.version };
+  // I report importati si controllano tutti prima di misurare, come l'elenco.
+  const imports = new Map<string, { path: string; report: Report; info: Imported }>();
+  try {
+    for (const spec of specs) {
+      if (spec.report === null) continue;
+      const path = resolve(cwd, spec.report);
+      const report = await readReport(path);
+      imports.set(spec.id, { path, report: report!, info: checkImport(report, spec, current) });
+    }
+  } catch (e) {
+    if (!(e instanceof DyadrrError)) throw e;
+    log(`${e.code}: ${e.message}`);
+    return exitCodeFor('error', e.code);
+  }
+
   const results = o.results === undefined ? defaultResults(listPath) : resolve(cwd, o.results);
   try {
     await mkdir(results, { recursive: true });
@@ -676,8 +822,6 @@ export async function runPairs(o: PairsOptions): Promise<number> {
     return exitCodeFor('error', 'OUTPUT_NOT_WRITABLE');
   }
 
-  const calibration = loadCalibration();
-  const current = { dyadrr: dyadrrVersion(), calibration: calibration.version };
   const selected = (s: PairSpec) => !o.only || o.only.length === 0 || o.only.includes(s.id);
   const summaries: PairSummary[] = [];
   let cancelled = false;
@@ -685,6 +829,13 @@ export async function runPairs(o: PairsOptions): Promise<number> {
     const at = `[${i + 1}/${specs.length}] ${spec.id}`;
     const name = (ext: string) => `${spec.id}.${ext}`;
     const file = (ext: string) => join(results, name(ext));
+    const imported = imports.get(spec.id);
+    if (imported) {
+      const { path, report, info } = imported;
+      if (selected(spec)) log(`${at}: report imported (${info.stale ? `stale: ${info.stale}` : `${report.decision}, Dyadrr ${info.from}`})`);
+      summaries.push(summarizePair(spec, report, path, false, info));
+      continue;
+    }
     const existing = await readReport(file('json'));
     const usable = reusable(existing, spec, cwd, current);
     if (!selected(spec) || (usable && !o.again) || o.signal?.aborted) {
