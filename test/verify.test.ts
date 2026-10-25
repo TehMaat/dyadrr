@@ -151,6 +151,32 @@ test('verifiche dopo il merge: tracce, video HDR10, pacchetti, inizio e fine del
   assert.ok(existsSync(b.output));
 });
 
+test('italiano che parte dopo 10 s: mkvmerge -J non ne dà l\'inizio, lo si legge dal primo pacchetto', async () => {
+  // Kung Fu Panda 2: l'UHD ha 24,7 s di logo che il BD italiano non ha, e il
+  // merge finiva in VERIFY_FAILED (track 1 starts at none ms). Qui l'italiano
+  // parte a 10 s del file finale; la coda in più si toglie.
+  const offsetMs = 10_000;
+  const input = { reference, donor, offsetMs, commonMaterial: { startMs: offsetMs, endMs: SECONDS * 1000 } };
+  const cutLevels = startCuts(input).flatMap((c) => c.trackIds.map((trackId) => ({ atMs: c.atMs, trackId, levelDbfs: -90 })));
+  const pl = planMerge({ ...input, choices: { tail: { value: 'trim', origin: 'option' } }, cutLevels }, cal);
+  assert.deepEqual(pl.pending, []);
+  const b = await build(pl);
+  const out = await readInput(b.file, { calibration: cal, ownOutput: true });
+  assert.equal(out.tracks[1]!.startMs, null, 'mkvmerge -J does not see the start of the late track');
+
+  // Finestre del trasferimento più corte, perché stiano nei 20 s di italiano.
+  const short = parseCalibration({ version: base.version, provisional: base.provisional, values: { ...base.values, checkpointWindowMs: 2000 } });
+  const v = await verifyBuild({ reference, plan: pl, measureTrackId: MEASURE }, b, short);
+  assert.equal(v.checks.find((c) => c.name === 'italian-tracks')!.result, 'pass');
+  // ffprobe toglie dai timestamp il ritardo del codec, che l'encoder AC-3 di
+  // ffmpeg scrive nei file di prova (256 campioni): si rimette, e torna il
+  // timestamp del contenitore, al millisecondo.
+  const [x] = v.italian;
+  assert.deepEqual([v.italian.length, x!.trackId, x!.expectedStartMs], [1, 1, offsetMs + 4]);
+  assert.ok(x!.startMs !== null && Math.abs(x!.startMs - x!.expectedStartMs) <= 1, JSON.stringify(x));
+  assert.ok(Math.abs(x!.endMs! - x!.expectedEndMs) <= x!.toleranceMs, JSON.stringify(x));
+});
+
 test('OUTPUT_TRANSFER_OFFSET: con uno S sbagliato di 40 ms le verifiche bloccanti passano, il trasferimento lo trova', async () => {
   // Il file è costruito come previsto da un piano sbagliato: solo il
   // trasferimento sul file finale, una misura indipendente, se ne accorge.

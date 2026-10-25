@@ -153,6 +153,8 @@ interface Probed {
   /** Titolo e dati del codec (CodecPrivate, in esadecimale) per ID di traccia, da mkvmerge -J. */
   title: string | null;
   codecPrivate: Map<number, string | null>;
+  /** Ritardo del codec (CodecDelay) per ID di traccia, in ms, da mkvmerge -J: ffprobe lo toglie dai timestamp. */
+  codecDelayMs: Map<number, number>;
   /** Inizio e titolo; gli UID no: mkvmerge può generarne di nuovi (§9.5). */
   chapters: { startMs: number; title: string | null }[];
   /** Metadati del flusso video e side data del suo primo fotogramma, da ffprobe. */
@@ -186,7 +188,7 @@ async function json(
 
 async function probe(file: InputFile, video: InputTrack, run: Run, fail: (why: string) => Error): Promise<Probed> {
   const id = await json(run, 'mkvmerge', ['-J', file.path], fail);
-  const tracks = (id.tracks ?? []) as { id: number; properties?: { codec_private_data?: string } }[];
+  const tracks = (id.tracks ?? []) as { id: number; properties?: { codec_private_data?: string; codec_delay?: number } }[];
   const container = (id.container ?? {}) as { properties?: { title?: string } };
   const chapters = await json(run, 'ffprobe', ['-v', 'error', '-show_chapters', '-of', 'json', file.path], fail);
   if (video.streamIndex === null) throw fail(`video track ${video.id} cannot be matched to an ffprobe stream`);
@@ -199,6 +201,7 @@ async function probe(file: InputFile, video: InputTrack, run: Run, fail: (why: s
   return {
     title: container.properties?.title ?? null,
     codecPrivate: new Map(tracks.map((t) => [t.id, t.properties?.codec_private_data ?? null])),
+    codecDelayMs: new Map(tracks.map((t) => [t.id, (t.properties?.codec_delay ?? 0) / 1e6])),
     chapters: ((chapters.chapters ?? []) as { start_time: string; tags?: { title?: string } }[])
       .map((c) => ({ startMs: Math.round(Number(c.start_time) * 1e6) / 1000, title: c.tags?.title ?? null })),
     video: {
@@ -206,6 +209,29 @@ async function probe(file: InputFile, video: InputTrack, run: Run, fail: (why: s
       first_frame_side_data_list: ((frame.frames ?? []) as { side_data_list?: unknown }[])[0]?.side_data_list ?? null,
     },
   };
+}
+
+/**
+ * Il primo timestamp di una traccia, dal suo primo pacchetto letto da ffprobe,
+ * con il ritardo del codec che ffprobe toglie: il timestamp del contenitore.
+ * mkvmerge -J lo dà solo se la traccia comincia nei primi secondi del file
+ * (circa 10): un italiano che parte dopo un'intro più lunga nel riferimento
+ * resta senza inizio. `null` se ffprobe non trova pacchetti.
+ */
+async function firstPacketMs(
+  file: InputFile,
+  track: InputTrack,
+  codecDelayMs: number,
+  run: Run,
+  fail: (why: string) => Error,
+): Promise<number | null> {
+  if (track.streamIndex === null) return null;
+  const result = await json(run, 'ffprobe', [
+    '-v', 'error', '-select_streams', String(track.streamIndex), '-read_intervals', '%+#1',
+    '-show_entries', 'packet=pts_time', '-of', 'json', file.path,
+  ], fail);
+  const pts = Number(((result.packets ?? []) as { pts_time?: string }[])[0]?.pts_time);
+  return Number.isFinite(pts) ? Math.round((pts * 1000 + codecDelayMs) * 1000) / 1000 : null;
 }
 
 /** Pacchetti di ogni flusso, contati da ffprobe: legge tutto il file. Solo se mancano i tag statistici. */
@@ -381,15 +407,18 @@ async function verify(request: VerifyRequest, build: Build, cal: Calibration, op
     add('reference-tracks', problems);
   }
 
-  // 4. Italiano: inizio da mkvmerge -J, fine dagli ultimi cluster, entro un
-  // pacchetto del codec.
+  // 4. Italiano: inizio da mkvmerge -J (o, se manca, dal primo pacchetto
+  // letto da ffprobe), fine dagli ultimi cluster, entro un pacchetto del codec.
   const italian: ItalianTrackVerification[] = [];
   if (!aligned) {
     skip('italian-tracks', notAligned);
   } else {
-    expected.forEach((e, i) => {
-      if (e.source !== 'donor' || e.type !== 'audio' || e.expectedStartMs === null || e.expectedEndMs === null) return;
-      const t = outTrack(i);
+    for (const [i, e] of expected.entries()) {
+      if (e.source !== 'donor' || e.type !== 'audio' || e.expectedStartMs === null || e.expectedEndMs === null) continue;
+      step();
+      const found = outTrack(i);
+      const t = found.startMs !== null ? found
+        : { ...found, startMs: await firstPacketMs(out, found, outProbe.codecDelayMs.get(found.id) ?? 0, run, outputFail) };
       italian.push({
         trackId: t.id,
         sourceTrackId: e.sourceTrackId,
@@ -400,7 +429,7 @@ async function verify(request: VerifyRequest, build: Build, cal: Calibration, op
         expectedEndMs: e.expectedEndMs,
         endMs: t.startMs === null ? null : round3(trackEnd(out, t)),
       });
-    });
+    }
     const problems: string[] = [];
     for (const x of italian) {
       const off = (a: number | null, b: number) => a === null || Math.abs(a - b) > x.toleranceMs;

@@ -4,6 +4,17 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.15.2] - 2026-10-25
+
+### Corretto
+- Verifiche dopo il merge: l'inizio di una traccia italiana che parte dopo i
+  primi 10 s circa del file finale. mkvmerge -J non lo riporta, e il merge
+  finiva in `VERIFY_FAILED` (*track 1 starts at none ms*); ora si legge il
+  primo pacchetto con ffprobe, più il ritardo del codec. Trovato su Kung Fu
+  Panda 2, con l'italiano a 24,7 s dopo il logo Universal. L'analisi non
+  cambia
+- Documentazione: studio di fattibilità 0.20 (§9.5)
+
 ## [0.15.1] - 2026-10-25
 
 ### Corretto
