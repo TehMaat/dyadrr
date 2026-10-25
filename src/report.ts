@@ -327,7 +327,8 @@ export function compareRolesAndOffset(
 
 /**
  * Il piano del merge contro quello confermato (§10): stesse scelte
- * necessarie; una scelta decisa nel report con lo stesso valore; ogni valore
+ * necessarie, salvo una in sospeso che il valore dato ora a un'altra in
+ * sospeso rende inutile; una scelta decisa nel report con lo stesso valore; ogni valore
  * che nel report non era in sospeso uguale; quello che lo era uguale
  * all'effetto, nel report, del valore scelto ora.
  */
@@ -347,8 +348,15 @@ export function comparePlan(expected: ExpectedReport, plan: Plan): string[] {
     const c = now.choices.find((x) => x.name === name);
     return c && (c.status === 'decided' || c.status === 'ignored') ? c.value : null;
   };
+  // Una scelta in sospeso nel report può non servire più per il valore dato
+  // ora a un'altra scelta in sospeso: con code diverse e `--edge-mismatch
+  // drop` il taglio cade sul confine e `--tail` non serve (§5).
+  const decidedNow = (name: ChoiceName) => now.choices.find((x) => x.name === name)?.status === 'decided';
+  const unblocked = (c: PlanChoice, current: PlanChoice) => c.status === 'pending' && !current.needed
+    && expected.choices.some((d) => d.name !== c.name && d.status === 'pending' && decidedNow(d.name));
   for (const c of expected.choices) {
     const current = now.choices.find((x) => x.name === c.name);
+    if (current && current.needed !== c.needed && unblocked(c, current)) continue;
     if (!current || current.needed !== c.needed) {
       differences.push(`choice ${c.name}: ${current?.needed ? 'needed' : 'not needed'}, confirmed ${c.needed ? 'needed' : 'not needed'}`);
       continue;

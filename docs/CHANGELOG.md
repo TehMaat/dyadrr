@@ -4,6 +4,17 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.15.1] - 2026-10-25
+
+### Corretto
+- `merge --expect`: una scelta in sospeso nell'analisi che il valore dato a
+  un'altra rende inutile non è più una differenza. Con code diverse e
+  `--edge-mismatch drop` `--tail` non serve, e il merge finiva in
+  `INPUT_CHANGED` (*choice tail: not needed, confirmed needed*) anche con il
+  piano uguale a quello confermato. Trovato su Kung Fu Panda 2. L'analisi non
+  cambia
+- Documentazione: studio di fattibilità 0.19 (§10)
+
 ## [0.15.0] - 2026-10-24
 
 ### Aggiunto
