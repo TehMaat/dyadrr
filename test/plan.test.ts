@@ -66,6 +66,10 @@ const pgs = (id: number, language: string, blocks: number | null, fields: Partia
     ...fields,
   });
 
+/** Una traccia di sottotitoli di testo (SubRip), come `pgs`. */
+const srt = (id: number, language: string, blocks: number | null, fields: Partial<InputTrack> = {}) =>
+  pgs(id, language, blocks, { codec: 'SubRip/SRT', codecId: 'S_TEXT/UTF8', ...fields });
+
 const file = (tracks: InputTrack[], hdr: HdrFormat, durationMs: number): PlanFile => ({
   tracks,
   startTimeMs: 0,
@@ -390,20 +394,28 @@ test('REFERENCE_HAS_ITALIAN_SUBS: PGS italiani già nel riferimento, tenuti o sc
   }
 });
 
-test('ITALIAN_SUBS_NOT_PGS: i sottotitoli italiani non PGS del donatore si scartano', () => {
+test('ITALIAN_SUBS_NOT_PGS: i sottotitoli italiani né PGS né di testo del donatore si scartano', () => {
   const p = planMerge(input({
     donor: donor([
       italian(2, 0, FILM),
       pgs(3, 'ita', 3000),
-      track(4, 'subtitles', { language: 'ita', codec: 'SubRip/SRT', codecId: 'S_TEXT/UTF8' }),
-      pgs(5, 'eng', 3000),
+      srt(4, 'ita', 1500),
+      track(5, 'subtitles', { language: 'ita', codec: 'VobSub', codecId: 'S_VOBSUB' }),
+      pgs(6, 'eng', 3000),
+      track(7, 'subtitles', { language: 'ita', codec: 'SubStationAlpha', codecId: 'S_TEXT/ASS' }),
     ]),
     offsetMs: 0,
   }), cal);
   assert.deepEqual(warnings(p), ['ITALIAN_SUBS_NOT_PGS']);
-  assert.equal(p.warnings[0]!.value, 4);
-  // I sottotitoli non italiani del donatore non si prendono e non si elencano.
-  assert.deepEqual(p.subtitles.map((s) => [s.id, s.pgs, s.taken]), [[3, true, true], [4, false, false]]);
+  assert.equal(p.warnings[0]!.value, 5);
+  // I sottotitoli di testo si prendono come i PGS; quelli non italiani del
+  // donatore non si prendono e non si elencano.
+  assert.deepEqual(p.subtitles.map((s) => [s.id, s.pgs, s.text, s.taken]), [
+    [3, true, false, true],
+    [4, false, true, true],
+    [5, false, false, false],
+    [7, false, true, true],
+  ]);
 });
 
 test('NO_FORCED_ITALIAN_SUBS: il riferimento ha un forced in un\'altra lingua e il donatore nessun forced italiano', () => {
@@ -413,6 +425,9 @@ test('NO_FORCED_ITALIAN_SUBS: il riferimento ha un forced in un\'altra lingua e 
 
   const present = planMerge(input({ reference: ref, donor: donor([italian(2, 0, FILM), pgs(3, 'ita', 3000), pgs(4, 'ita', 60)]), offsetMs: 0 }), cal);
   assert.deepEqual(warnings(present), []);
+  // Un forced di testo vale come un forced PGS.
+  const text = planMerge(input({ reference: ref, donor: donor([italian(2, 0, FILM), pgs(3, 'ita', 3000), srt(4, 'ita', 1500), srt(5, 'ita', 30)]), offsetMs: 0 }), cal);
+  assert.deepEqual(warnings(text), []);
   // Senza un forced nel riferimento l'avviso non scatta: scatterebbe su quasi tutti i film.
   const none = planMerge(input({ reference: reference([pgs(5, 'eng', 3000)]), donor: donor([italian(2, 0, FILM), pgs(3, 'ita', 3000)]), offsetMs: 0 }), cal);
   assert.deepEqual(warnings(none), []);
@@ -424,12 +439,13 @@ test('SDR_SUBS_ON_HDR: PGS italiani da un disco SDR sopra un video HDR', () => {
   assert.deepEqual(warnings(hdr), ['SDR_SUBS_ON_HDR']);
   const dv = planMerge(input({ reference: reference([], 'DV'), donor: donor(tracks, 'SDR'), offsetMs: 0 }), cal);
   assert.deepEqual(warnings(dv), ['SDR_SUBS_ON_HDR']);
-  // Senza PGS italiani, o con due video SDR, niente avviso.
+  // Senza PGS italiani, o con due video SDR, niente avviso: il testo lo disegna il lettore.
   assert.deepEqual(warnings(planMerge(input({ reference: reference([], 'HDR10'), donor: donor([italian(2, 0, FILM)]), offsetMs: 0 }), cal)), []);
+  assert.deepEqual(warnings(planMerge(input({ reference: reference([], 'HDR10'), donor: donor([italian(2, 0, FILM), srt(3, 'ita', 1500)], 'SDR'), offsetMs: 0 }), cal)), []);
   assert.deepEqual(warnings(planMerge(input({ reference: reference([], 'SDR'), donor: donor(tracks, 'SDR'), offsetMs: 0 }), cal)), []);
 });
 
-test('forced: flag, nome, oppure molti meno blocchi della traccia più grande della stessa lingua', () => {
+test('forced: flag, nome, oppure molti meno blocchi della traccia più grande della stessa lingua e dello stesso formato', () => {
   const classes = classifySubtitles([
     pgs(3, 'ita', 3000),
     pgs(4, 'ita', 120),
@@ -452,8 +468,15 @@ test('forced: flag, nome, oppure molti meno blocchi della traccia più grande de
     [9, false, null],
     [10, false, null],
   ]);
-  assert.equal(classes[1]!.reason, '120 blocks, 4% of the largest ita track (3000): below 15%');
+  assert.equal(classes[1]!.reason, '120 blocks, 4% of the largest ita PGS track (3000): below 15%');
   assert.equal(classes[7]!.commentary, true);
+
+  // Un sottotitolo PGS è almeno due blocchi, uno di testo uno solo: i
+  // blocchi si confrontano solo nello stesso formato. Il forced PGS da 400
+  // blocchi è il 13% del PGS completo, ma sarebbe il 27% del testo completo.
+  const mixed = classifySubtitles([pgs(3, 'ita', 3000), pgs(4, 'ita', 400), srt(5, 'ita', 1500), srt(6, 'ita', 100)], cal);
+  assert.deepEqual(mixed.map((c) => [c.id, c.forced, c.forcedBy]), [[3, false, null], [4, true, 'blocks'], [5, false, null], [6, true, 'blocks']]);
+  assert.equal(mixed[3]!.reason, '100 blocks, 6.67% of the largest ita text track (1500): below 15%');
 });
 
 test('scelte: si chiedono solo se servono, con l\'effetto di ogni valore; quelle indicate e non necessarie si ignorano', () => {

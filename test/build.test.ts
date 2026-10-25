@@ -13,6 +13,7 @@ import {
   removeStaleJobs,
   splitTimestamp,
   subtitleOnScreen,
+  textOnScreen,
   type Build,
 } from '../src/build.js';
 import { loadCalibration } from '../src/calibration.js';
@@ -29,9 +30,10 @@ import { writeSup } from './helpers/pgs.js';
 // riferimento ha video 320x180, audio inglese AC3, un PGS inglese forced non
 // compresso, un PGS italiano e i suoi capitoli. Il donatore ha video 160x90,
 // audio italiano in AC3, TrueHD e FLAC, audio inglese, un PGS italiano
-// "Forzati" non compresso e uno completo compresso, e capitoli suoi. Tutto
-// dura 30 s. Il piano si calcola con `planMerge` da uno S e da confini dati,
-// senza misurare.
+// "Forzati" non compresso e uno completo compresso, e capitoli suoi. Un
+// secondo donatore ha gli stessi sottotitoli in testo: SubRip "Forzati"
+// compresso e SSA/ASS completo. Tutto dura 30 s. Il piano si calcola con
+// `planMerge` da uno S e da confini dati, senza misurare.
 
 const SECONDS = 30;
 const cal = loadCalibration();
@@ -40,6 +42,7 @@ let dir: string;
 const p = (name: string) => join(dir, name);
 let reference: InputFile;
 let donor: InputFile;
+let textDonor: InputFile;
 
 /** Sottotitoli completi e forced del donatore, in secondi. */
 const FULL: [number, number][] = [[2, 4], [5, 7], [10, 12], [15, 17], [20, 22], [24.5, 27.5]];
@@ -67,6 +70,10 @@ before(async () => {
   writeSup(p('ref-ita.sup'), [[8, 9]]);
   writeSup(p('ita-full.sup'), FULL);
   writeSup(p('ita-forced.sup'), FORCED);
+  const srt = (cues: [number, number][]) => cues.map(([a, b], i) => `${i + 1}\n${splitTimestamp(a * 1000).replace('.', ',')} --> ${splitTimestamp(b * 1000).replace('.', ',')}\nRiga ${i + 1}\n`).join('\n');
+  writeFileSync(p('ita-forced.srt'), srt(FORCED));
+  writeFileSync(p('ita-full.srt'), srt(FULL));
+  await runAsync('ffmpeg', ['-v', 'error', '-y', '-i', p('ita-full.srt'), p('ita-full.ass')]);
   writeFileSync(p('ref-chapters.txt'), 'CHAPTER01=00:00:00.000\nCHAPTER01NAME=Uno\nCHAPTER02=00:00:15.000\nCHAPTER02NAME=Due\n');
   writeFileSync(p('donor-chapters.txt'), 'CHAPTER01=00:00:00.000\nCHAPTER01NAME=A\nCHAPTER02=00:00:10.000\nCHAPTER02NAME=B\nCHAPTER03=00:00:20.000\nCHAPTER03NAME=C\n');
 
@@ -88,9 +95,18 @@ before(async () => {
       '--language', '0:ita', '--track-name', '0:Forzati', '--compression', '0:none', p('ita-forced.sup'),
       '--language', '0:ita', p('ita-full.sup'),
     ]),
+    runAsync('mkvmerge', [
+      '-q', '-o', p('text-donor.mkv'), '--title', 'Donor',
+      p('donor-video.mkv'),
+      '--language', '0:ita', '--track-name', '0:Italiano', p('ita-ac3.mka'),
+      '--language', '0:eng', p('eng.mka'),
+      '--language', '0:ita', '--track-name', '0:Forzati', '--compression', '0:zlib', p('ita-forced.srt'),
+      '--language', '0:ita', p('ita-full.ass'),
+    ]),
   ]);
   reference = await readInput(settle(p('reference.mkv')), { calibration: cal });
   donor = await readInput(settle(p('donor.mkv')), { calibration: cal });
+  textDonor = await readInput(settle(p('text-donor.mkv')), { calibration: cal });
 });
 
 after(() => rmSync(dir, { recursive: true, force: true }));
@@ -108,9 +124,9 @@ function choices(values: Record<string, string>): GivenChoices {
 }
 
 /** Il piano con S e confini dati; il livello nei punti di taglio iniziale non conta qui. */
-function plan(offsetMs: number, values: Record<string, string>, common?: { startMs: number; endMs: number }): Plan {
+function plan(offsetMs: number, values: Record<string, string>, common?: { startMs: number; endMs: number }, from = donor): Plan {
   const commonMaterial = common ?? { startMs: 0, endMs: SECONDS * 1000 };
-  const input = { reference, donor, offsetMs, commonMaterial };
+  const input = { reference, donor: from, offsetMs, commonMaterial };
   const cutLevels = startCuts(input).flatMap((c) => c.trackIds.map((trackId) => ({ atMs: c.atMs, trackId, levelDbfs: -90 })));
   return planMerge({ ...input, choices: choices(values), cutLevels }, cal);
 }
@@ -194,6 +210,17 @@ test('comandi: tempi di --split, dump di ffprobe, punti di sincronizzazione True
   assert.equal(subtitleOnScreen(subs, 6000), 5000);
   assert.equal(subtitleOnScreen(subs, 5000), null);
   assert.equal(subtitleOnScreen(subs, 8000), null);
+
+  // Testo: a schermo dall'inizio del blocco alla fine della sua durata.
+  const cues = [{ ptsMs: 2000, durationMs: 2000 }, { ptsMs: 5000, durationMs: 2000 }, { ptsMs: 5500, durationMs: 3000 }, { ptsMs: 9000, durationMs: null }]
+    .map((c) => ({ ...c, data: Buffer.alloc(0) }));
+  assert.equal(textOnScreen(cues, 3000), 2000);
+  assert.equal(textOnScreen(cues, 4000), null);
+  assert.equal(textOnScreen(cues, 2000), null);
+  // Due righe insieme: l'inizio della prima.
+  assert.equal(textOnScreen(cues, 6000), 5000);
+  assert.equal(textOnScreen(cues, 8000), 5500);
+  assert.equal(textOnScreen(cues, 9500), null);
 });
 
 test('esito di mkvmerge: 0 e 1 riusciti con gli avvisi, 2 fallito; il disco pieno è NO_SPACE, non MERGE_FAILED', () => {
@@ -346,6 +373,36 @@ test('--edge-mismatch drop: tagli sui confini, anche prima della fine del video;
   assert.equal(full[0], 4000);
   assert.equal(full[full.length - 1], 22_000);
   assert.deepEqual(blockTimes(out, 5), [5200, 6000]);
+});
+
+test('sottotitoli di testo: si prendono come i PGS, si perdono solo al taglio iniziale, mai compressi', async () => {
+  const pl = plan(0, { edgeMismatch: 'drop', referenceItalianSubs: 'keep' }, { startMs: 3000, endMs: 25_500 }, textDonor);
+  assert.deepEqual(pl.subtitles.map((s) => [s.id, s.text, s.forced, s.taken]), [[3, true, true, true], [4, true, false, true]]);
+  assert.equal(textDonor.tracks[3]!.compression, 'zlib');
+  const out = join(outDir(), 'Film.mkv');
+  const build = await buildMerge({ reference, donor: textDonor, plan: pl, output: out });
+  // Due passate per il taglio iniziale e un solo --split: il testo non ha un taglio suo alla fine.
+  assert.deepEqual(build.commands.map((c) => c.tool), ['mkvmerge', 'mkvmerge', 'mkvmerge', 'mkvmerge']);
+  // A 3 s è a schermo la riga 2–4 s del completo; a 25,5 s le righe a
+  // cavallo restano, perché si spengono da sole.
+  assert.deepEqual(build.droppedSubtitles.map((d) => [d.trackId, d.edge, d.subtitleStartMs]), [[4, 'start', 2000]]);
+  assert.deepEqual(build.warnings.map((w) => [w.code, w.value]), [['SUBTITLES_DROPPED_AT_CUT', 1]]);
+  assert.deepEqual(layout(build), ['r0', 'd1', 'r1', 'd3', 'd4', 'r2', 'r3']);
+  await verified(pl, build);
+  await commitBuild(build);
+
+  const { input } = await final(out);
+  const tracks = input.tracks.filter((t) => t.type === 'subtitles').map((t) => [t.codecId, t.language, t.name, t.default, t.forced, t.compression]);
+  assert.deepEqual(tracks, [
+    ['S_TEXT/UTF8', 'ita', 'Forzati', true, true, null],
+    ['S_TEXT/ASS', 'ita', null, false, false, null],
+    ['S_HDMV/PGS', 'eng', null, false, true, null],
+    ['S_HDMV/PGS', 'ita', null, false, false, 'zlib'],
+  ]);
+  assert.deepEqual(blockTimes(out, 3), [5200, 25_000]);
+  const full = blockTimes(out, 4);
+  assert.equal(full[0], 5000);
+  assert.equal(full[full.length - 1], 24_500);
 });
 
 // ---------------------------------------------------------------- errori

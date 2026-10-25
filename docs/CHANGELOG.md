@@ -4,6 +4,29 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.16.0] - 2026-10-25
+
+### Aggiunto
+- Sottotitoli italiani di testo del donatore (SubRip, SSA/ASS, WebVTT): si
+  prendono come i PGS, spostati di S senza toccarli. Al taglio iniziale la
+  riga a schermo si perde come per i PGS (`SUBTITLES_DROPPED_AT_CUT`); al
+  taglio finale resta, perché ha la sua durata. Nel file finale non sono mai
+  compressi; il primo forced, PGS o di testo, è predefinito. Nel report il
+  campo `text` dei sottotitoli. Per Turning Red, con i sottotitoli italiani in
+  SubRip in un file montato a mano
+- Documentazione: studio di fattibilità 0.21 (P6, §6, §7)
+
+### Cambiato
+- `ITALIAN_SUBS_NOT_PGS` scatta solo per i sottotitoli italiani né PGS né di
+  testo, per esempio VobSub
+- Forced riconosciuti dai blocchi: il confronto è con la traccia più grande
+  della stessa lingua e dello stesso formato, perché un sottotitolo PGS è
+  almeno due blocchi e uno di testo uno solo
+- `NO_FORCED_ITALIAN_SUBS` conta anche i forced di testo
+- L'analisi cambia solo nei sottotitoli del piano e nei loro avvisi: voce
+  0.16.0 in `ANALYSIS_CHANGES`, i report di prima restano validi per
+  `dyadrr-pairs`
+
 ## [0.15.2] - 2026-10-25
 
 ### Corretto

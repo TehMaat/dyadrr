@@ -7,7 +7,7 @@ import { assertNoPendingChoices } from './choices.js';
 import { DyadrrError } from './codes.js';
 import type { Warning } from './decision.js';
 import type { InputFile, InputTrack, TrackType } from './inputs.js';
-import type { Plan, PlannedSubtitleTrack } from './plan.js';
+import { isTextSubtitle, type Plan, type PlannedSubtitleTrack } from './plan.js';
 import { DEFAULT_TOOLS, runTool, runToolStreaming, type RunOptions, type ToolName, type ToolPaths, type ToolResult } from './tools.js';
 
 // Costruzione del file finale (studio §6, §7, §13): dal piano ai comandi di
@@ -22,7 +22,7 @@ import { DEFAULT_TOOLS, runTool, runToolStreaming, type RunOptions, type ToolNam
 //    `--split parts:` sull'intermedio, o con un remux di ffmpeg per FLAC.
 // 2. Unione finale (§6.2): il riferimento per primo, gli intermedi senza
 //    capitoli né tag, ordine delle tracce e flag espliciti, PGS compressi
-//    come nell'originale.
+//    come nell'originale, sottotitoli di testo non compressi.
 //
 // `planBuild` è una funzione pura: dal piano e dai fatti letti nei punti di
 // taglio (`readCutFacts`) ai comandi. `buildMerge` li esegue; il file resta
@@ -45,7 +45,8 @@ export const TRUEHD_SYNC_SEARCH_MS = 1000;
 
 /**
  * Per sapere se un sottotitolo è a schermo in un punto di taglio si guarda
- * così indietro (§7): un sottotitolo che resta a schermo più a lungo sfugge.
+ * così indietro (§7): un sottotitolo PGS che resta a schermo più a lungo
+ * sfugge; uno di testo ha la sua durata, ma deve cominciare entro questo tratto.
  */
 export const SUBTITLE_LOOKBACK_MS = 30_000;
 
@@ -64,11 +65,11 @@ export interface FinalTrack {
   name: string | null;
   default: boolean;
   forced: boolean;
-  /** Solo PGS: `none` se nell'originale non era compresso, altrimenti zlib, quella di mkvmerge. */
+  /** Solo sottotitoli: `none` per il testo e per i PGS non compressi nell'originale, altrimenti zlib, quella di mkvmerge. */
   compression: 'none' | 'zlib' | null;
   /**
    * Solo audio italiano: inizio e fine attesi, sulla linea del tempo del
-   * riferimento, entro un pacchetto del codec (§9.5). Per i PGS non si sa:
+   * riferimento, entro un pacchetto del codec (§9.5). Per i sottotitoli non si sa:
    * dipende da dove cadono i sottotitoli.
    */
   expectedStartMs: number | null;
@@ -87,13 +88,13 @@ export interface SubtitleAtCut {
 export interface CutFacts {
   /** Per ogni traccia TrueHD tagliata all'inizio, il primo punto di sincronizzazione dal taglio in poi, nel donatore. */
   trueHdSyncMs: ReadonlyMap<number, number>;
-  /** I sottotitoli PGS a schermo nei punti di taglio. */
+  /** I sottotitoli a schermo nei punti di taglio: PGS a ogni taglio, testo solo a quello iniziale. */
   subtitlesAtCuts: readonly SubtitleAtCut[];
 }
 
 /** Un sottotitolo perso a un taglio (`SUBTITLES_DROPPED_AT_CUT`). */
 export interface DroppedSubtitle {
-  /** Traccia PGS del donatore. */
+  /** Traccia di sottotitoli del donatore. */
   trackId: number;
   edge: 'start' | 'end';
   /** Punto di taglio, sulla linea del tempo del riferimento. */
@@ -217,9 +218,9 @@ function takenTracks(donor: InputFile, plan: Plan) {
     .map((a) => ({ track: byId(a.id), main: a.role === 'main' }));
   // Prima i forced, poi i completi.
   const subsPlan = plan.subtitles.filter((s) => s.taken);
-  const pgs = [...subsPlan.filter((s) => s.forced), ...subsPlan.filter((s) => !s.forced)]
+  const subs = [...subsPlan.filter((s) => s.forced), ...subsPlan.filter((s) => !s.forced)]
     .map((s) => ({ track: byId(s.id), cls: s }));
-  return { audio, pgs };
+  return { audio, subs };
 }
 
 /** Tagli al millisecondo (`--sync` e `--split` vogliono ms interi). */
@@ -231,6 +232,12 @@ function cuts(plan: Plan) {
   const endBeforeVideo = endCutMs !== null && endCutMs < Math.round(plan.film.endMs);
   return { startCutMs, endCutMs, endBeforeVideo };
 }
+
+/**
+ * Compressione `none` nel file finale: i PGS non compressi nell'originale, che
+ * mkvmerge altrimenti comprimerebbe, e il testo, che mkvmerge non comprime mai.
+ */
+const uncompressed = (t: InputTrack) => t.compression === null || isTextSubtitle(t);
 
 /** La traccia comincia prima del taglio iniziale, nel donatore. */
 const cutAtStart = (donor: InputFile, t: InputTrack, cutDonorMs: number | null) =>
@@ -270,14 +277,14 @@ export function planBuild(
   const S = plan.offsetMs;
   if (!Number.isInteger(S)) throw new DyadrrError('INTERNAL', `build: the offset ${S} ms is not an integer`);
   const { startCutMs, endCutMs, endBeforeVideo } = cuts(plan);
-  const { audio, pgs } = takenTracks(donor, plan);
+  const { audio, subs } = takenTracks(donor, plan);
   const cutDonor = startCutMs === null ? null : startCutMs - S;
 
-  // Tracce dell'intermedio: prima l'audio, poi i PGS, nell'ordine finale. Nel
+  // Tracce dell'intermedio: prima l'audio, poi i sottotitoli, nell'ordine finale. Nel
   // primo intermedio l'ID di una traccia è la sua posizione.
   interface Item {
     track: InputTrack;
-    kind: 'audio' | 'pgs';
+    kind: 'audio' | 'subs';
     main: boolean;
     cls: PlannedSubtitleTrack | null;
     /** Spostamenti delle due passate. */
@@ -290,7 +297,7 @@ export function planBuild(
   const dropped: DroppedSubtitle[] = [];
   const items: Item[] = [
     ...audio.map((a) => ({ ...a, kind: 'audio' as const, cls: null })),
-    ...pgs.map((p) => ({ ...p, kind: 'pgs' as const, main: false })),
+    ...subs.map((p) => ({ ...p, kind: 'subs' as const, main: false })),
   ].map(({ track, kind, main, cls }): Item => {
     const span = trackSpan(donor, track);
     const cut = cutAtStart(donor, track, cutDonor);
@@ -312,7 +319,8 @@ export function planBuild(
     const second = startCutMs === null ? 0 : from !== null ? S + from : startCutMs;
 
     let endMs = endCutMs;
-    if (kind === 'pgs' && endCutMs !== null) {
+    // Un sottotitolo di testo a cavallo del taglio finale resta: ha la sua durata e si spegne da solo.
+    if (kind === 'subs' && cls!.pgs && endCutMs !== null) {
       const atEnd = endBeforeVideo ? facts.subtitlesAtCuts.find((x) => x.trackId === track.id && x.edge === 'end') : undefined;
       if (atEnd) {
         // Un sottotitolo a schermo nel taglio finale si toglie tutto: senza il
@@ -321,21 +329,20 @@ export function planBuild(
         dropped.push({ trackId: track.id, edge: 'end', cutMs: endCutMs, subtitleStartMs: endMs });
       }
     }
-    if (kind === 'pgs' && cut) {
+    if (kind === 'subs' && cut) {
       const atStart = facts.subtitlesAtCuts.find((x) => x.trackId === track.id && x.edge === 'start');
       if (atStart) dropped.push({ trackId: track.id, edge: 'start', cutMs: startCutMs!, subtitleStartMs: atStart.startMs + S });
     }
-    const expectedStartMs = kind === 'pgs' ? null : from !== null ? from + S : span.start + S;
+    const expectedStartMs = kind === 'subs' ? null : from !== null ? from + S : span.start + S;
     return { track, kind, main, cls, first, second, endMs, expectedStartMs };
   });
 
   const steps: BuildStep[] = [];
-  const uncompressed = (t: InputTrack) => t.compression === null;
   const compression = (list: readonly { track: InputTrack; id: number }[]) =>
     list.filter((x) => x.track.type === 'subtitles' && uncompressed(x.track)).flatMap((x) => ['--compression', `${x.id}:none`]);
   const selection = (list: readonly { kind: Item['kind']; id: number }[]) => {
     const a = list.filter((x) => x.kind === 'audio').map((x) => x.id);
-    const s = list.filter((x) => x.kind === 'pgs').map((x) => x.id);
+    const s = list.filter((x) => x.kind === 'subs').map((x) => x.id);
     return [
       ...(a.length > 0 ? ['--audio-tracks', a.join(',')] : ['--no-audio']),
       ...(s.length > 0 ? ['--subtitle-tracks', s.join(',')] : ['--no-subtitles']),
@@ -438,7 +445,7 @@ export function planBuild(
   }
   const refTracks = reference.tracks.filter((t) => !droppedReference.includes(t.id));
   const refSubtitles = reference.tracks.filter((t) => t.type === 'subtitles');
-  const defaultPgs = items.find((x) => x.kind === 'pgs' && x.cls!.forced && !x.cls!.commentary)?.track.id ?? null;
+  const defaultSubs = items.find((x) => x.kind === 'subs' && x.cls!.forced && !x.cls!.commentary)?.track.id ?? null;
 
   const out = join(jobDir, outputName);
   const args: string[] = [...MKVMERGE_COMMON, '-o', out];
@@ -454,22 +461,22 @@ export function planBuild(
       : ['--subtitle-tracks', `!${droppedReference.join(',')}`]));
   }
   args.push(reference.path);
-  // Intermedi: niente capitoli né tag; default l'audio principale e il primo PGS forced.
+  // Intermedi: niente capitoli né tag; default l'audio principale e il primo sottotitolo forced.
   const where = new Map<number, string>();
   parts.forEach((part, f) => {
     args.push(...INTERMEDIATE_INPUT);
     part.members.forEach((i, tid) => {
       const x = items[i]!;
       where.set(i, `${f + 1}:${tid}`);
-      args.push(...flag('--default-track-flag', tid, x.main || x.track.id === defaultPgs));
-      args.push(...flag('--forced-display-flag', tid, x.kind === 'pgs' ? x.cls!.forced : x.track.forced));
-      if (x.kind === 'pgs' && uncompressed(x.track)) args.push('--compression', `${tid}:none`);
+      args.push(...flag('--default-track-flag', tid, x.main || x.track.id === defaultSubs));
+      args.push(...flag('--forced-display-flag', tid, x.kind === 'subs' ? x.cls!.forced : x.track.forced));
+      if (x.kind === 'subs' && uncompressed(x.track)) args.push('--compression', `${tid}:none`);
     });
     args.push(part.file);
   });
 
-  // Ordine (§6.2): video, audio italiano, audio del riferimento, PGS italiani
-  // (forced, poi completi), sottotitoli del riferimento.
+  // Ordine (§6.2): video, audio italiano, audio del riferimento, sottotitoli
+  // italiani (forced, poi completi), sottotitoli del riferimento.
   const finalTrack = (source: TrackSource, t: InputTrack, extra: Partial<FinalTrack> = {}): FinalTrack => ({
     source,
     sourceTrackId: t.id,
@@ -498,17 +505,17 @@ export function planBuild(
       order.push(where.get(i)!);
       const end = x.track.endMs ?? trackSpan(donor, x.track).end;
       tracks.push(finalTrack('donor', x.track, {
-        default: x.main || x.track.id === defaultPgs,
-        forced: kind === 'pgs' ? x.cls!.forced : x.track.forced,
+        default: x.main || x.track.id === defaultSubs,
+        forced: kind === 'subs' ? x.cls!.forced : x.track.forced,
         expectedStartMs: x.expectedStartMs,
-        expectedEndMs: kind === 'pgs' ? null : x.endMs === null ? end + S : Math.min(end + S, x.endMs),
+        expectedEndMs: kind === 'subs' ? null : x.endMs === null ? end + S : Math.min(end + S, x.endMs),
       }));
     });
   };
   addReference('video');
   addItalian('audio');
   addReference('audio');
-  addItalian('pgs');
+  addItalian('subs');
   addReference('subtitles');
   args.push('--track-order', order.join(','));
   steps.push({ phase: 'merge', tool: 'mkvmerge', output: out, done: parts.map((p) => p.file), args });
@@ -519,6 +526,8 @@ export function planBuild(
 
 interface Packet {
   ptsMs: number;
+  /** Durata del blocco, se il contenitore la dà (i sottotitoli di testo). */
+  durationMs?: number | null;
   data: Buffer;
 }
 
@@ -578,6 +587,16 @@ export function subtitleOnScreen(packets: readonly Packet[], atMs: number): numb
   return start;
 }
 
+/**
+ * L'inizio del sottotitolo di testo a schermo in `atMs`: il primo che
+ * comincia prima e finisce dopo, dalla durata del blocco. `null` se a schermo
+ * non c'è niente.
+ */
+export function textOnScreen(packets: readonly Packet[], atMs: number): number | null {
+  const on = packets.filter((p) => p.ptsMs < atMs && p.durationMs != null && p.ptsMs + p.durationMs > atMs);
+  return on.length === 0 ? null : Math.min(...on.map((p) => p.ptsMs));
+}
+
 async function probePackets(donor: InputFile, track: InputTrack, fromMs: number, toMs: number, tools: ToolPaths, run: RunOptions): Promise<Packet[]> {
   if (track.streamIndex === null) {
     throw new DyadrrError('INPUT_UNREADABLE', `${donor.path}: track ${track.id} has no ffprobe stream to read`);
@@ -586,14 +605,19 @@ async function probePackets(donor: InputFile, track: InputTrack, fromMs: number,
   const result = await runTool(tools, 'ffprobe', [
     '-v', 'error', '-select_streams', String(track.streamIndex),
     '-read_intervals', `${seconds(fromMs)}%${seconds(toMs)}`,
-    '-show_entries', 'packet=pts_time,data', '-show_data', '-of', 'json', donor.path,
+    '-show_entries', 'packet=pts_time,duration_time,data', '-show_data', '-of', 'json', donor.path,
   ], run);
+  const ms = (seconds: string) => Math.round(Number(seconds) * 1e6) / 1000;
   try {
     if (result.exitCode !== 0) throw new Error();
-    const json = JSON.parse(result.stdout) as { packets?: { pts_time?: string; data?: string }[] };
+    const json = JSON.parse(result.stdout) as { packets?: { pts_time?: string; duration_time?: string; data?: string }[] };
     return (json.packets ?? [])
       .filter((p) => p.pts_time !== undefined && p.pts_time !== 'N/A')
-      .map((p) => ({ ptsMs: Math.round(Number(p.pts_time) * 1e6) / 1000, data: hexDumpBytes(p.data ?? '') }));
+      .map((p) => ({
+        ptsMs: ms(p.pts_time!),
+        durationMs: p.duration_time === undefined || p.duration_time === 'N/A' ? null : ms(p.duration_time),
+        data: hexDumpBytes(p.data ?? ''),
+      }));
   } catch {
     throw new DyadrrError('INPUT_UNREADABLE', `${donor.path}: ffprobe failed on track ${track.id} (exit code ${result.exitCode}): ${result.stderr.trim()}`);
   }
@@ -602,7 +626,7 @@ async function probePackets(donor: InputFile, track: InputTrack, fromMs: number,
 /**
  * Legge dal donatore quello che serve nei punti di taglio (§6.1, §7): il
  * punto di sincronizzazione delle tracce TrueHD tagliate all'inizio e i
- * sottotitoli PGS a schermo nei tagli. Legge pochi secondi intorno a ogni
+ * sottotitoli a schermo nei tagli. Legge pochi secondi intorno a ogni
  * taglio, mai tutto il file.
  *
  * Errori: `INPUT_UNREADABLE` (ffprobe fallisce, o una traccia TrueHD senza
@@ -613,7 +637,7 @@ export async function readCutFacts(donor: InputFile, plan: Plan, options: { tool
   const run = { signal: options.signal };
   const S = plan.offsetMs;
   const { startCutMs, endCutMs, endBeforeVideo } = cuts(plan);
-  const { audio, pgs } = takenTracks(donor, plan);
+  const { audio, subs } = takenTracks(donor, plan);
   const cutDonor = startCutMs === null ? null : startCutMs - S;
   const trueHdSyncMs = new Map<number, number>();
   const subtitlesAtCuts: SubtitleAtCut[] = [];
@@ -631,11 +655,12 @@ export async function readCutFacts(donor: InputFile, plan: Plan, options: { tool
   const edges: { edge: 'start' | 'end'; atMs: number }[] = [];
   if (cutDonor !== null) edges.push({ edge: 'start', atMs: cutDonor });
   if (endBeforeVideo) edges.push({ edge: 'end', atMs: endCutMs! - S });
-  for (const { track } of pgs) {
+  for (const { track, cls } of subs) {
     for (const { edge, atMs } of edges) {
       if (edge === 'start' && !cutAtStart(donor, track, cutDonor)) continue;
+      if (edge === 'end' && !cls.pgs) continue;
       const packets = await probePackets(donor, track, atMs - SUBTITLE_LOOKBACK_MS, atMs, tools, run);
-      const start = subtitleOnScreen(packets, atMs);
+      const start = cls.pgs ? subtitleOnScreen(packets, atMs) : textOnScreen(packets, atMs);
       if (start !== null) subtitlesAtCuts.push({ trackId: track.id, edge, startMs: start });
     }
   }
