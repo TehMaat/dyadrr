@@ -1,10 +1,10 @@
 # Dyadrr: studio di fattibilità
 
-Stato: bozza 0.20, ottobre 2026.
+Stato: bozza 0.21, ottobre 2026.
 
 Questo documento raccoglie le decisioni prese, quelle ancora aperte e i risultati delle prime verifiche sperimentali (§18). È il punto di partenza del repo.
 
-La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). La 0.9 fissa la costruzione del file finale (tagli, TrueHD, coda, unione, sottotitoli persi ai tagli, file temporanei) e chiude la decisione 7: in fase 2 Dyadrr gira in un container separato (§6, §7, §13, §14, §17). La 0.10 fissa le verifiche dopo il merge: cosa si legge del file finale, le tolleranze "entro un pacchetto" per codec, cosa è bloccante e cosa è solo un avviso (§9.5, §12). La 0.11 fissa la riga di comando e il report: forma esatta del report e sua versione, eventi di `--progress json`, confronto di `--expect`, richiesta delle scelte e annullamento (§9.4, §10, §11). La 0.12 chiude le decisioni 3, 4, 5, 6 e 11 sull'integrazione con Wayfinderr, e aggiunge alla riga di comando la cancellazione degli ingressi dopo il merge (§10.2, §15, §17). La 0.13 fa chiedere in un terminale se cancellare un file finale che c'è già (§6.4, §10). La 0.14 fissa il runner dei file job e l'immagine Docker: chiavi del job, percorsi, lavori interrotti, `dyadrr.alive`, versioni di ffmpeg e mkvtoolnix, pubblicazione (§14.1, §14.2). La 0.15 fissa lo strumento per misurare le coppie reali della fase 1: elenco delle coppie, cartella dei risultati, verdetto di ogni coppia e riassunto per la taratura (§11.2, §15). La 0.16 toglie gli UID dei capitoli dalle verifiche dopo il merge, dopo il primo merge su una coppia vera (§9.5). La 0.17 corregge, sulle prime coppie vere, la forma delle contraddizioni ai bordi del film, aggiunge l'avviso sulle tracce principali e sceglie la traccia del controllo di trasferimento (§4.2, §4.5, §4.7, §9.5). La 0.18 fa importare a `dyadrr-pairs` i report già fatti, così i rip si possono cancellare dopo l'analisi, e ferma l'analisi fino al riassunto della fase 1 (§15). La 0.19 corregge il confronto di `--expect` per una scelta che un'altra rende inutile (§10). La 0.20 legge l'inizio di un italiano che parte tardi nel file finale (§9.5). Le modifiche principali sono elencate in §20.
+La 0.2 corregge la 0.1 dopo una revisione indipendente. La 0.3 chiude le decisioni su lingua originale, scelte dell'utente e licenza. La 0.4 fissa i limiti dei parametri di taratura, i valori provvisori delle soglie ancora da tarare e le regole della funzione di decisione (§9.6). La 0.5 fissa le regole della lettura degli ingressi: controllo di integrità, file ancora in scrittura e programmi esterni (§4.8, §10, §13). La 0.6 fissa il metodo di lettura delle finestre audio, provato a mano, e la versione minima di ffmpeg (§4.2, §4.3, §13, §18). La 0.7 fissa il metodo di correlazione (confidenza dei picchi, ancore, confini, punti di conferma, controllo di trasferimento) con i suoi parametri di taratura, e corregge la lettura delle finestre per i file con uno `start_time` oltre il pre-roll (§4.2–4.7, §9.2, §18). La 0.8 fissa il piano di inizio e fine: casi, tagli, scelte necessarie con l'effetto di ogni valore, tracce italiane prese, riconoscimento dei forced e avvisi del piano, con i suoi parametri di taratura (§5, §7, §8, §9.2, §10.1). La 0.9 fissa la costruzione del file finale (tagli, TrueHD, coda, unione, sottotitoli persi ai tagli, file temporanei) e chiude la decisione 7: in fase 2 Dyadrr gira in un container separato (§6, §7, §13, §14, §17). La 0.10 fissa le verifiche dopo il merge: cosa si legge del file finale, le tolleranze "entro un pacchetto" per codec, cosa è bloccante e cosa è solo un avviso (§9.5, §12). La 0.11 fissa la riga di comando e il report: forma esatta del report e sua versione, eventi di `--progress json`, confronto di `--expect`, richiesta delle scelte e annullamento (§9.4, §10, §11). La 0.12 chiude le decisioni 3, 4, 5, 6 e 11 sull'integrazione con Wayfinderr, e aggiunge alla riga di comando la cancellazione degli ingressi dopo il merge (§10.2, §15, §17). La 0.13 fa chiedere in un terminale se cancellare un file finale che c'è già (§6.4, §10). La 0.14 fissa il runner dei file job e l'immagine Docker: chiavi del job, percorsi, lavori interrotti, `dyadrr.alive`, versioni di ffmpeg e mkvtoolnix, pubblicazione (§14.1, §14.2). La 0.15 fissa lo strumento per misurare le coppie reali della fase 1: elenco delle coppie, cartella dei risultati, verdetto di ogni coppia e riassunto per la taratura (§11.2, §15). La 0.16 toglie gli UID dei capitoli dalle verifiche dopo il merge, dopo il primo merge su una coppia vera (§9.5). La 0.17 corregge, sulle prime coppie vere, la forma delle contraddizioni ai bordi del film, aggiunge l'avviso sulle tracce principali e sceglie la traccia del controllo di trasferimento (§4.2, §4.5, §4.7, §9.5). La 0.18 fa importare a `dyadrr-pairs` i report già fatti, così i rip si possono cancellare dopo l'analisi, e ferma l'analisi fino al riassunto della fase 1 (§15). La 0.19 corregge il confronto di `--expect` per una scelta che un'altra rende inutile (§10). La 0.20 legge l'inizio di un italiano che parte tardi nel file finale (§9.5). La 0.21 prende anche i sottotitoli italiani di testo del donatore (P6, §6, §7). Le modifiche principali sono elencate in §20.
 
 ---
 
@@ -53,7 +53,7 @@ Il nome viene da *diade*: due elementi che formano una coppia.
 | P3 | Solo versioni identiche, mai theatrical con extended | La verifica la fa l'utente. Dyadrr la ricontrolla comunque e rifiuta se trova differenze a metà film |
 | P4 | Il disco italiano ha sempre anche la traccia inglese | La sincronizzazione si misura confrontando **una lingua con la stessa lingua**: di norma inglese con inglese (§3.3) |
 | P5 | Le differenze di framerate non si gestiscono | Con velocità diverse il merge si rifiuta |
-| P6 | Sottotitoli in PGS (HDMV) | Si spostano nel tempo come l'audio, senza toccarli |
+| P6 | Sottotitoli in PGS (HDMV) o di testo (SubRip, SSA/ASS, WebVTT) | Si spostano nel tempo come l'audio, senza toccarli (il testo dalla 0.21) |
 | P7 | Fa fede il video di qualità maggiore | Vedi "Ruoli" (§3.2) |
 
 ### 2.2 Ipotesi
@@ -367,7 +367,7 @@ Si usa mkvmerge, sempre in modalità `--gui-mode` per leggerne l'avanzamento e g
 
 ### 6.1 File intermedio con le sole tracce italiane
 
-Prima si costruisce un file che contiene **solo** l'audio e i PGS italiani del donatore. Lo spostamento (`--sync`) si applica qui, e soltanto qui.
+Prima si costruisce un file che contiene **solo** l'audio e i sottotitoli italiani (PGS e di testo) del donatore. Lo spostamento (`--sync`) si applica qui, e soltanto qui.
 
 - **Taglio iniziale (S < 0).** mkvmerge scarta interi tutti i pacchetti che iniziano prima dello zero, compreso quello a cavallo dello zero: si perdono fino a circa 32 ms in più per AC3 ed E-AC3, 10,7 ms per DTS, 85–96 ms per FLAC. Il resto della traccia non si sposta di nulla.
 - **TrueHD con S < 0.** TrueHD si può decodificare solo a partire da un punto di sincronizzazione completo, che sui Blu-ray può arrivare fino a circa ogni 107 ms. mkvmerge non sposta il taglio su quel punto.
@@ -387,15 +387,15 @@ Prima si costruisce un file che contiene **solo** l'audio e i PGS italiani del d
 - **Ordine delle tracce esplicito** (`--track-order`):
   1. video del riferimento;
   2. audio: italiano principale, poi le altre tracce italiane (§8), poi le tracce audio del riferimento;
-  3. sottotitoli: PGS italiani forced, poi PGS italiani completi, poi quelli del riferimento;
+  3. sottotitoli: italiani forced, poi italiani completi (PGS e di testo, nell'ordine del donatore), poi quelli del riferimento;
   4. capitoli: quelli del riferimento.
 - **Flag "default" esplicito per OGNI traccia.** Altrimenti mkvmerge tiene i flag di origine, e la traccia inglese del riferimento resta predefinita accanto a quella italiana. Il flag vale 1 solo per:
   - l'audio italiano principale;
-  - il PGS italiano forced, se esiste.
+  - il primo sottotitolo italiano forced, PGS o di testo, se esiste.
 
-  Vale 0 per tutte le altre tracce, compresi l'inglese e i forced del riferimento. Se non c'è un forced italiano, **nessun sottotitolo è predefinito**: un PGS completo predefinito sottotitolerebbe tutto il doppiaggio.
+  Vale 0 per tutte le altre tracce, compresi l'inglese e i forced del riferimento. Se non c'è un forced italiano, **nessun sottotitolo è predefinito**: un sottotitolo completo predefinito sottotitolerebbe tutto il doppiaggio.
 - **Flag "forced" esplicito**: è il flag della traccia Matroska. Quello interno al flusso PGS non si tocca.
-- **Compressione dei PGS come nell'originale.** Per default mkvmerge comprime i PGS con zlib, e alcuni lettori lo gestiscono male. Si passa `--compression <traccia>:none` per ogni PGS che nell'originale non era compresso.
+- **Compressione dei PGS come nell'originale.** Per default mkvmerge comprime i PGS con zlib, e alcuni lettori lo gestiscono male. Si passa `--compression <traccia>:none` per ogni PGS che nell'originale non era compresso. I sottotitoli di testo non si comprimono mai (0.21): mkvmerge non li comprime per default, anche se nell'originale lo erano, e `--compression <traccia>:none` lo rende esplicito.
 - Video, HDR e Dolby Vision del riferimento restano invariati, e la verifica lo controlla (§9.5).
 
 ### 6.3 Esito di mkvmerge
@@ -437,10 +437,10 @@ Nella 0.9:
 - **Taglio iniziale in c**, sulla linea del tempo del riferimento (l'inizio del film o il confine iniziale, §5): due passate di `--sync`. La prima sposta ogni traccia di S − c, così c cade sullo zero e mkvmerge scarta i pacchetti che cominciano prima; la seconda la sposta di c. Vale per tutti i codec, FLAC compreso, e per i PGS. Con c = 0 la seconda passata serve solo per TrueHD. Una traccia che comincia dopo c non perde niente. Senza taglio iniziale c'è una sola passata, di S.
 - **TrueHD** (§6.1): la prima passata porta a zero il primo punto di sincronizzazione dal taglio in poi. Il punto si riconosce dai dati, un pacchetto con la firma `F8 72 6F BA` (major sync) nei byte 4–7, letto con ffprobe entro 1 s dal taglio; il primo che si legge non conta, perché dopo una ricerca ffmpeg gli dà il tempo dei pacchetti che lo precedono. mkvmerge segna questi pacchetti come fotogrammi chiave, ma la firma vale anche per i file di altri programmi. Senza un punto entro 1 s: `INPUT_UNREADABLE`.
 - **Taglio finale in e:** `--split parts:00:00:00-e` sull'intermedio, che tiene i timestamp e taglia sul primo pacchetto da e in poi, escluso. Per TrueHD sul primo punto di sincronizzazione da e in poi, perché mkvmerge divide solo sui fotogrammi chiave, che per TrueHD sono i punti di sincronizzazione: la traccia può finire fino a circa 107 ms dopo e (0.10, §18). Le tracce FLAC vanno in un file a parte, con `ffmpeg -copyts -c copy -to e`. Un PGS con un sottotitolo a schermo in e, se e cade prima della fine del video, si taglia all'inizio di quel sottotitolo (§7). Ogni punto di taglio diverso è un file.
-- **Intermedi:** senza video, capitoli, tag, allegati e titolo, con le tracce nell'ordine finale. `--compression <traccia>:none` si ripete a ogni passata per i PGS non compressi nell'originale, perché ogni passata di mkvmerge li comprimerebbe. Ogni file si elimina appena non serve più.
+- **Intermedi:** senza video, capitoli, tag, allegati e titolo, con le tracce nell'ordine finale. `--compression <traccia>:none` si ripete a ogni passata per i PGS non compressi nell'originale, perché ogni passata di mkvmerge li comprimerebbe, e per i sottotitoli di testo. Ogni file si elimina appena non serve più.
 - **Unione finale** (§6.2): gli intermedi con `--no-chapters --no-global-tags --no-track-tags --no-attachments`; `--default-track-flag` e `--forced-display-flag` per ogni traccia.
-  - Default: la traccia video principale del riferimento, l'audio italiano principale e il primo PGS italiano forced che non sia un commento. Le altre tracce video, se ci sono, no.
-  - Forced: i PGS italiani riconosciuti come forced (§7), anche senza il flag nell'originale; per tutte le altre tracce il flag dell'originale.
+  - Default: la traccia video principale del riferimento, l'audio italiano principale e il primo sottotitolo italiano forced che non sia un commento. Le altre tracce video, se ci sono, no.
+  - Forced: i sottotitoli italiani riconosciuti come forced (§7), anche senza il flag nell'originale; per tutte le altre tracce il flag dell'originale.
   - I PGS italiani del riferimento scartati con `--reference-italian-subs drop` si tolgono con `--subtitle-tracks !<tracce>`.
 - **mkvmerge** sempre con `--gui-mode` e `--flush-on-close` e con `LC_ALL=C.UTF-8`, come Wayfinderr: l'avanzamento viene dalle righe `#GUI#progress`, avvisi ed errori da `#GUI#warning` e `#GUI#error`.
 - **Prima di scrivere** (§9.4): scelte (`CHOICE_REQUIRED`), file finale (`OUTPUT_EXISTS`, `OUTPUT_NOT_WRITABLE`), cartella dei temporanei (`BAD_ARGUMENTS`), ingressi cambiati dall'analisi (`INPUT_BUSY`), spazio libero (`NO_SPACE`, §13).
@@ -450,7 +450,7 @@ Nella 0.9:
 
 ---
 
-## 7. Sottotitoli PGS
+## 7. Sottotitoli PGS e di testo
 
 - **Spostamento:** sono immagini con un tempo associato, quindi lo stesso S li allinea senza toccarli.
 - **Al taglio iniziale:**
@@ -478,17 +478,22 @@ Nella 0.9:
 
   Il report indica come è stata classificata e perché.
 - **PGS italiani già nel riferimento:** si tengono dopo quelli del donatore e mai predefiniti, oppure si scartano. È una scelta dell'utente (`--reference-italian-subs`, §10.1). In entrambi i casi scatta l'avviso `REFERENCE_HAS_ITALIAN_SUBS`.
-- **Sottotitoli italiani non PGS** nel donatore: si scartano con l'avviso `ITALIAN_SUBS_NOT_PGS`.
+- **Sottotitoli italiani di testo** nel donatore (0.21): SubRip, SSA/ASS e WebVTT (codec Matroska `S_TEXT/…`) si prendono come i PGS. Sono righe di testo con un tempo e una durata: lo stesso S li allinea, e il lettore li disegna sopra qualsiasi video. Capita con i file fatti a mano, per esempio Turning Red, con i sottotitoli italiani aggiunti in SubRip.
+  - **Al taglio iniziale** come i PGS: la riga a schermo nel punto di taglio si perde tutta e si conta tra i persi.
+  - **Al taglio finale** no: ogni riga ha la sua durata e si spegne da sola. Una riga a cavallo resta fino alla sua fine, sopra il video che continua.
+  - **Compressione:** nessuna nel file finale (§6.2).
+  - Niente `SDR_SUBS_ON_HDR`: il colore lo decide il lettore.
+- **Altri sottotitoli italiani** nel donatore (per esempio VobSub dei DVD): si scartano con l'avviso `ITALIAN_SUBS_NOT_PGS`. Il nome del codice viene da quando si prendevano solo i PGS.
 - **Avviso sui forced mancanti:** `NO_FORCED_ITALIAN_SUBS` scatta solo se il riferimento ha un forced in un'altra lingua (indizio di scritte straniere a schermo) e il donatore non ha un forced italiano. Altrimenti scatterebbe su quasi tutti i film.
 - **Caso noto:** alcuni dischi italiani (tipicamente Disney e Pixar) hanno le scritte in italiano direttamente nel video. Su quei dischi possono mancare i forced per quelle scritte, che sul video inglese restano in inglese.
 
 **Il metodo (0.8).**
-- **Quali tracce:** tutti i PGS italiani del donatore. Gli altri sottotitoli italiani del donatore si scartano con `ITALIAN_SUBS_NOT_PGS`, un avviso per traccia; quelli non italiani non si prendono.
-- **Forced:** il flag, poi il nome ("forced", "forzati"), poi i blocchi, confrontati con la traccia più grande **della stessa lingua**. Senza tag statistici il terzo criterio si salta. Lo stesso vale per i sottotitoli del riferimento: `NO_FORCED_ITALIAN_SUBS` guarda i suoi forced non italiani.
+- **Quali tracce:** tutti i PGS e i sottotitoli di testo italiani del donatore (il testo dalla 0.21). Gli altri sottotitoli italiani del donatore si scartano con `ITALIAN_SUBS_NOT_PGS`, un avviso per traccia; quelli non italiani non si prendono.
+- **Forced:** il flag, poi il nome ("forced", "forzati"), poi i blocchi, confrontati con la traccia più grande **della stessa lingua e dello stesso formato** (PGS, testo, o lo stesso codec per gli altri; dalla 0.21). Un sottotitolo PGS è almeno due blocchi, uno di testo uno solo: tra formati diversi il confronto sbaglierebbe di un fattore 2. Senza tag statistici il terzo criterio si salta. Lo stesso vale per i sottotitoli del riferimento: `NO_FORCED_ITALIAN_SUBS` guarda i suoi forced non italiani.
 - **`SDR_SUBS_ON_HDR`:** si prende almeno un PGS italiano, il video del donatore è SDR e quello del riferimento no.
 - **PGS italiani del riferimento:** le tracce del riferimento in italiano e in PGS. `REFERENCE_HAS_ITALIAN_SUBS` scatta anche con `--reference-italian-subs` in sospeso.
 
-**Sottotitoli persi ai tagli (0.9).** Per ogni PGS preso e ogni taglio si leggono con ffprobe i blocchi dei 30 s prima del punto di taglio. Un sottotitolo è a schermo se, dopo l'ultima composizione che toglie tutto (nessun oggetto), ce n'è una che mostra qualcosa; il suo inizio è la prima di queste. Al più uno per traccia e per taglio. `SUBTITLES_DROPPED_AT_CUT` scatta una volta, con il numero dei sottotitoli persi; il report li elenca con traccia, taglio e inizio. Un sottotitolo che resta a schermo più di 30 s sfugge.
+**Sottotitoli persi ai tagli (0.9).** Per ogni PGS preso e ogni taglio si leggono con ffprobe i blocchi dei 30 s prima del punto di taglio. Un sottotitolo è a schermo se, dopo l'ultima composizione che toglie tutto (nessun oggetto), ce n'è una che mostra qualcosa; il suo inizio è la prima di queste. Per il testo (0.21) solo al taglio iniziale: una riga è a schermo se comincia prima del taglio e finisce dopo, dalla durata del blocco; se ce ne sono più insieme, conta l'inizio della prima. Al più uno per traccia e per taglio. `SUBTITLES_DROPPED_AT_CUT` scatta una volta, con il numero dei sottotitoli persi; il report li elenca con traccia, taglio e inizio. Un sottotitolo che resta a schermo più di 30 s sfugge.
 
 ---
 
@@ -895,7 +900,7 @@ Ogni rifiuto elenca le tracce trovate. Se c'entra un tag di lingua, suggerisce c
 | `ITALIAN_TRANSFER_OFFSET`, `ITALIAN_UNVERIFIED` | Controllo di trasferimento (§4.7) |
 | `ITALIAN_TRACKS_SKIPPED` | Solo con `--italian main` |
 | `REFERENCE_HAS_ITALIAN_SUBS` | Il riferimento ha già PGS italiani |
-| `ITALIAN_SUBS_NOT_PGS` | Sottotitoli italiani non PGS scartati |
+| `ITALIAN_SUBS_NOT_PGS` | Sottotitoli italiani né PGS né di testo scartati (§7) |
 | `NO_FORCED_ITALIAN_SUBS` | Vedi §7 |
 | `SDR_SUBS_ON_HDR` | PGS da un disco SDR sopra un video HDR |
 | `SUBTITLES_DROPPED_AT_CUT` | Sottotitoli persi ai tagli |
@@ -1452,3 +1457,9 @@ Durante la revisione sono state fatte prove su **file sintetici** generati con f
 - **0.20:** italiano che parte tardi nel file finale.
   - **Verifica dell'italiano:** mkvmerge -J dà il primo timestamp di una traccia solo se cade nei primi secondi del file (circa 10). Su Kung Fu Panda 2 l'italiano partiva a 24,7 s, dopo il logo Universal che il BD italiano non ha, e la verifica finiva in `VERIFY_FAILED` (*track 1 starts at none ms*). Se manca, l'inizio si legge dal primo pacchetto con ffprobe, più il ritardo del codec (§9.5).
   - **Ingressi:** lo stesso limite vale per le tracce degli ingressi che cominciano tardi. Lì non si cambia finché l'analisi è ferma (§15): nei rip finora le tracce cominciano tutte dall'inizio.
+- **0.21:** sottotitoli italiani di testo.
+  - **Quali tracce:** si prendono anche SubRip, SSA/ASS e WebVTT, come i PGS; `ITALIAN_SUBS_NOT_PGS` resta per gli altri formati (VobSub). Su Turning Red, con il BD italiano montato a mano, i due sottotitoli italiani in testo si sarebbero persi (P6, §7).
+  - **Tagli:** la riga a schermo al taglio iniziale si perde come per i PGS; al taglio finale resta, perché ha la sua durata (§6.5, §7).
+  - **Forced:** i blocchi si confrontano nello stesso formato, perché un sottotitolo PGS è almeno due blocchi e uno di testo uno solo (§7).
+  - **Default e compressione:** il primo forced, PGS o di testo; il testo mai compresso (§6.2).
+  - **Analisi:** cambiano solo i sottotitoli del piano e i loro avvisi, non misure, decisione e soglie; i report di prima restano validi (§15).

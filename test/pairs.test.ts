@@ -502,10 +502,10 @@ test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassu
   const old = variant((r) => (r.dyadrr = '0.13.1'));
   assert.deepEqual(checkImport(old, moved, current), {
     from: '0.13.1',
-    differences: ANALYSIS_CHANGES.filter((c) => c.version === '0.14.0' && !c.stale(old)).map((c) => `${c.version}: ${c.what}`),
+    differences: ANALYSIS_CHANGES.filter((c) => !c.stale(old)).map((c) => `${c.version}: ${c.what}`),
     stale: null,
   });
-  assert.equal(checkImport(old, moved, current).differences.length, 3);
+  assert.equal(checkImport(old, moved, current).differences.length, 4);
   const oldJumps = jumps(1);
   oldJumps.dyadrr = '0.13.1';
   assert.match(checkImport(oldJumps, moved, current).stale!, /^Dyadrr 0\.13\.1, changed in 0\.14\.0: contradiction shape/);

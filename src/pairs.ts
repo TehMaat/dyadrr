@@ -88,6 +88,7 @@ export const ANALYSIS_CHANGES: readonly AnalysisChange[] = [
   },
   { version: '0.14.0', what: 'warning MAIN_TRACKS_DISAGREE', stale: () => false },
   { version: '0.14.0', what: 'transfer check on every track of the measure language', stale: () => false },
+  { version: '0.16.0', what: 'Italian text subtitles taken; forced by blocks within the same format', stale: () => false },
 ];
 
 /** I campi di `summary.json`, nell'ordine in cui si scrivono. */

@@ -121,8 +121,10 @@ export interface SubtitleClass {
   language: string | null;
   name: string | null;
   pgs: boolean;
+  /** Sottotitoli di testo: SubRip, SSA/ASS, WebVTT. */
+  text: boolean;
   forced: boolean;
-  /** Perché è forced: il flag, il nome, oppure molti meno blocchi della traccia più grande della sua lingua. */
+  /** Perché è forced: il flag, il nome, oppure molti meno blocchi della traccia più grande della sua lingua e del suo formato. */
   forcedBy: 'flag' | 'name' | 'blocks' | null;
   /** Blocchi dai tag statistici (`NUMBER_OF_FRAMES`); `null` se mancano. */
   blocks: number | null;
@@ -130,7 +132,7 @@ export interface SubtitleClass {
   reason: string;
 }
 
-/** Un sottotitolo italiano del donatore: si prendono i PGS, gli altri si scartano (§7). */
+/** Un sottotitolo italiano del donatore: si prendono i PGS e quelli di testo, gli altri si scartano (§7). */
 export interface PlannedSubtitleTrack extends SubtitleClass {
   taken: boolean;
 }
@@ -186,38 +188,47 @@ export function isPgs(track: Pick<InputTrack, 'codec' | 'codecId'>): boolean {
   return track.codecId === 'S_HDMV/PGS' || /\bPGS\b/i.test(track.codec);
 }
 
+/** Sottotitoli di testo che mkvmerge copia così come sono: SubRip, SSA/ASS, WebVTT. */
+const TEXT_CODEC_IDS = ['S_TEXT/UTF8', 'S_TEXT/ASCII', 'S_TEXT/SSA', 'S_TEXT/ASS', 'S_TEXT/WEBVTT'];
+
+export function isTextSubtitle(track: Pick<InputTrack, 'codec' | 'codecId'>): boolean {
+  return TEXT_CODEC_IDS.includes(track.codecId ?? '') || /SubRip|SubStationAlpha|WebVTT/i.test(track.codec);
+}
+
 const FORCED_NAME = /forced|forzati/i;
 
 /**
  * Classifica le tracce di sottotitoli di un file (§7). Una traccia è forced se
  * ha il flag, se il nome lo dice ("forced", "forzati"), o se ha meno blocchi
- * di `forcedSubsFraction` di quelli della traccia più grande della sua lingua.
- * I blocchi vengono dai tag statistici: contare i sottotitoli vorrebbe dire
- * leggere tutto il file.
+ * di `forcedSubsFraction` di quelli della traccia più grande della sua lingua
+ * e del suo formato: un sottotitolo PGS è almeno due blocchi, uno di testo
+ * uno solo. I blocchi vengono dai tag statistici: contare i sottotitoli
+ * vorrebbe dire leggere tutto il file.
  */
 export function classifySubtitles(tracks: readonly InputTrack[], cal: Calibration): SubtitleClass[] {
   const fraction = cal.values.forcedSubsFraction;
   const subtitles = tracks.filter((t) => t.type === 'subtitles');
-  const largest = new Map<string | null, number>();
+  const format = (t: InputTrack) => (isPgs(t) ? 'PGS' : isTextSubtitle(t) ? 'text' : t.codec);
+  const group = (t: InputTrack) => `${trackLanguage(t) ?? 'und'} ${format(t)}`;
+  const largest = new Map<string, number>();
   for (const t of subtitles) {
     const blocks = t.statistics?.frames ?? null;
-    const language = trackLanguage(t);
-    if (blocks !== null) largest.set(language, Math.max(largest.get(language) ?? 0, blocks));
+    if (blocks !== null) largest.set(group(t), Math.max(largest.get(group(t)) ?? 0, blocks));
   }
   return subtitles.map((t): SubtitleClass => {
     const language = trackLanguage(t);
     const blocks = t.statistics?.frames ?? null;
-    const top = largest.get(language) ?? null;
-    const base = { id: t.id, language, name: t.name, pgs: isPgs(t), blocks, commentary: isCommentaryOrDescription(t) };
+    const top = largest.get(group(t)) ?? null;
+    const base = { id: t.id, language, name: t.name, pgs: isPgs(t), text: isTextSubtitle(t), blocks, commentary: isCommentaryOrDescription(t) };
     if (t.forced) return { ...base, forced: true, forcedBy: 'flag', reason: 'forced flag set' };
     if (FORCED_NAME.test(t.name ?? '')) return { ...base, forced: true, forcedBy: 'name', reason: `the name "${t.name}" says forced` };
     if (blocks === null || top === null || top === 0) {
       return { ...base, forced: false, forcedBy: null, reason: 'no forced flag or name, and no block count to compare' };
     }
-    const share = `${blocks} blocks, ${round2((blocks / top) * 100)}% of the largest ${language ?? 'und'} track (${top})`;
+    const share = `${blocks} blocks, ${round2((blocks / top) * 100)}% of the largest ${group(t)} track (${top})`;
     return blocks < fraction * top
       ? { ...base, forced: true, forcedBy: 'blocks', reason: `${share}: below ${round2(fraction * 100)}%` }
-      : { ...base, forced: false, forcedBy: null, reason: blocks === top ? `${blocks} blocks, the largest ${language ?? 'und'} track` : share };
+      : { ...base, forced: false, forcedBy: null, reason: blocks === top ? `${blocks} blocks, the largest ${group(t)} track` : share };
   });
 }
 
@@ -420,9 +431,9 @@ function layout(ctx: Context, values: Partial<Record<ChoiceName, string>>): Layo
   }
 
   // Sottotitoli (§7).
-  const pgs = ctx.donorSubtitles.filter((s) => s.pgs);
-  for (const s of ctx.donorSubtitles.filter((x) => !x.pgs)) {
-    warn('ITALIAN_SUBS_NOT_PGS', `Italian subtitle track ${s.id} of the donor is not PGS: dropped`, s.id);
+  const subs = ctx.donorSubtitles.filter((s) => s.pgs || s.text);
+  for (const s of ctx.donorSubtitles.filter((x) => !x.pgs && !x.text)) {
+    warn('ITALIAN_SUBS_NOT_PGS', `Italian subtitle track ${s.id} of the donor is neither PGS nor text: dropped`, s.id);
   }
   const refSubs = value('referenceItalianSubs', ctx.referenceItalianPgs.length > 0);
   if (ctx.referenceItalianPgs.length > 0) {
@@ -431,11 +442,11 @@ function layout(ctx: Context, values: Partial<Record<ChoiceName, string>>): Layo
       : 'kept or dropped with --reference-italian-subs';
     warn('REFERENCE_HAS_ITALIAN_SUBS', `the reference already has ${ctx.referenceItalianPgs.length} Italian PGS track(s): ${what}`, ctx.referenceItalianPgs.length);
   }
-  if (ctx.referenceForcedOther.length > 0 && !pgs.some((s) => s.forced)) {
+  if (ctx.referenceForcedOther.length > 0 && !subs.some((s) => s.forced)) {
     const ids = ctx.referenceForcedOther.map((s) => `${s.id} (${s.language ?? 'und'})`).join(', ');
-    warn('NO_FORCED_ITALIAN_SUBS', `the reference has forced subtitles (track ${ids}) but the donor has no forced Italian PGS`);
+    warn('NO_FORCED_ITALIAN_SUBS', `the reference has forced subtitles (track ${ids}) but the donor has no forced Italian subtitles`);
   }
-  if (pgs.length > 0 && ctx.sdrOnHdr) {
+  if (subs.some((s) => s.pgs) && ctx.sdrOnHdr) {
     warn('SDR_SUBS_ON_HDR', 'Italian PGS from an SDR disc over an HDR video: some players show them too bright');
   }
 
@@ -556,7 +567,7 @@ export function planMerge(input: PlanInput, cal: Calibration): Plan {
       taken: top.taken === null ? null : top.taken.includes(t),
       ...trackTime(t),
     })),
-    subtitles: ctx.donorSubtitles.map((s) => ({ ...s, taken: s.pgs })),
+    subtitles: ctx.donorSubtitles.map((s) => ({ ...s, taken: s.pgs || s.text })),
     referenceItalianSubtitles: ctx.referenceItalianPgs.map((s) => ({ ...s, kept: top.referenceSubtitlesKept })),
     choices,
     pending: states.filter((s) => s.status === 'pending').map((s) => s.name),

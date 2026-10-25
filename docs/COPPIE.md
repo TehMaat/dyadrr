@@ -144,6 +144,7 @@ report di prima:
 | 0.14.0 | Forma della contraddizione: un tratto di un punto solo a un bordo del film è un salto | ha una contraddizione |
 | 0.14.0 | Avviso `MAIN_TRACKS_DISAGREE` | mai: è solo un avviso in più |
 | 0.14.0 | Controllo di trasferimento su ogni traccia della lingua di misura | mai: cambiano solo trasferimento e avvisi |
+| 0.16.0 | Sottotitoli italiani di testo presi; forced dai blocchi confrontati nello stesso formato | mai: cambiano solo i sottotitoli del piano e i loro avvisi |
 
 Un report importato più vecchio ma valido entra con le sue differenze da oggi
 (`imported.differences`). Se le versioni delle coppie non sono tutte uguali,

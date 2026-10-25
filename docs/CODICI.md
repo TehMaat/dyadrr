@@ -70,10 +70,10 @@ Non cambiano la decisione: finiscono nel report.
 | `ITALIAN_UNVERIFIED` | L'allineamento dell'italiano con la lingua di misura non si è potuto verificare |
 | `ITALIAN_TRACKS_SKIPPED` | Una traccia audio italiana scartata con `--italian main`: un avviso per traccia |
 | `REFERENCE_HAS_ITALIAN_SUBS` | Il riferimento ha già PGS italiani, tenuti o scartati (`--reference-italian-subs`) |
-| `ITALIAN_SUBS_NOT_PGS` | Una traccia di sottotitoli italiani non PGS del donatore, scartata |
-| `NO_FORCED_ITALIAN_SUBS` | Il riferimento ha forced in un'altra lingua e il donatore non ha forced italiani |
+| `ITALIAN_SUBS_NOT_PGS` | Una traccia di sottotitoli italiani del donatore né PGS né di testo (SubRip, SSA/ASS, WebVTT), per esempio VobSub: scartata. Il nome viene da quando si prendevano solo i PGS |
+| `NO_FORCED_ITALIAN_SUBS` | Il riferimento ha forced in un'altra lingua e il donatore non ha forced italiani, PGS o di testo |
 | `SDR_SUBS_ON_HDR` | PGS italiani da un donatore SDR sopra un video di riferimento HDR |
-| `SUBTITLES_DROPPED_AT_CUT` | Sottotitoli a schermo in un punto di taglio, persi: all'inizio, o alla fine se il taglio cade prima della fine del video. Un avviso, con il numero |
+| `SUBTITLES_DROPPED_AT_CUT` | Sottotitoli a schermo in un punto di taglio, persi: all'inizio, o per i PGS alla fine se il taglio cade prima della fine del video. Un avviso, con il numero |
 | `INTRO_MISMATCH` | Intro diverse (oltre 1 s di italiano prima del materiale in comune), audio italiano tenuto (`--edge-mismatch keep`) |
 | `OUTRO_MISMATCH` | Code diverse (oltre 1 s di italiano dopo il materiale in comune), audio italiano tenuto (`--edge-mismatch keep`) |
 | `LONG_GAP_WITHOUT_ITALIAN` | All'inizio o alla fine del film manca l'italiano per più di 10 minuti ([`longGapWithoutItalianMs`](TARATURA.md)) |
@@ -158,10 +158,10 @@ citato esista e usi quel codice.
 | `ITALIAN_UNVERIFIED` | `test/decision.test.ts` › ITALIAN_UNVERIFIED: l'italiano non correla con la lingua di misura |
 | `ITALIAN_TRACKS_SKIPPED` | `test/plan.test.ts` › ITALIAN_TRACKS_SKIPPED: con --italian main si prende solo la traccia principale |
 | `REFERENCE_HAS_ITALIAN_SUBS` | `test/plan.test.ts` › REFERENCE_HAS_ITALIAN_SUBS: PGS italiani già nel riferimento, tenuti o scartati |
-| `ITALIAN_SUBS_NOT_PGS` | `test/plan.test.ts` › ITALIAN_SUBS_NOT_PGS: i sottotitoli italiani non PGS del donatore si scartano |
+| `ITALIAN_SUBS_NOT_PGS` | `test/plan.test.ts` › ITALIAN_SUBS_NOT_PGS: i sottotitoli italiani né PGS né di testo del donatore si scartano |
 | `NO_FORCED_ITALIAN_SUBS` | `test/plan.test.ts` › NO_FORCED_ITALIAN_SUBS: il riferimento ha un forced in un'altra lingua e il donatore nessun forced italiano |
 | `SDR_SUBS_ON_HDR` | `test/plan.test.ts` › SDR_SUBS_ON_HDR: PGS italiani da un disco SDR sopra un video HDR |
-| `SUBTITLES_DROPPED_AT_CUT` | `test/build.test.ts` › SUBTITLES_DROPPED_AT_CUT: con S < 0 si taglia all'inizio del film; TrueHD riparte da un punto di sincronizzazione<br>`test/build.test.ts` › --edge-mismatch drop: tagli sui confini, anche prima della fine del video; i sottotitoli a cavallo si perdono |
+| `SUBTITLES_DROPPED_AT_CUT` | `test/build.test.ts` › SUBTITLES_DROPPED_AT_CUT: con S < 0 si taglia all'inizio del film; TrueHD riparte da un punto di sincronizzazione<br>`test/build.test.ts` › --edge-mismatch drop: tagli sui confini, anche prima della fine del video; i sottotitoli a cavallo si perdono<br>`test/build.test.ts` › sottotitoli di testo: si prendono come i PGS, si perdono solo al taglio iniziale, mai compressi |
 | `INTRO_MISMATCH` | `test/plan.test.ts` › INTRO_MISMATCH: intro diverse, l'italiano dell'intro si tiene o si scarta con --edge-mismatch<br>`test/measure.test.ts` › INTRO_MISMATCH: su file veri l'italiano di un'intro diversa si tiene o si scarta (--edge-mismatch) |
 | `OUTRO_MISMATCH` | `test/plan.test.ts` › OUTRO_MISMATCH: code diverse, l'italiano dopo il materiale in comune si tiene o si scarta<br>`test/plan.test.ts` › --tail non serve con code diverse e --edge-mismatch drop: il taglio cade già sul confine |
 | `LONG_GAP_WITHOUT_ITALIAN` | `test/plan.test.ts` › LONG_GAP_WITHOUT_ITALIAN: un buco senza italiano oltre la soglia, all'inizio o alla fine |
