@@ -14,6 +14,7 @@ import {
   type PlanFile,
   type PlanInput,
 } from '../src/plan.js';
+import { comparePlan, type ExpectedReport } from '../src/report.js';
 
 // Piano di inizio e fine su ingressi sintetici (studio §5, §7, §8, §10.1):
 // nessun file, solo tracce con i loro timestamp. Il riferimento è un film di
@@ -277,6 +278,32 @@ test('--tail non serve con code diverse e --edge-mismatch drop: il taglio cade g
   const keep = planMerge({ ...base, choices: choices({ edgeMismatch: 'keep', tail: 'trim' }) }, cal);
   assert.deepEqual(warnings(keep), ['OUTRO_MISMATCH']);
   assert.equal(keep.italian.endMs, FILM);
+});
+
+test('--expect: --tail in sospeso nell\'analisi non serve più dopo --edge-mismatch drop', () => {
+  // Kung Fu Panda 2: l'analisi chiede --edge-mismatch e --tail; con drop il
+  // merge non chiede più --tail, e il piano resta quello confermato.
+  const base = input({
+    donor: donor([italian(2, 0, FILM + 60_000)]),
+    offsetMs: 0,
+    commonMaterial: { startMs: 0, endMs: FILM - 200_000 },
+  });
+  const analysis = planMerge(base, cal);
+  const confirmed = { plan: analysis, choices: analysis.choices } as unknown as ExpectedReport;
+  assert.deepEqual(comparePlan(confirmed, planMerge({ ...base, choices: choices({ edgeMismatch: 'drop' }) }, cal)), []);
+  assert.deepEqual(comparePlan(confirmed, planMerge({ ...base, choices: choices({ edgeMismatch: 'keep', tail: 'trim' }) }, cal)), []);
+
+  // Una scelta che nel report non era in sospeso resta un confronto esatto.
+  const decided = planMerge({ ...base, choices: choices({ edgeMismatch: 'keep', tail: 'trim' }) }, cal);
+  const confirmedKeep = { plan: decided, choices: decided.choices } as unknown as ExpectedReport;
+  assert.deepEqual(comparePlan(confirmedKeep, planMerge({ ...base, choices: choices({ edgeMismatch: 'drop', tail: 'trim' }) }, cal)), [
+    'choice tail: not needed, confirmed needed',
+    'choice edgeMismatch: "drop", confirmed "keep"',
+    'plan end.cutMs: 7000000, confirmed 7200000',
+    'plan end.gapMs: 200000, confirmed 0',
+    'plan italian.endMs: 7000000, confirmed 7200000',
+    'plan audio track 2 endMs: 7000000, confirmed 7200000',
+  ]);
 });
 
 test('ITALIAN_TRACKS_SKIPPED: con --italian main si prende solo la traccia principale', () => {

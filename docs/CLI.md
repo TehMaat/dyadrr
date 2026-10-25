@@ -169,7 +169,9 @@ coppia idonea, altrimenti `BAD_ARGUMENTS`. Poi, appena ogni pezzo si conosce:
    MiB) dei due ingressi uguali a quelle del report, in qualsiasi ordine e
    senza guardare i percorsi; prima di misurare;
 2. **ruoli** e **S** definitivo uguali, dopo l'analisi;
-3. **piano** uguale, dopo le scelte: stesse scelte necessarie, una scelta
+3. **piano** uguale, dopo le scelte: stesse scelte necessarie (salvo una in
+   sospeso nel report che il valore dato ora a un'altra in sospeso rende
+   inutile: con code diverse e `--edge-mismatch drop`, `--tail`), una scelta
    decisa nel report con lo stesso valore, ogni valore che nel report non era
    in sospeso uguale, e quello che lo era uguale all'effetto, nel report, del
    valore scelto ora.
