@@ -21,7 +21,7 @@ mkvpropedit.
 | `NO_MATCH` | Nessuna ancora trova una corrispondenza abbastanza somigliante |
 | `AMBIGUOUS_MATCH` | Corrispondenze somiglianti ma non uniche |
 | `OFFSET_TOO_LARGE` | Spostamento sicuro ma oltre il massimo |
-| `CHECKPOINT_CONTRADICTION` | Lo spostamento cambia a metà film. Il report ne mostra la forma |
+| `CHECKPOINT_CONTRADICTION` | Lo spostamento cambia a metà film di un fotogramma o più. Il report ne mostra la forma |
 | `CHECKPOINT_UNMATCHED` | Un tratto con contenuto non trova corrispondenza da nessuna parte |
 | `DRIFT` | Lo spostamento cresce nel tempo |
 | `TOO_FEW_CHECKPOINTS` | Punti coerenti troppo pochi o mal distribuiti |
@@ -80,6 +80,7 @@ Non cambiano la decisione: finiscono nel report.
 | `TAIL_EXCESS_KEPT` | Italiano oltre la fine del video di riferimento lasciato (`--tail keep`) |
 | `ABRUPT_START` | Taglio iniziale con l'italiano sopra −40 dBFS nei 250 ms dopo il taglio ([`abruptStartDbfs`](TARATURA.md)) |
 | `MANY_INCONCLUSIVE` | Più del 10% di punti non conclusivi |
+| `SUBFRAME_JUMPS` | Ancore, punti di conferma o prove oltre i confini a più della tolleranza da S ma a meno di un fotogramma del riferimento: salti delle tracce audio, che il video non può dare. Il valore è lo scarto più grande dallo S definitivo: in quei tratti l'italiano è spostato di tanto (dalla 0.18.0) |
 | `MKVMERGE_WARNING` | Avvisi di mkvmerge (codice 1), uno per avviso, di ogni passata |
 | `OUTPUT_TRANSFER_OFFSET` | Nel file finale l'italiano è sfasato rispetto alla lingua di misura del riferimento oltre la tolleranza per punto: S sbagliato di tanto, o italiano già sfasato nel donatore. Verifica dopo il merge, con il valore |
 | `INPUT_NOT_DELETED` | Con `--inputs delete`, un ingresso cambiato da quando è stato letto o che non si è potuto cancellare: resta dov'è. Il file finale è consegnato ([CLI.md](CLI.md#ingressi-dopo-il-merge)) |
@@ -168,6 +169,7 @@ citato esista e usi quel codice.
 | `TAIL_EXCESS_KEPT` | `test/plan.test.ts` › TAIL_EXCESS_KEPT: il donatore ha più coda, l'eccesso si lascia o si toglie con --tail<br>`test/measure.test.ts` › TAIL_EXCESS_KEPT: su file veri il donatore ha 20 s di coda in più; --tail trim taglia alla fine del video |
 | `ABRUPT_START` | `test/plan.test.ts` › ABRUPT_START: taglio iniziale con l'italiano sopra soglia; senza il livello del taglio è INTERNAL<br>`test/measure.test.ts` › INTRO_MISMATCH: su file veri l'italiano di un'intro diversa si tiene o si scarta (--edge-mismatch) |
 | `MANY_INCONCLUSIVE` | `test/decision.test.ts` › MANY_INCONCLUSIVE: più del 10% di punti non conclusivi, copertura comunque sufficiente<br>`test/measure.test.ts` › MANY_INCONCLUSIVE: silenzi lunghi danno punti non conclusivi, e punti aggiunti nei tratti scoperti |
+| `SUBFRAME_JUMPS` | `test/decision.test.ts` › SUBFRAME_JUMPS: salti sotto il fotogramma a metà film, solo un avviso |
 | `MKVMERGE_WARNING` | `test/build.test.ts` › MKVMERGE_WARNING: mkvmerge esce con 1, il file si accetta e ogni avviso va nel report |
 | `OUTPUT_TRANSFER_OFFSET` | `test/verify.test.ts` › OUTPUT_TRANSFER_OFFSET: con uno S sbagliato di 40 ms le verifiche bloccanti passano, il trasferimento lo trova |
 | `OUTPUT_TRANSFER_UNVERIFIED` | `test/build.test.ts` › costruzione con S > 0 e --tail trim: ordine, flag, compressione, capitoli, coda tagliata anche in FLAC |
