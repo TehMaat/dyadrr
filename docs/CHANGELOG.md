@@ -4,7 +4,7 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
-## [0.17.1] - 2026-10-31
+## [0.18.1] - 2026-10-31
 
 ### Corretto
 - Un'analisi o un merge annullati, o finiti in errore, non sostituiscono più
@@ -13,8 +13,27 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
   `<nome>-<decisione>-<AAAAMMGG>T<HHMMSS>Z.json`, e stdout dà il percorso
   scritto. Su A Quiet Place un'analisi annullata aveva cancellato quella
   finita. L'analisi non cambia
-- Documentazione: studio di fattibilità 0.23 (§10, §18, §20), primo passo
-  della fase 2
+- Documentazione: studio di fattibilità 0.25 (§10, §18, §20)
+
+## [0.18.0] - 2026-10-31
+
+### Cambiato
+- Salti sotto il fotogramma (decisione 1 della fase 1): un'ancora, un punto di
+  conferma o una prova oltre i confini a più della tolleranza da S ma a meno
+  di un fotogramma del riferimento non rifiutano più la coppia. Il punto è
+  `shifted` e scatta l'avviso nuovo `SUBFRAME_JUMPS`, con lo scarto più grande
+  dallo S definitivo; da un fotogramma in su resta `CHECKPOINT_CONTRADICTION`.
+  Il video salta solo di fotogrammi interi: sotto sono le tracce audio dei
+  dischi, che rifiutavano Zero Dark Thirty e Up
+- I punti spostati contano per la distribuzione dei punti (§9.3); S definitivo
+  resta la mediana dei soli punti coerenti
+- Nel report l'esito `shifted` per ancore e punti, e nelle righe di
+  `--progress json`; nel riassunto di `dyadrr-pairs` la colonna dei punti
+  diventa c/s/i/x/u
+- L'analisi cambia: voce 0.18.0 in `ANALYSIS_CHANGES`, i report con una
+  contraddizione sono superati e vanno rimisurati
+- Documentazione: studio di fattibilità 0.24 (§4.5, §9.1, §9.3, §9.6, §12,
+  §18, §20)
 
 ## [0.17.0] - 2026-10-31
 

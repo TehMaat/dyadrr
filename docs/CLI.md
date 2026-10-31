@@ -53,7 +53,7 @@ senza `--output`, `--progress` con un valore diverso da `json`.
   un report `eligible` o `refused`, il report `cancelled` o `error` va
   accanto, `<nome>-<decisione>-<AAAAMMGG>T<HHMMSS>Z.json` (con `-2`, `-3`… se
   serve). Su stdout il percorso scritto; senza `--progress json` anche una
-  riga su stderr. Dalla 0.17.1.
+  riga su stderr. Dalla 0.18.1.
 - **Mai al posto di un altro file:** se `--report` coincide con un ingresso,
   con il file finale o con il report di `--expect`, nessun report: messaggio
   `BAD_ARGUMENTS` su stderr e uscita 30.

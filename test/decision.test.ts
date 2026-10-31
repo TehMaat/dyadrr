@@ -263,7 +263,7 @@ test('DRIFT: lo spostamento cresce nel tempo, e risulta deriva e non contraddizi
   const r = decide(base({ anchors: [anchor(0.15, drifting(DURATION * 0.15))], checkpoints: series(drifting) }), cal);
   assert.equal(r.decision, 'refused');
   assert.deepEqual(reasons(r), ['DRIFT']);
-  assert.ok(r.checkpoints.some((p) => p.outcome === 'contradictory'));
+  assert.ok(r.checkpoints.some((p) => p.outcome === 'shifted'));
   assert.equal(result(r, 'contradiction'), 'skipped');
   assert.ok(r.drift && Math.abs(r.drift.msPerHour - 15) < 1, JSON.stringify(r.drift));
   assert.ok(r.drift.totalMs > cal.values.toleranceMs);
@@ -305,13 +305,72 @@ test('CHECKPOINT_CONTRADICTION: più salti, oppure rumore', () => {
   assert.equal(outlier.contradiction?.kind, 'noise');
 
   // Come Thor: Ragnarok (UHD e BD), un punto solo a ciascun bordo, -27 ms
-  // all'inizio e un fotogramma nei titoli di coda: due salti, non rumore.
+  // all'inizio e un fotogramma nei titoli di coda: due salti, non rumore. Il
+  // salto di -27 ms da solo sarebbe un avviso; quello di un fotogramma no.
+  const frame = 1000 / FPS;
   const edges = decide(base({
-    checkpoints: series((p) => (p === pos[0] ? S - 27 : p === pos[29] ? S + 42 : S), pos),
+    checkpoints: series((p) => (p === pos[0] ? S - 27 : p === pos[29] ? S + frame + 2 : S), pos),
   }), cal);
   assert.deepEqual(reasons(edges), ['CHECKPOINT_CONTRADICTION']);
   assert.equal(edges.contradiction?.kind, 'multiple-jumps');
   assert.deepEqual(edges.contradiction.jumps.map((j) => Math.round(Math.abs(j.frames))), [1, 1]);
+  assert.deepEqual(edges.checkpoints.map((p) => p.outcome).filter((o) => o !== 'consistent'), ['shifted', 'contradictory']);
+});
+
+test('SUBFRAME_JUMPS: salti sotto il fotogramma a metà film, solo un avviso', () => {
+  // Come Zero Dark Thirty (UHD e BD): +11 ms tra 3 e 13 min, -18 ms tra 97 e
+  // 117 min. Il video non salta di meno di un fotogramma: sono le tracce audio.
+  const min = 60_000;
+  const zdt = (p: number) => (p >= 3 * min && p <= 13 * min ? S + 11 : p >= 97 * min && p <= 117 * min ? S - 18 : S);
+  const r = decide(base({ checkpoints: series(zdt) }), cal);
+  assert.equal(r.decision, 'eligible', JSON.stringify(r.reasons));
+  assert.deepEqual(warnings(r), ['SUBFRAME_JUMPS']);
+  assert.ok(Math.abs(r.warnings[0]!.value! + 18) < 2.5, String(r.warnings[0]!.value));
+  assert.equal(result(r, 'contradiction'), 'pass');
+  assert.equal(r.contradiction?.kind, 'multiple-jumps');
+  const shifted = r.checkpoints.filter((p) => p.outcome === 'shifted');
+  assert.ok(shifted.length >= 5, String(shifted.length));
+  // S definitivo dai soli punti coerenti.
+  assert.ok(Math.abs(r.offset!.medianMs - S) <= 1.5, String(r.offset?.medianMs));
+  // I punti spostati contano per la distribuzione: senza, tra 97 e 117 min
+  // ci sarebbe un buco di 20 min tra punti coerenti.
+  assert.equal(result(r, 'checkpoint-distribution'), 'pass');
+  assert.ok(r.commonMaterial && r.commonMaterial.verifiedEndMs! > 110 * min);
+
+  // Come Up: un frame DTS (10,67 ms), appena oltre la tolleranza, a tratti.
+  const up = decide(base({ checkpoints: series((p) => S + (Math.floor(p / (10 * min)) % 2) * 10.67) }), cal);
+  assert.equal(up.decision, 'eligible', JSON.stringify(up.reasons));
+
+  // Ancore e prove oltre i confini seguono la stessa regola.
+  const anchors = decide(base({ anchors: [anchor(0.15), anchor(0.25, S + 20)] }), cal);
+  assert.equal(anchors.decision, 'eligible');
+  assert.deepEqual(anchors.anchors.map((a) => a.outcome), ['accepted', 'shifted']);
+  assert.deepEqual(warnings(anchors), ['SUBFRAME_JUMPS']);
+  const probe = { side: 'end' as const, positionMs: END + 5000, match: match(S + 25) };
+  const edge = decide(base({ commonMaterial: { startMs: START, endMs: END, probes: [probe] } }), cal);
+  assert.equal(edge.decision, 'eligible');
+  assert.equal(result(edge, 'edges'), 'pass');
+  assert.deepEqual(warnings(edge), ['SUBFRAME_JUMPS']);
+});
+
+test('CHECKPOINT_CONTRADICTION: da un fotogramma in su, anche dallo S definitivo', () => {
+  const frame = 1000 / FPS;
+  // Un fotogramma intero a metà film: rifiuto, come prima.
+  const one = decide(base({ checkpoints: positions().map((p) => point(p, p < DURATION / 2 ? S : S + frame)) }), cal);
+  assert.deepEqual(reasons(one), ['CHECKPOINT_CONTRADICTION']);
+  // Appena sotto un fotogramma dallo S delle ancore ma non da quello definitivo:
+  // l'italiano lì sarebbe a un fotogramma o più, quindi è contraddittorio.
+  const pos = positions();
+  const late = decide(base({
+    anchors: [anchor(0.15, S + 5), anchor(0.25, S + 5)],
+    checkpoints: pos.map((p, i) => point(p, i === 15 ? S + 5 + frame - 1 : S - 4)),
+  }), cal);
+  assert.deepEqual(reasons(late), ['CHECKPOINT_CONTRADICTION']);
+  assert.equal(late.checkpoints[15]!.outcome, 'contradictory');
+  // Un'ancora a un fotogramma o più: rifiuto.
+  const anchors = decide(base({ anchors: [anchor(0.15), anchor(0.25, S + frame + 1)] }), cal);
+  assert.deepEqual(anchors.anchors.map((a) => a.outcome), ['accepted', 'disagrees']);
+  assert.deepEqual(reasons(anchors), ['CHECKPOINT_CONTRADICTION']);
 });
 
 test('CHECKPOINT_CONTRADICTION: il film continua a un altro spostamento oltre il confine', () => {

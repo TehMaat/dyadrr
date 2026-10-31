@@ -145,8 +145,14 @@ export interface Warning {
   value?: number;
 }
 
-export type AnchorOutcome = 'accepted' | 'agrees' | 'disagrees' | 'ambiguous' | 'no-match';
-export type CheckpointOutcome = 'consistent' | 'inconclusive' | 'contradictory' | 'unmatched';
+/**
+ * `shifted`: un picco sicuro oltre la tolleranza dallo S dell'ancora accettata,
+ * ma a meno di un fotogramma del riferimento (dalla 0.18, studio §9.1): un
+ * salto che il video non può dare, solo un avviso. Da un fotogramma in su
+ * l'ancora è `disagrees` e il punto `contradictory`.
+ */
+export type AnchorOutcome = 'accepted' | 'agrees' | 'shifted' | 'disagrees' | 'ambiguous' | 'no-match';
+export type CheckpointOutcome = 'consistent' | 'shifted' | 'inconclusive' | 'contradictory' | 'unmatched';
 
 export interface CheckpointReport {
   positionMs: number;
@@ -349,6 +355,9 @@ export function checkStructure(
 function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean): DecisionReport {
   const v = cal.values;
   const tol = v.toleranceMs;
+  /** Scarto da S: entro la tolleranza, sotto un fotogramma del riferimento, oltre (§9.1). */
+  const gap = (deviationMs: number, frameMs: number) =>
+    Math.abs(deviationMs) <= tol ? 'within' : Math.abs(deviationMs) < frameMs ? 'subframe' : 'beyond';
 
   const report: DecisionReport = {
     decision: 'eligible',
@@ -459,6 +468,7 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
   }
   pass('integrity');
   if (structureOnly) return report;
+  const frameMs = 1000 / rv.fps;
 
   // 2. Misura iniziale: le ancore (§4.4).
 
@@ -468,7 +478,7 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
     ...a,
     outcome:
       a === accepted ? 'accepted'
-      : isConfident(a, cal) ? (Math.abs(a.offsetMs - accepted!.offsetMs) <= tol ? 'agrees' : 'disagrees')
+      : isConfident(a, cal) ? ({ within: 'agrees', subframe: 'shifted', beyond: 'disagrees' } as const)[gap(a.offsetMs - accepted!.offsetMs, frameMs)]
       : a.ncc >= v.nccMin ? 'ambiguous'
       : 'no-match',
   }));
@@ -529,13 +539,16 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
     return fail(
       'anchor-agreement',
       'CHECKPOINT_CONTRADICTION',
-      `confident anchors disagree: ${confident.map((a) => `${round1(a.offsetMs)} ms`).join(', ')}`,
-      { measured: round1(Math.max(...disagreeing.map((a) => Math.abs(a.offsetMs - anchorS)))), threshold: tol },
+      `confident anchors disagree by a frame or more: ${confident.map((a) => `${round1(a.offsetMs)} ms`).join(', ')}`,
+      { measured: round1(Math.max(...disagreeing.map((a) => Math.abs(a.offsetMs - anchorS)))), threshold: round1(frameMs) },
     );
   }
   const agreeing = report.anchors.filter((a) => a.outcome === 'agrees').length;
+  const shiftedAnchors = report.anchors.filter((a) => a.outcome === 'shifted').length;
   pass('anchor-agreement', {
-    detail: agreeing > 0 ? `${agreeing + 1} confident anchors agree` : 'single confident anchor: confirmed by the checkpoints',
+    detail: agreeing + shiftedAnchors > 0
+      ? `${agreeing + shiftedAnchors + 1} confident anchors agree${shiftedAnchors > 0 ? `, ${shiftedAnchors} within a frame` : ''}`
+      : 'single confident anchor: confirmed by the checkpoints',
   });
 
   // 3. Punti di conferma (§4.5): deriva, contraddizioni, confini, copertura.
@@ -554,7 +567,7 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
     const deviation = m.offsetMs - anchorS;
     return {
       ...base,
-      outcome: Math.abs(deviation) <= tol ? 'consistent' : 'contradictory',
+      outcome: ({ within: 'consistent', subframe: 'shifted', beyond: 'contradictory' } as const)[gap(deviation, frameMs)],
       offsetMs: m.offsetMs,
       deviationMs: round1(deviation),
       ncc: m.ncc,
@@ -576,7 +589,16 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
       offsetMs: Math.round(med),
       dispersionMs: round1(median(consistent.map((p) => Math.abs(p.offsetMs! - med)))),
     };
+    // Un punto spostato resta sotto il fotogramma anche dallo S definitivo,
+    // quello del merge: altrimenti è contraddittorio (§9.1).
+    for (const p of points) {
+      if (p.outcome === 'shifted' && Math.abs(p.offsetMs! - report.offset.offsetMs) >= frameMs) p.outcome = 'contradictory';
+    }
   }
+  /** I punti che confermano S: coerenti o spostati sotto il fotogramma (§9.3). */
+  const confirming = points
+    .filter((p) => p.outcome === 'consistent' || p.outcome === 'shifted')
+    .sort((a, b) => a.positionMs - b.positionMs);
 
   // Deriva prima delle contraddizioni: se una retta spiega tutti i punti con un
   // picco sicuro e la deriva totale supera la tolleranza, è DRIFT. Se la retta
@@ -614,11 +636,17 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
     return fail(
       'contradiction',
       'CHECKPOINT_CONTRADICTION',
-      `${contradictory.length} checkpoint(s) match at another offset: ${what}`,
+      `${contradictory.length} checkpoint(s) match at another offset, a frame or more away: ${what}`,
       { measured: contradictory.length, threshold: 0 },
     );
   }
-  pass('contradiction', { measured: 0, threshold: 0 });
+  const shiftedPoints = points.filter((p) => p.outcome === 'shifted');
+  if (shiftedPoints.length > 0) report.contradiction = contradictionShape(matched, tol, rv.fps);
+  pass('contradiction', {
+    measured: 0,
+    threshold: 0,
+    ...(shiftedPoints.length > 0 ? { detail: `${shiftedPoints.length} checkpoint(s) shifted by less than a frame` } : {}),
+  });
 
   const unmatched = points.filter((p) => p.outcome === 'unmatched');
   if (unmatched.length > 0) {
@@ -639,12 +667,13 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
   report.commonMaterial = {
     startMs,
     endMs,
-    verifiedStartMs: consistent[0]?.positionMs ?? null,
-    verifiedEndMs: consistent[consistent.length - 1]?.positionMs ?? null,
+    verifiedStartMs: confirming[0]?.positionMs ?? null,
+    verifiedEndMs: confirming[confirming.length - 1]?.positionMs ?? null,
     coverage: round4(length / rv.durationMs),
   };
   const S = report.offset?.medianMs ?? anchorS;
-  const beyond = probes.filter((p) => isConfident(p.match, cal) && Math.abs(p.match!.offsetMs - S) > tol);
+  const confidentProbes = probes.filter((p) => isConfident(p.match, cal));
+  const beyond = confidentProbes.filter((p) => gap(p.match!.offsetMs - S, frameMs) === 'beyond');
   if (beyond.length > 0) {
     const edgePoints = [...matched, ...beyond.map((p) => ({ x: p.positionMs, y: p.match!.offsetMs }))];
     report.contradiction = contradictionShape(edgePoints, tol, rv.fps);
@@ -658,33 +687,53 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
   }
   pass('edges', { detail: `common material ${startMs}–${endMs} ms` });
 
+  // Salti sotto il fotogramma (§9.1, dalla 0.18): ancore, punti e prove oltre
+  // i confini a più della tolleranza ma a meno di un fotogramma da S. Il video
+  // non salta di meno di un fotogramma: sono le tracce audio dei dischi.
+  const finalS = report.offset?.offsetMs ?? anchorS;
+  const shifts = [
+    ...report.anchors.filter((a) => a.outcome === 'shifted').map((a) => a.offsetMs),
+    ...shiftedPoints.map((p) => p.offsetMs!),
+    ...confidentProbes.filter((p) => gap(p.match!.offsetMs - S, frameMs) === 'subframe').map((p) => p.match!.offsetMs),
+  ].map((o) => o - finalS);
+  if (shifts.length > 0) {
+    const largest = shifts.reduce((a, b) => (Math.abs(b) > Math.abs(a) ? b : a));
+    warn(
+      'SUBFRAME_JUMPS',
+      `${shifts.length} measure(s) match within a frame (${round1(frameMs)} ms) of the offset but beyond the tolerance, up to ${round1(largest)} ms: in those stretches the Italian track is off by that much`,
+      round1(largest),
+    );
+  }
+
   // Copertura dei punti coerenti (§9.3).
+  // Contano anche i punti spostati sotto il fotogramma: confermano lo stesso
+  // film nella stessa versione (dalla 0.18).
   const problems: string[] = [];
-  if (consistent.length < v.minConsistentCheckpoints) {
-    problems.push(`${consistent.length} consistent checkpoints (minimum ${v.minConsistentCheckpoints})`);
+  if (confirming.length < v.minConsistentCheckpoints) {
+    problems.push(`${confirming.length} consistent checkpoints (minimum ${v.minConsistentCheckpoints})`);
   }
   let maxGap = 0;
-  for (let i = 1; i < consistent.length; i++) {
-    maxGap = Math.max(maxGap, consistent[i]!.positionMs - consistent[i - 1]!.positionMs);
+  for (let i = 1; i < confirming.length; i++) {
+    maxGap = Math.max(maxGap, confirming[i]!.positionMs - confirming[i - 1]!.positionMs);
   }
   if (maxGap > v.maxCheckpointGapMs) {
     problems.push(`a gap of ${round1(maxGap / 60_000)} min between consistent checkpoints (maximum ${round1(v.maxCheckpointGapMs / 60_000)})`);
   }
   const edge = length * v.edgeFraction;
   const pct = Math.round(v.edgeFraction * 100);
-  if (!consistent.some((p) => p.positionMs <= startMs + edge)) {
+  if (!confirming.some((p) => p.positionMs <= startMs + edge)) {
     problems.push(`no consistent checkpoint in the first ${pct}% of the common material`);
   }
-  if (!consistent.some((p) => p.positionMs >= endMs - edge)) {
+  if (!confirming.some((p) => p.positionMs >= endMs - edge)) {
     problems.push(`no consistent checkpoint in the last ${pct}% of the common material`);
   }
   if (problems.length > 0) {
     return fail('checkpoint-distribution', 'TOO_FEW_CHECKPOINTS', problems.join('; '), {
-      measured: consistent.length,
+      measured: confirming.length,
       threshold: v.minConsistentCheckpoints,
     });
   }
-  pass('checkpoint-distribution', { measured: consistent.length, threshold: v.minConsistentCheckpoints });
+  pass('checkpoint-distribution', { measured: confirming.length, threshold: v.minConsistentCheckpoints });
 
   const coverage = report.commonMaterial.coverage;
   if (coverage < v.minCoverage) {
