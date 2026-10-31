@@ -356,6 +356,8 @@ export async function measurePair(
   const donor = new Side(files[roles.donor], tools, options.signal);
   const v = cal.values;
   const tol = v.toleranceMs;
+  /** Un fotogramma del riferimento: sotto, uno scarto da S è solo un avviso (§9.1). */
+  const frameMs = 1000 / ref.file.video.fps;
   const progress = (phase: AnalysisPhase, done: number, total: number | null, outcomes?: MeasureProgress['outcomes']) =>
     options.onProgress?.({ phase, done, total, ...(outcomes ? { outcomes } : {}) });
 
@@ -461,7 +463,7 @@ export async function measurePair(
 
   const anchors = perPair[pick]!;
   const S = anchors.find((a) => isConfident(a, cal))!.offsetMs;
-  const agreeing = anchors.filter((a) => isConfident(a, cal) && Math.abs(a.offsetMs - S) <= tol);
+  const agreeing = anchors.filter((a) => isConfident(a, cal) && Math.abs(a.offsetMs - S) < frameMs);
   if (Math.abs(S) > v.maxOffsetMs || agreeing.length < anchors.filter((a) => isConfident(a, cal)).length) {
     return result({ anchorOffsetMs: S });
   }
@@ -607,8 +609,11 @@ export async function measurePair(
     if (c.energyDbfs < v.silenceDbfs) return 'inconclusive';
     const m = isConfident(c.local, cal) ? c.local : isConfident(c.wide, cal) ? c.wide : null;
     if (m === null) return 'unmatched';
-    return Math.abs(m.offsetMs - S) <= tol ? 'consistent' : 'contradictory';
+    const d = Math.abs(m.offsetMs - S);
+    return d <= tol ? 'consistent' : d < frameMs ? 'shifted' : 'contradictory';
   };
+  /** Coerente o spostato sotto il fotogramma: conferma S (§9.3). */
+  const confirms = (c: CheckpointMeasure) => outcome(c) === 'consistent' || outcome(c) === 'shifted';
 
   /** I punti coerenti bastano e sono distribuiti bene (§9.3)? */
   const coverageOk = (consistent: readonly number[]) => {
@@ -621,7 +626,7 @@ export async function measurePair(
 
   const checkpoints: MeasuredCheckpoint[] = [];
   const checkpointProgress = () => {
-    const outcomes = { consistent: 0, inconclusive: 0, contradictory: 0, unmatched: 0 };
+    const outcomes = { consistent: 0, shifted: 0, inconclusive: 0, contradictory: 0, unmatched: 0 };
     for (const c of checkpoints) outcomes[outcome(c)]++;
     progress('checkpoints', checkpoints.length, Math.max(v.checkpointCount, checkpoints.length), outcomes);
   };
@@ -641,7 +646,7 @@ export async function measurePair(
   while (checkpoints.length < v.maxCheckpointCount) {
     const outcomes = checkpoints.map(outcome);
     if (outcomes.some((o) => o === 'contradictory' || o === 'unmatched')) break;
-    const consistent = checkpoints.filter((_, i) => outcomes[i] === 'consistent').map((c) => c.positionMs).sort((a, b) => a - b);
+    const consistent = checkpoints.filter((c) => confirms(c)).map((c) => c.positionMs).sort((a, b) => a - b);
     if (coverageOk(consistent)) break;
     const marks = [startMs, ...consistent, endMs - Lc];
     let gap: [number, number] | null = null;
@@ -653,7 +658,7 @@ export async function measurePair(
     const point = await measureCheckpoint((gap[0] + gap[1]) / 2, Math.min(CONTENT_SHIFT_MS, (gap[1] - gap[0]) / 4), true);
     checkpoints.push(point);
     checkpointProgress();
-    if (outcome(point) !== 'consistent') tried.add(`${gap[0]}-${gap[1]}`);
+    if (!confirms(point)) tried.add(`${gap[0]}-${gap[1]}`);
   }
   checkpoints.sort((a, b) => a.positionMs - b.positionMs);
 

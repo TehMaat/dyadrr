@@ -302,7 +302,7 @@ test('riassunto di una coppia: verdetto dalla decisione e da expected, S, punti 
   assert.equal(s.offset!.offsetMs, S);
   assert.equal(s.offset!.manualDifferenceMs, -3);
   assert.equal(s.measureLanguage, 'eng');
-  assert.deepEqual(s.checkpoints, { total: 10, added: 0, consistent: 10, inconclusive: 0, contradictory: 0, unmatched: 0 });
+  assert.deepEqual(s.checkpoints, { total: 10, added: 0, consistent: 10, shifted: 0, inconclusive: 0, contradictory: 0, unmatched: 0 });
   assert.ok(s.anchors.length > 0 && s.anchors[0]!.outcome === 'accepted');
   assert.ok(s.bytesRead! > 0 && s.coverage! > 0.75);
   assert.equal(s.transfer!.probes, 5);
@@ -505,10 +505,15 @@ test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassu
     differences: ANALYSIS_CHANGES.filter((c) => !c.stale(old)).map((c) => `${c.version}: ${c.what}`),
     stale: null,
   });
-  assert.equal(checkImport(old, moved, current).differences.length, 4);
+  assert.equal(checkImport(old, moved, current).differences.length, 5);
   const oldJumps = jumps(1);
   oldJumps.dyadrr = '0.13.1';
   assert.match(checkImport(oldJumps, moved, current).stale!, /^Dyadrr 0\.13\.1, changed in 0\.14\.0: contradiction shape/);
+  // Dalla 0.18.0 i salti sotto il fotogramma sono un avviso: un report con una
+  // contraddizione, anche recente, va rimisurato.
+  const recentJumps = jumps(1);
+  recentJumps.dyadrr = '0.17.0';
+  assert.match(checkImport(recentJumps, moved, current).stale!, /^Dyadrr 0\.17\.0, changed in 0\.18\.0: jumps below a frame/);
   assert.equal(checkImport(variant((r) => (r.dyadrr = '0.12.0')), moved, current).stale, `Dyadrr 0.12.0, imports start from ${IMPORT_SINCE}`);
   assert.match(checkImport(eligible, moved, { ...current, calibration: cal.version + 1 }).stale!, /^calibration \d+, now \d+$/);
   assert.match(checkImport(variant((r) => (r.format = 0)), moved, current).stale!, /^report format 0/);

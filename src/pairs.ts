@@ -89,6 +89,11 @@ export const ANALYSIS_CHANGES: readonly AnalysisChange[] = [
   { version: '0.14.0', what: 'warning MAIN_TRACKS_DISAGREE', stale: () => false },
   { version: '0.14.0', what: 'transfer check on every track of the measure language', stale: () => false },
   { version: '0.16.0', what: 'Italian text subtitles taken; forced by blocks within the same format', stale: () => false },
+  {
+    version: '0.18.0',
+    what: 'jumps below a frame: warning SUBFRAME_JUMPS instead of CHECKPOINT_CONTRADICTION; shifted checkpoints count for the distribution',
+    stale: (r) => r.measurement?.contradiction != null,
+  },
 ];
 
 /** I campi di `summary.json`, nell'ordine in cui si scrivono. */
@@ -341,7 +346,7 @@ export interface PairSummary {
   pair: TrackPair | null;
   offset: { anchorMs: number; offsetMs: number; dispersionMs: number; manualDifferenceMs: number | null } | null;
   anchors: Array<{ positionMs: number; offsetMs: number; ncc: number; ratio: number; outcome: AnchorOutcome }>;
-  checkpoints: { total: number; added: number; consistent: number; inconclusive: number; contradictory: number; unmatched: number } | null;
+  checkpoints: { total: number; added: number; consistent: number; shifted: number; inconclusive: number; contradictory: number; unmatched: number } | null;
   drift: { msPerHour: number; totalMs: number; spanMs: number } | null;
   contradiction: ContradictionShape | null;
   coverage: number | null;
@@ -495,6 +500,7 @@ export function summarizePair(
       total: m.checkpoints.length,
       added: m.checkpoints.filter((c) => c.added).length,
       consistent: count('consistent'),
+      shifted: count('shifted'),
       inconclusive: count('inconclusive'),
       contradictory: count('contradictory'),
       unmatched: count('unmatched'),
@@ -689,16 +695,16 @@ export function summaryMarkdown(s: Summary): string {
     '',
     '## Pairs',
     '',
-    '| Pair | Categories | Expected | Decision | Verdict | S (ms) | Dispersion (ms) | Anchors (secure) | Checkpoints c/i/x/u | Coverage | Lowest secure NCC / ratio | Warnings |',
+    '| Pair | Categories | Expected | Decision | Verdict | S (ms) | Dispersion (ms) | Anchors (secure) | Checkpoints c/s/i/x/u | Coverage | Lowest secure NCC / ratio | Warnings |',
     '|---|---|---|---|---|---|---|---|---|---|---|---|',
     ...s.pairs.map((p) => {
       const k = p.checkpoints;
-      const secure = p.anchors.filter((a) => a.outcome === 'accepted' || a.outcome === 'agrees' || a.outcome === 'disagrees').length;
+      const secure = p.anchors.filter((a) => a.outcome === 'accepted' || a.outcome === 'agrees' || a.outcome === 'shifted' || a.outcome === 'disagrees').length;
       const m = p.margins?.secureAtS;
       return `| ${cell(p.id)} | ${cell(p.categories.join(', '))} | ${p.expected} | ${cell(p.decision === null ? null : `${p.decision}${p.code ? ` ${p.code}` : ''}`)} `
         + `| ${p.verdict}${p.detail ? ` (${cell(p.detail)})` : ''}${p.imported ? ` (imported, ${p.imported.from})` : ''} | ${cell(p.offset?.offsetMs)} | ${cell(p.offset?.dispersionMs)} `
         + `| ${p.anchors.length === 0 ? '—' : `${secure} of ${p.anchors.length}`} `
-        + `| ${k ? `${k.consistent}/${k.inconclusive}/${k.contradictory}/${k.unmatched}` : '—'} | ${cell(p.coverage === null ? null : round3(p.coverage))} `
+        + `| ${k ? `${k.consistent}/${k.shifted}/${k.inconclusive}/${k.contradictory}/${k.unmatched}` : '—'} | ${cell(p.coverage === null ? null : round3(p.coverage))} `
         + `| ${m && m.count > 0 ? `${m.ncc} / ${m.ratio}` : '—'} | ${cell([...new Set(p.warnings)].join(', '))} |`;
     }),
     '',

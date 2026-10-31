@@ -147,6 +147,7 @@ report di prima:
 | 0.14.0 | Avviso `MAIN_TRACKS_DISAGREE` | mai: è solo un avviso in più |
 | 0.14.0 | Controllo di trasferimento su ogni traccia della lingua di misura | mai: cambiano solo trasferimento e avvisi |
 | 0.16.0 | Sottotitoli italiani di testo presi; forced dai blocchi confrontati nello stesso formato | mai: cambiano solo i sottotitoli del piano e i loro avvisi |
+| 0.18.0 | Salti sotto il fotogramma: avviso `SUBFRAME_JUMPS` invece di `CHECKPOINT_CONTRADICTION`; i punti spostati contano per la distribuzione | ha una contraddizione |
 
 Un report importato più vecchio ma valido entra con le sue differenze da oggi
 (`imported.differences`). Se le versioni delle coppie non sono tutte uguali,
