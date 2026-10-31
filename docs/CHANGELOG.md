@@ -18,6 +18,8 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 - Documentazione: studio di fattibilità 0.22 (§9.2, §15, §17, §18), il
   riassunto di `dyadrr-pairs` in `docs/fase1/summary.md`, stato in README,
   COPPIE.md e TARATURA.md
+- CI: i test girano su Ubuntu 24.04 fissata (ffmpeg 6.1.1, come dice lo
+  studio, §14.2) e non più su `ubuntu-latest`, passata a 26.04 con ffmpeg 8.0
 
 ## [0.16.0] - 2026-10-25
 
