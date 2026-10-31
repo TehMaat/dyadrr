@@ -13,9 +13,12 @@ questo **non esiste un'opzione né una variabile d'ambiente per cambiarle**.
 - **Report:** registra sempre la versione della taratura, tutti i valori usati
   e quali sono provvisori.
 - **Provvisori:** valori fissati prima della taratura sulle coppie reali
-  (studio §15, fase 1, punto 3; decisione aperta 12). Gli altri sono i valori
-  iniziali dello studio. Le coppie reali si misurano con `dyadrr-pairs`, che
-  riassume i margini di ogni soglia provvisoria ([COPPIE.md](COPPIE.md)).
+  (studio §15, fase 1, punto 3). La decisione 12 (studio §17, 0.22) li ha
+  lasciati come sono, ancora provvisori: si rivedono in fase 2, uno alla
+  volta. Gli altri sono i valori iniziali dello studio. Le coppie reali si
+  misurano con `dyadrr-pairs`, che riassume i margini di ogni soglia
+  provvisoria ([COPPIE.md](COPPIE.md)); il riassunto della fase 1 è in
+  [fase1/summary.md](fase1/summary.md).
 
 ## Parametri
 

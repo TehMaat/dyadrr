@@ -6,6 +6,7 @@
 | [CLI.md](CLI.md) | Riga di comando: comandi, opzioni, lingua originale, scelte, variabili d'ambiente |
 | [REPORT.md](REPORT.md) | Il report JSON: versione del formato, campi, eventi di `--progress json` |
 | [COPPIE.md](COPPIE.md) | Le coppie reali della fase 1: `dyadrr-pairs`, l'elenco delle coppie, i risultati, il riassunto per la taratura |
+| [fase1/summary.md](fase1/summary.md) | Il riassunto di `dyadrr-pairs` sulle 25 coppie reali che chiudono la fase 1 (31 ottobre 2026) |
 | [CONTAINER.md](CONTAINER.md) | L'immagine Docker e il runner dei file job per Wayfinderr: tag, versioni, cartelle, file job |
 | [CODICI.md](CODICI.md) | Rifiuti, errori, avvisi e codici di uscita, con il test che produce ogni codice |
 | [TARATURA.md](TARATURA.md) | Parametri di taratura: valori, limiti, quali sono provvisori |

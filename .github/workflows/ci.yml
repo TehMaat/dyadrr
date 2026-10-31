@@ -7,7 +7,10 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Ubuntu 24.04 fissata: ha ffmpeg 6.1.1, una delle versioni su cui il
+    # metodo di lettura è provato (studio §13, §14.2). ubuntu-latest è passata
+    # a 26.04, con ffmpeg 8.0, su cui il video HDR10 dei test si legge SDR.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
