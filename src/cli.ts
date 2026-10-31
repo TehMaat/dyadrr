@@ -38,6 +38,7 @@ import {
   dyadrrVersion,
   planSection,
   readExpectedReport,
+  reportDestination,
   writeReport,
   type ExpectedReport,
   type Mode,
@@ -544,14 +545,20 @@ export async function runCli(argv: readonly string[], io: CliEnvironment): Promi
   }
 
   const exitCode = decision === 'cancelled' ? exitCodeFor('cancelled') : exitCodeFor(decision, errorCode);
-  const report = assemble({ args, mode, files: fallback.files, reportPath, startedAt, state, decision, reasons, at });
+  // Un annullamento o un errore non cancellano il report di un'esecuzione
+  // finita con lo stesso nome: il loro va accanto (§10).
+  const written = await reportDestination(reportPath, decision, startedAt);
+  if (written !== reportPath && !progressJson) {
+    io.stderr(`dyadrr: the report ${reportPath} is of a finished run and is not overwritten: this report is ${written}\n`);
+  }
+  const report = assemble({ args, mode, files: fallback.files, reportPath: written, startedAt, state, decision, reasons, at });
   try {
-    await writeReport(reportPath, report);
+    await writeReport(written, report);
   } catch (e) {
-    io.stderr(`dyadrr: INTERNAL: the report ${reportPath} cannot be written (${(e as NodeJS.ErrnoException).code ?? String(e)})\n`);
+    io.stderr(`dyadrr: INTERNAL: the report ${written} cannot be written (${(e as NodeJS.ErrnoException).code ?? String(e)})\n`);
     return exitCodeFor('error', 'INTERNAL');
   }
-  io.stdout(`${reportPath}\n`);
+  io.stdout(`${written}\n`);
   if (progressJson) emit({ event: 'end', decision, exitCode });
   else io.stderr(`dyadrr: ${decision}${reasons[0] ? `: ${reasons[0].code}: ${reasons[0].message}` : ''}\n`);
   return exitCode;

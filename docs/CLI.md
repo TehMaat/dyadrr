@@ -48,7 +48,12 @@ senza `--output`, `--progress` con un valore diverso da `json`.
   nella cartella corrente, con l'ora UTC.
 - **Sempre scritto**, anche per `BAD_ARGUMENTS`, con un nome temporaneo che
   inizia con un punto e poi rinominato. Un report che esiste già si
-  sostituisce.
+  sostituisce, salvo il caso sotto.
+- **Un annullamento o un errore non cancellano un report finito:** se c'è già
+  un report `eligible` o `refused`, il report `cancelled` o `error` va
+  accanto, `<nome>-<decisione>-<AAAAMMGG>T<HHMMSS>Z.json` (con `-2`, `-3`… se
+  serve). Su stdout il percorso scritto; senza `--progress json` anche una
+  riga su stderr. Dalla 0.17.1.
 - **Mai al posto di un altro file:** se `--report` coincide con un ingresso,
   con il file finale o con il report di `--expect`, nessun report: messaggio
   `BAD_ARGUMENTS` su stderr e uscita 30.

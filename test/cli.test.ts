@@ -7,7 +7,7 @@ import { loadCalibration, parseCalibration } from '../src/calibration.js';
 import { runCli, type CliEnvironment } from '../src/cli.js';
 import { CancelledError } from '../src/codes.js';
 import { readInput } from '../src/inputs.js';
-import { PROGRESS_PHASES, REPORT_FIELDS, REPORT_FORMAT, type Report } from '../src/report.js';
+import { PROGRESS_PHASES, REPORT_FIELDS, REPORT_FORMAT, reportDestination, type Report } from '../src/report.js';
 import { runAsync, settle, tempDir } from './helpers/mkv.js';
 
 // Riga di comando e report (studio §10–11) su MKV veri, generati al volo. Il
@@ -338,6 +338,49 @@ test('CANCELLED: un segnale di stop durante il merge o durante l\'analisi; tempo
   assert.equal(a.report!.measurement, null);
   // Senza --report il nome viene da modalità e ora.
   assert.match(a.stdout, /\/dyadrr-analyze-\d{8}T\d{6}Z\.json\n$/);
+});
+
+test('report: un annullamento o un errore non sostituiscono il report di un\'esecuzione finita', async () => {
+  // A Quiet Place (studio §18): un'analisi annullata con lo stesso --report
+  // aveva cancellato il report di quella finita.
+  await analyzed();
+  copyFileSync(p('analysis.json'), p('kept.json'));
+  const kept = readFileSync(p('kept.json'), 'utf8');
+  const stop = new AbortController();
+  stop.abort(new CancelledError('received SIGTERM'));
+
+  const cancelled = await cli(['analyze', 'reference.mkv', 'donor.mkv', '--report', 'kept.json'], { signal: stop.signal });
+  assert.equal(cancelled.code, 50, cancelled.stderr);
+  assert.equal(readFileSync(p('kept.json'), 'utf8'), kept, 'the finished report is untouched');
+  assert.match(cancelled.stdout, /\/kept-cancelled-\d{8}T\d{6}Z\.json\n$/);
+  assert.equal(cancelled.report!.decision, 'cancelled');
+  assert.equal(cancelled.report!.arguments.report, cancelled.stdout.trim());
+  assert.match(cancelled.stderr, /kept\.json is of a finished run and is not overwritten: this report is .*kept-cancelled-/);
+
+  const error = await cli(['analyze', 'reference.mkv', '--report', 'kept.json']);
+  assert.equal(error.code, 30);
+  assert.equal(readFileSync(p('kept.json'), 'utf8'), kept);
+  assert.match(error.stdout, /\/kept-error-\d{8}T\d{6}Z\.json\n$/);
+  assert.deepEqual(reasons(error), ['BAD_ARGUMENTS']);
+
+  // Con --progress json stderr resta fatto di sole righe JSON: basta stdout.
+  const quiet = await cli(['analyze', 'reference.mkv', 'donor.mkv', '--report', 'kept.json', '--progress', 'json'], { signal: stop.signal });
+  assert.equal(quiet.code, 50);
+  assert.match(quiet.stdout, /\/kept-cancelled-/);
+  assert.deepEqual(quiet.events.map((e) => e.event), ['end']);
+
+  // Un report che non conclude si sostituisce, anche con un altro che non conclude.
+  const again = await cli(['analyze', 'reference.mkv', 'donor.mkv', '--report', cancelled.stdout.trim()], { signal: stop.signal });
+  assert.equal(again.stdout, cancelled.stdout);
+
+  // Nella stessa ora UTC al secondo, il nome accanto prende un numero.
+  const at = new Date('2026-10-31T12:00:00.000Z');
+  const first = await reportDestination(p('kept.json'), 'cancelled', at);
+  assert.equal(first, p('kept-cancelled-20261031T120000Z.json'));
+  writeFileSync(first, '{}');
+  assert.equal(await reportDestination(p('kept.json'), 'cancelled', at), p('kept-cancelled-20261031T120000Z-2.json'));
+  assert.equal(await reportDestination(p('kept.json'), 'refused', at), p('kept.json'), 'a finished run replaces it');
+  assert.equal(await reportDestination(p('donor.mkv'), 'error', at), p('donor.mkv'), 'not a report: replaced as before');
 });
 
 test('BAD_ARGUMENTS: argomenti sbagliati, con il report comunque scritto; --help e --version senza report', async () => {

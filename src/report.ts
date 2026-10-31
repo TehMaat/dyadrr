@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import type { Build } from './build.js';
 import type { Calibration } from './calibration.js';
@@ -226,10 +226,51 @@ export function defaultReportName(mode: Mode | null, at: Date): string {
   return `dyadrr-${mode ?? 'report'}-${stamp}.json`;
 }
 
+/** Le decisioni di un'esecuzione che è arrivata in fondo: il report vale qualcosa. */
+const CONCLUDED: readonly Decision[] = ['eligible', 'refused'];
+
+/**
+ * Dove si scrive il report (§10). Di norma `path`, anche se c'è già un file.
+ * Un report che non conclude (`cancelled` o `error`) però non prende mai il
+ * posto di un report che conclude (`eligible` o `refused`, di qualsiasi
+ * formato): va accanto, `<nome>-<decisione>-<ora UTC>.json`, con `-2`, `-3`…
+ * se anche quello c'è. Un file che non è un report si sostituisce, come prima.
+ */
+export async function reportDestination(path: string, decision: Decision, at: Date): Promise<string> {
+  if (CONCLUDED.includes(decision) || !CONCLUDED.includes((await existingReport(path))?.decision as Decision)) return path;
+  const stamp = at.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  const stem = join(dirname(path), basename(path).replace(/\.json$/i, ''));
+  for (let n = 1; ; n++) {
+    const candidate = `${stem}-${decision}-${stamp}${n === 1 ? '' : `-${n}`}.json`;
+    if (!(await exists(candidate))) return candidate;
+  }
+}
+
+/** Il report che c'è già in `path`, se è un report di Dyadrr. */
+async function existingReport(path: string): Promise<{ decision?: unknown } | null> {
+  try {
+    const parsed = JSON.parse(await readFile(path, 'utf8')) as unknown;
+    if (typeof parsed !== 'object' || parsed === null || typeof (parsed as { format?: unknown }).format !== 'number') return null;
+    return parsed as { decision?: unknown };
+  } catch {
+    return null;
+  }
+}
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Scrive il report con un nome temporaneo che inizia con un punto, ignorato
  * dal watcher di Wayfinderr, e poi lo rinomina: non si legge mai a metà
- * (§11.1). Un report che c'è già si sostituisce.
+ * (§11.1). Un report che c'è già si sostituisce: se si può, lo decide
+ * `reportDestination`.
  */
 export async function writeReport(path: string, report: Report): Promise<void> {
   const ordered = Object.fromEntries(REPORT_FIELDS.map((f) => [f, report[f]]));
