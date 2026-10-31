@@ -4,6 +4,21 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.17.0] - 2026-10-31
+
+### Cambiato
+- Chiusa la fase 1 sulle coppie reali (decisione 12). Su 25 coppie nessun
+  merge sbagliato; nove coppie buone rifiutate, tutte con la causa scritta; 3
+  coppie UHD + BD su 15 rifiutate per salti sotto il fotogramma. Le categorie
+  `non-english` e `two-discs` mancano e passano alla fase 2
+- La taratura resta la versione 4: i valori provvisori restano provvisori e si
+  rivedono in fase 2, uno alla volta
+- L'analisi si può di nuovo cambiare: finisce il fermo deciso nella 0.15.0
+  (studio 0.18); ogni cambio ha la sua voce in `ANALYSIS_CHANGES`
+- Documentazione: studio di fattibilità 0.22 (§9.2, §15, §17, §18), il
+  riassunto di `dyadrr-pairs` in `docs/fase1/summary.md`, stato in README,
+  COPPIE.md e TARATURA.md
+
 ## [0.16.0] - 2026-10-25
 
 ### Aggiunto

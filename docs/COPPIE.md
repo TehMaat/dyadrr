@@ -1,8 +1,10 @@
 # Coppie reali
 
 > **Stato:** implementato dalla 0.13.0 (studio §15, fase 1, punto 3); report
-> importati dalla 0.15.0. Le coppie reali e la taratura (decisione 12) sono da
-> fare.
+> importati dalla 0.15.0. Fase 1 chiusa nella 0.17.0 su 25 coppie reali: il
+> riassunto è in [fase1/summary.md](fase1/summary.md), le conclusioni nello
+> studio (§15, §18). La decisione 12 ha lasciato la taratura com'era; le
+> coppie nuove si aggiungono all'elenco anche in fase 2.
 
 Le soglie provvisorie ([TARATURA.md](TARATURA.md)) si tarano su coppie reali:
 almeno 15–20, che coprano le categorie dello studio (§15, punto 3).
@@ -194,7 +196,8 @@ nella cartella dei risultati: si legge a ogni lancio dal suo percorso.
 
 **Cosa entra nel repo.** I report contengono percorsi e nomi dei file e
 restano a chi misura. Nel repo entrano `summary.md`, nella PR della decisione
-12, e le conclusioni, nello studio (§18).
+12 ([fase1/summary.md](fase1/summary.md)), e le conclusioni, nello studio
+(§18).
 
 ## Verdetti
 
