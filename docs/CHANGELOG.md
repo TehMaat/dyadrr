@@ -4,6 +4,17 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.18.1] - 2026-10-31
+
+### Corretto
+- Un'analisi o un merge annullati, o finiti in errore, non sostituiscono più
+  il report di un'esecuzione finita (`eligible` o `refused`) con lo stesso
+  `--report`: il loro report va accanto,
+  `<nome>-<decisione>-<AAAAMMGG>T<HHMMSS>Z.json`, e stdout dà il percorso
+  scritto. Su A Quiet Place un'analisi annullata aveva cancellato quella
+  finita. L'analisi non cambia
+- Documentazione: studio di fattibilità 0.25 (§10, §18, §20)
+
 ## [0.18.0] - 2026-10-31
 
 ### Cambiato

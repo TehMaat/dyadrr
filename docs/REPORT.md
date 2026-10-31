@@ -34,7 +34,7 @@ report, nell'ordine in cui si scrivono.
 | `finishedAt` | Fine, ISO 8601 in UTC |
 | `durationMs` | Durata, in ms |
 | `tools` | Versioni di mkvmerge, ffprobe e ffmpeg; `null` se non lette |
-| `arguments` | File come passati, `output`, `report`, `originalLanguage`, `tempDir`, `expect` (percorsi assoluti), `progress`, scelte da opzione e da variabile d'ambiente (`choices`, con l'origine) |
+| `arguments` | File come passati, `output`, `report` (il percorso scritto: accanto a `--report` se un annullamento o un errore non sostituiscono un report finito, [CLI.md](CLI.md#report)), `originalLanguage`, `tempDir`, `expect` (percorsi assoluti), `progress`, scelte da opzione e da variabile d'ambiente (`choices`, con l'origine) |
 | `calibration` | Taratura usata: versione, tutti i valori, quali sono provvisori ([TARATURA.md](TARATURA.md)) |
 | `decision` | `eligible`, `refused`, `error`, `cancelled`. Un merge completato e verificato è `eligible` |
 | `reasons` | `{ code, message }`: un solo motivo per un rifiuto, un errore o un annullamento (`CANCELLED`), nessuno per `eligible` ([CODICI.md](CODICI.md)) |
