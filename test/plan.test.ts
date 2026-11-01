@@ -232,6 +232,48 @@ test('OUTRO_MISMATCH: code diverse, l\'italiano dopo il materiale in comune si t
   assert.deepEqual(drop.italian, { startMs: 0, endMs: FILM - 200_000 });
 });
 
+test('decisione 10: dove il film continua altrove oltre il confine, l\'italiano si taglia sempre al confine', () => {
+  // Come Up: il materiale in comune finisce 140 s prima della fine, il
+  // donatore ha più coda (i crediti italiani). Niente --edge-mismatch né
+  // --tail su quel lato: il taglio è al confine.
+  const end = FILM - 140_000;
+  const forced = input({
+    donor: donor([italian(2, 0, FILM + 30_000)]),
+    offsetMs: 0,
+    commonMaterial: { startMs: 0, endMs: end, continuesElsewhere: { start: false, end: true } },
+  });
+  const p = planMerge({ ...forced, choices: choices({ edgeMismatch: 'keep', tail: 'keep' }) }, cal);
+  assert.deepEqual(p.pending, []);
+  assert.equal(choice(p, 'edgeMismatch').status, 'ignored');
+  assert.equal(choice(p, 'tail').status, 'ignored');
+  assert.equal(p.end.cutMs, end);
+  assert.equal(p.end.gapMs, 140_000);
+  assert.deepEqual(p.italian, { startMs: 0, endMs: end });
+  assert.deepEqual(warnings(p), []);
+
+  // Sull'altro lato la scelta resta: un'intro diversa si chiede ancora.
+  const both = planMerge(input({
+    donor: donor([italian(2, 0, FILM + 30_000)]),
+    offsetMs: 0,
+    commonMaterial: { startMs: 30_000, endMs: end, continuesElsewhere: { start: false, end: true } },
+    cutLevels: levels(30_000, -60),
+  }), cal);
+  assert.deepEqual(both.pending, ['edgeMismatch']);
+  assert.equal(effect(both, 'edgeMismatch', 'keep').italianEndMs, end);
+  assert.equal(effect(both, 'edgeMismatch', 'keep').italianStartMs, 0);
+
+  // Lo stesso all'inizio: il taglio cade sul confine iniziale.
+  const start = planMerge(input({
+    donor: donor([italian(2, 0, FILM)]),
+    offsetMs: 0,
+    commonMaterial: { startMs: 20_000, endMs: FILM, continuesElsewhere: { start: true, end: false } },
+    cutLevels: levels(20_000, -60),
+  }), cal);
+  assert.deepEqual(start.pending, []);
+  assert.equal(start.start.cutMs, 20_000);
+  assert.equal(start.italian.startMs, 20_000);
+});
+
 test('TAIL_EXCESS_KEPT: il donatore ha più coda, l\'eccesso si lascia o si toglie con --tail', () => {
   const base = input({ donor: donor([italian(2, 0, FILM + 60_000)]), offsetMs: 0 });
   const pending = planMerge(base, cal);

@@ -875,7 +875,7 @@ export async function analyzePair(
     files[roles.reference],
     files[roles.donor],
     report.offset.offsetMs,
-    measurement.boundaries,
+    { ...measurement.boundaries, continuesElsewhere: report.commonMaterial?.continuesElsewhere },
     options.choices ?? {},
     cal,
     options,

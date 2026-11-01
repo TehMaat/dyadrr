@@ -373,18 +373,47 @@ test('CHECKPOINT_CONTRADICTION: da un fotogramma in su, anche dallo S definitivo
   assert.deepEqual(reasons(anchors), ['CHECKPOINT_CONTRADICTION']);
 });
 
-test('CHECKPOINT_CONTRADICTION: il film continua a un altro spostamento oltre il confine', () => {
-  const probe = { side: 'end' as const, positionMs: END + 5000, match: match(S + 4000) };
-  const r = decide(base({ commonMaterial: { startMs: START, endMs: END, probes: [probe] } }), cal);
+test('CHECKPOINT_CONTRADICTION: il film continua a un altro spostamento oltre il confine, lontano dal bordo', () => {
+  // Il materiale in comune finisce 15 min prima della fine del film: oltre i
+  // 10 min di longGapWithoutItalianMs è una modifica vera, e si rifiuta.
+  const end = DURATION - 15 * 60_000;
+  const probe = { side: 'end' as const, positionMs: end + 5000, match: match(S + 4000) };
+  const r = decide(base({ checkpoints: series(() => S, positions(30, START, end)), commonMaterial: { startMs: START, endMs: end, probes: [probe] } }), cal);
   assert.deepEqual(reasons(r), ['CHECKPOINT_CONTRADICTION']);
   assert.equal(result(r, 'edges'), 'fail');
   assert.equal(r.contradiction?.kind, 'single-jump');
+  assert.match(r.reasons[0]!.message, /15 min from the end of the film/);
 
   // Una coda davvero diversa: nessuna corrispondenza oltre il confine.
   const different = decide(base({
     commonMaterial: { startMs: START, endMs: END, probes: [{ ...probe, match: match(S + 4000, 0.2) }] },
   }), cal);
   assert.equal(different.decision, 'eligible');
+});
+
+test('EDGE_CONTINUES_ELSEWHERE: un altro spostamento oltre il confine vicino al bordo, solo un avviso', () => {
+  // Come Up: gli outro Disney e Pixar 30 s più avanti nel BD italiano, che ha
+  // i crediti italiani prima degli outro, a 10 s dalla fine del film.
+  const probe = { side: 'end' as const, positionMs: DURATION - 10_000, match: match(S - 30_020) };
+  const r = decide(base({ commonMaterial: { startMs: START, endMs: END, probes: [probe] } }), cal);
+  assert.equal(r.decision, 'eligible', JSON.stringify(r.reasons));
+  assert.equal(result(r, 'edges'), 'pass');
+  assert.deepEqual(warnings(r), ['EDGE_CONTINUES_ELSEWHERE']);
+  assert.equal(r.warnings[0]!.value, DURATION - END);
+  assert.deepEqual(r.commonMaterial?.continuesElsewhere, { start: false, end: true });
+  assert.equal(r.contradiction?.kind, 'single-jump');
+  // Lo stesso prima del confine iniziale.
+  const start = decide(base({
+    commonMaterial: { startMs: START, endMs: END, probes: [{ side: 'start' as const, positionMs: 0, match: match(S + 1816) }] },
+  }), cal);
+  assert.equal(start.decision, 'eligible');
+  assert.deepEqual(start.commonMaterial?.continuesElsewhere, { start: true, end: false });
+  // Esattamente 10 min dal bordo passa ancora; oltre no.
+  const limit = DURATION - cal.values.longGapWithoutItalianMs;
+  const atLimit = decide(base({ commonMaterial: { startMs: START, endMs: limit, probes: [{ ...probe, positionMs: limit + 5000 }] } }), cal);
+  assert.equal(result(atLimit, 'edges'), 'pass');
+  const past = decide(base({ commonMaterial: { startMs: START, endMs: limit - 1, probes: [{ ...probe, positionMs: limit + 5000 }] } }), cal);
+  assert.equal(result(past, 'edges'), 'fail');
 });
 
 test('CHECKPOINT_UNMATCHED: un tratto con contenuto non trova corrispondenza da nessuna parte', () => {

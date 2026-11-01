@@ -4,6 +4,22 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.20.0] - 2026-11-01
+
+### Cambiato
+- Titoli di coda e outro (decisione 10): se oltre un confine del materiale in
+  comune il riferimento ha al più 10 min (`longGapWithoutItalianMs`) e lì il
+  film continua a un altro spostamento, la coppia non si rifiuta più. Su quel
+  lato l'italiano si taglia sempre sul confine, senza la scelta
+  `--edge-mismatch`, e scatta l'avviso nuovo `EDGE_CONTINUES_ELSEWHERE`. Più
+  lontano dal bordo resta `CHECKPOINT_CONTRADICTION`. Rifiutava Up (outro 30 s
+  più avanti per i crediti italiani) e Zero Dark Thirty (titoli di coda
+  spostati di 1,8 s)
+- Nel report `commonMaterial.continuesElsewhere`, con i lati interessati
+- L'analisi cambia: voce 0.20.0 in `ANALYSIS_CHANGES`, i report con il
+  controllo dei confini fallito sono superati
+- Documentazione: studio di fattibilità 0.27 (§4.6, §9.6, §12, §20)
+
 ## [0.19.0] - 2026-11-01
 
 ### Cambiato

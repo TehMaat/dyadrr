@@ -456,7 +456,8 @@ export async function runCli(argv: readonly string[], io: CliEnvironment): Promi
         } while (answer !== null && !values.includes(answer));
         if (answer === null) break;
         (given as Record<string, unknown>)[name] = { value: answer, origin: 'prompt' };
-        plan = await planPair(reference, donor, offsetMs, analysis.measurement!.boundaries!, given, cal, { tools, signal });
+        const common = { ...analysis.measurement!.boundaries!, continuesElsewhere: analysis.report.commonMaterial?.continuesElsewhere };
+        plan = await planPair(reference, donor, offsetMs, common, given, cal, { tools, signal });
         state.plan = plan;
       }
       assertNoPendingChoices(plan.choices);
