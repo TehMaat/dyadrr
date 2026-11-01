@@ -99,6 +99,11 @@ export const ANALYSIS_CHANGES: readonly AnalysisChange[] = [
     what: 'a similar but not unique peak at the offset makes a checkpoint inconclusive, not unmatched',
     stale: (r) => r.measurement?.checkpoints?.some((c) => c.outcome === 'unmatched') ?? false,
   },
+  {
+    version: '0.20.0',
+    what: 'another offset beyond a boundary near the edge of the film: warning EDGE_CONTINUES_ELSEWHERE, Italian cut at the boundary',
+    stale: (r) => r.checks?.some((c) => c.name === 'edges' && c.result === 'fail') ?? false,
+  },
 ];
 
 /** I campi di `summary.json`, nell'ordine in cui si scrivono. */

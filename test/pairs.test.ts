@@ -505,7 +505,7 @@ test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassu
     differences: ANALYSIS_CHANGES.filter((c) => !c.stale(old)).map((c) => `${c.version}: ${c.what}`),
     stale: null,
   });
-  assert.equal(checkImport(old, moved, current).differences.length, 6);
+  assert.equal(checkImport(old, moved, current).differences.length, 7);
   const oldJumps = jumps(1);
   oldJumps.dyadrr = '0.13.1';
   assert.match(checkImport(oldJumps, moved, current).stale!, /^Dyadrr 0\.13\.1, changed in 0\.14\.0: contradiction shape/);

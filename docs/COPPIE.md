@@ -149,6 +149,7 @@ report di prima:
 | 0.16.0 | Sottotitoli italiani di testo presi; forced dai blocchi confrontati nello stesso formato | mai: cambiano solo i sottotitoli del piano e i loro avvisi |
 | 0.18.0 | Salti sotto il fotogramma: avviso `SUBFRAME_JUMPS` invece di `CHECKPOINT_CONTRADICTION`; i punti spostati contano per la distribuzione | ha una contraddizione |
 | 0.19.0 | Un picco a S somigliante ma poco netto rende il punto non conclusivo, non senza corrispondenza | ha un punto senza corrispondenza |
+| 0.20.0 | Un altro spostamento oltre un confine vicino al bordo: avviso `EDGE_CONTINUES_ELSEWHERE`, italiano tagliato al confine | ha il controllo dei confini fallito |
 
 Un report importato più vecchio ma valido entra con le sue differenze da oggi
 (`imported.differences`). Se le versioni delle coppie non sono tutte uguali,

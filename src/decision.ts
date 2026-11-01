@@ -208,6 +208,12 @@ export interface DecisionReport {
   commonMaterial: {
     startMs: number;
     endMs: number;
+    /**
+     * Lati in cui, vicino al bordo del film, il film continua a un altro
+     * spostamento oltre il confine (dalla 0.20, decisione 10): lì l'italiano
+     * si taglia sempre al confine.
+     */
+    continuesElsewhere: { start: boolean; end: boolean };
     /** Tratto verificato: dal primo all'ultimo punto coerente. */
     verifiedStartMs: number | null;
     verifiedEndMs: number | null;
@@ -682,6 +688,7 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
   report.commonMaterial = {
     startMs,
     endMs,
+    continuesElsewhere: { start: false, end: false },
     verifiedStartMs: confirming[0]?.positionMs ?? null,
     verifiedEndMs: confirming[confirming.length - 1]?.positionMs ?? null,
     coverage: round4(length / rv.durationMs),
@@ -689,18 +696,38 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
   const S = report.offset?.medianMs ?? anchorS;
   const confidentProbes = probes.filter((p) => isConfident(p.match, cal));
   const beyond = confidentProbes.filter((p) => gap(p.match!.offsetMs - S, frameMs) === 'beyond');
+  // Quanto film del riferimento resta oltre il confine, per lato. Vicino al
+  // bordo (titoli di coda, outro, loghi) un altro spostamento non rifiuta: lì
+  // l'italiano si taglia al confine (dalla 0.20, decisione 10).
+  const outside = { start: startMs, end: rv.durationMs - endMs };
+  const near = (side: 'start' | 'end') => outside[side] <= v.longGapWithoutItalianMs;
+  const far = beyond.filter((p) => !near(p.side));
   if (beyond.length > 0) {
     const edgePoints = [...matched, ...beyond.map((p) => ({ x: p.positionMs, y: p.match!.offsetMs }))];
     report.contradiction = contradictionShape(edgePoints, tol, rv.fps);
-    const p = beyond[0]!;
+  }
+  if (far.length > 0) {
+    const p = far[0]!;
     return fail(
       'edges',
       'CHECKPOINT_CONTRADICTION',
-      `the film continues at another offset (${round1(p.match!.offsetMs)} ms) ${p.side === 'start' ? 'before the start' : 'after the end'} of the common material`,
-      { measured: beyond.length, threshold: 0 },
+      `the film continues at another offset (${round1(p.match!.offsetMs)} ms) ${p.side === 'start' ? 'before the start' : 'after the end'} of the common material, ${round1(outside[p.side] / 60_000)} min from the ${p.side} of the film`,
+      { measured: far.length, threshold: 0 },
     );
   }
-  pass('edges', { detail: `common material ${startMs}–${endMs} ms` });
+  for (const side of ['start', 'end'] as const) {
+    const p = beyond.find((x) => x.side === side);
+    if (!p) continue;
+    report.commonMaterial.continuesElsewhere[side] = true;
+    warn(
+      'EDGE_CONTINUES_ELSEWHERE',
+      `the film continues at another offset (${round1(p.match!.offsetMs)} ms) ${side === 'start' ? 'before the start' : 'after the end'} of the common material, in the ${round1(outside[side] / 1000)} s ${side === 'start' ? 'before it' : 'after it'}: the Italian audio is cut at the boundary there`,
+      round1(outside[side]),
+    );
+  }
+  pass('edges', {
+    detail: `common material ${startMs}–${endMs} ms${beyond.length > 0 ? '; the film continues at another offset near the edge' : ''}`,
+  });
 
   // Salti sotto il fotogramma (§9.1, dalla 0.18): ancore, punti e prove oltre
   // i confini a più della tolleranza ma a meno di un fotogramma da S. Il video

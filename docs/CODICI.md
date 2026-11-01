@@ -21,7 +21,7 @@ mkvpropedit.
 | `NO_MATCH` | Nessuna ancora trova una corrispondenza abbastanza somigliante |
 | `AMBIGUOUS_MATCH` | Corrispondenze somiglianti ma non uniche |
 | `OFFSET_TOO_LARGE` | Spostamento sicuro ma oltre il massimo |
-| `CHECKPOINT_CONTRADICTION` | Lo spostamento cambia a metà film di un fotogramma o più. Il report ne mostra la forma |
+| `CHECKPOINT_CONTRADICTION` | Lo spostamento cambia a metà film di un fotogramma o più, o il film continua a un altro spostamento oltre un confine lontano dal bordo. Il report ne mostra la forma |
 | `CHECKPOINT_UNMATCHED` | Un tratto con contenuto non trova corrispondenza da nessuna parte. Dalla 0.19.0 non conta un tratto con un picco a S somigliante ma poco netto: è non conclusivo |
 | `DRIFT` | Lo spostamento cresce nel tempo |
 | `TOO_FEW_CHECKPOINTS` | Punti coerenti troppo pochi o mal distribuiti |
@@ -81,6 +81,7 @@ Non cambiano la decisione: finiscono nel report.
 | `ABRUPT_START` | Taglio iniziale con l'italiano sopra −40 dBFS nei 250 ms dopo il taglio ([`abruptStartDbfs`](TARATURA.md)) |
 | `MANY_INCONCLUSIVE` | Più del 10% di punti non conclusivi: silenzio, o dalla 0.19.0 un picco a S somigliante ma poco netto |
 | `SUBFRAME_JUMPS` | Ancore, punti di conferma o prove oltre i confini a più della tolleranza da S ma a meno di un fotogramma del riferimento: salti delle tracce audio, che il video non può dare. Il valore è lo scarto più grande dallo S definitivo: in quei tratti l'italiano è spostato di tanto (dalla 0.18.0) |
+| `EDGE_CONTINUES_ELSEWHERE` | Oltre un confine del materiale in comune vicino al bordo del film (al più 10 min di riferimento, [`longGapWithoutItalianMs`](TARATURA.md)) il film continua a un altro spostamento: titoli di coda, outro o loghi diversi. Su quel lato l'italiano si taglia sul confine, senza `--edge-mismatch`; il valore è il tratto del riferimento oltre il confine (dalla 0.20.0) |
 | `MKVMERGE_WARNING` | Avvisi di mkvmerge (codice 1), uno per avviso, di ogni passata |
 | `OUTPUT_TRANSFER_OFFSET` | Nel file finale l'italiano è sfasato rispetto alla lingua di misura del riferimento oltre la tolleranza per punto: S sbagliato di tanto, o italiano già sfasato nel donatore. Verifica dopo il merge, con il valore |
 | `INPUT_NOT_DELETED` | Con `--inputs delete`, un ingresso cambiato da quando è stato letto o che non si è potuto cancellare: resta dov'è. Il file finale è consegnato ([CLI.md](CLI.md#ingressi-dopo-il-merge)) |
@@ -130,7 +131,7 @@ citato esista e usi quel codice.
 | `NO_MATCH` | `test/decision.test.ts` › NO_MATCH: nessuna ancora abbastanza somigliante<br>`test/measure.test.ts` › canale centrale contro L+R su un remix: la coppia con il centrale, NO_MATCH con il solo L+R |
 | `AMBIGUOUS_MATCH` | `test/decision.test.ts` › AMBIGUOUS_MATCH: ancore somiglianti ma non uniche<br>`test/measure.test.ts` › AMBIGUOUS_MATCH: un contenuto che si ripete corrisponde ovunque |
 | `OFFSET_TOO_LARGE` | `test/decision.test.ts` › OFFSET_TOO_LARGE: picco sicuro oltre lo spostamento massimo<br>`test/measure.test.ts` › OFFSET_TOO_LARGE: spostamento sicuro oltre il massimo, dentro l'intervallo di ricerca |
-| `CHECKPOINT_CONTRADICTION` | `test/decision.test.ts` › CHECKPOINT_CONTRADICTION: due ancore sicure con spostamenti diversi<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: un salto di due fotogrammi a metà film<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: più salti, oppure rumore<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: il film continua a un altro spostamento oltre il confine<br>`test/measure.test.ts` › CHECKPOINT_CONTRADICTION: un taglio a metà film, di 4 s o di pochi fotogrammi |
+| `CHECKPOINT_CONTRADICTION` | `test/decision.test.ts` › CHECKPOINT_CONTRADICTION: due ancore sicure con spostamenti diversi<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: un salto di due fotogrammi a metà film<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: più salti, oppure rumore<br>`test/decision.test.ts` › CHECKPOINT_CONTRADICTION: il film continua a un altro spostamento oltre il confine, lontano dal bordo<br>`test/measure.test.ts` › CHECKPOINT_CONTRADICTION: un taglio a metà film, di 4 s o di pochi fotogrammi; EDGE_CONTINUES_ELSEWHERE vicino al bordo |
 | `CHECKPOINT_UNMATCHED` | `test/decision.test.ts` › CHECKPOINT_UNMATCHED: un tratto con contenuto non trova corrispondenza da nessuna parte<br>`test/measure.test.ts` › CHECKPOINT_UNMATCHED: un tratto sostituito a metà film non trova corrispondenza |
 | `DRIFT` | `test/decision.test.ts` › DRIFT: lo spostamento cresce nel tempo, e risulta deriva e non contraddizione<br>`test/measure.test.ts` › DRIFT: il donatore va più veloce di 0,3 per mille |
 | `TOO_FEW_CHECKPOINTS` | `test/decision.test.ts` › TOO_FEW_CHECKPOINTS: meno di 20 punti coerenti<br>`test/decision.test.ts` › TOO_FEW_CHECKPOINTS: un buco oltre 15 minuti tra punti coerenti<br>`test/decision.test.ts` › TOO_FEW_CHECKPOINTS: nessun punto coerente nell'ultimo 10% del materiale in comune |
@@ -170,6 +171,7 @@ citato esista e usi quel codice.
 | `ABRUPT_START` | `test/plan.test.ts` › ABRUPT_START: taglio iniziale con l'italiano sopra soglia; senza il livello del taglio è INTERNAL<br>`test/measure.test.ts` › INTRO_MISMATCH: su file veri l'italiano di un'intro diversa si tiene o si scarta (--edge-mismatch) |
 | `MANY_INCONCLUSIVE` | `test/decision.test.ts` › MANY_INCONCLUSIVE: più del 10% di punti non conclusivi, copertura comunque sufficiente<br>`test/measure.test.ts` › MANY_INCONCLUSIVE: silenzi lunghi danno punti non conclusivi, e punti aggiunti nei tratti scoperti |
 | `SUBFRAME_JUMPS` | `test/decision.test.ts` › SUBFRAME_JUMPS: salti sotto il fotogramma a metà film, solo un avviso |
+| `EDGE_CONTINUES_ELSEWHERE` | `test/decision.test.ts` › EDGE_CONTINUES_ELSEWHERE: un altro spostamento oltre il confine vicino al bordo, solo un avviso<br>`test/measure.test.ts` › CHECKPOINT_CONTRADICTION: un taglio a metà film, di 4 s o di pochi fotogrammi; EDGE_CONTINUES_ELSEWHERE vicino al bordo |
 | `MKVMERGE_WARNING` | `test/build.test.ts` › MKVMERGE_WARNING: mkvmerge esce con 1, il file si accetta e ogni avviso va nel report |
 | `OUTPUT_TRANSFER_OFFSET` | `test/verify.test.ts` › OUTPUT_TRANSFER_OFFSET: con uno S sbagliato di 40 ms le verifiche bloccanti passano, il trasferimento lo trova |
 | `OUTPUT_TRANSFER_UNVERIFIED` | `test/build.test.ts` › costruzione con S > 0 e --tail trim: ordine, flag, compressione, capitoli, coda tagliata anche in FLAC |

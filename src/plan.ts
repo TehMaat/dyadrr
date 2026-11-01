@@ -52,13 +52,23 @@ export interface CutLevel {
   levelDbfs: number;
 }
 
+export interface CommonMaterial {
+  startMs: number;
+  endMs: number;
+  continuesElsewhere?: { start: boolean; end: boolean };
+}
+
 export interface PlanInput {
   reference: PlanFile;
   donor: PlanFile;
   /** S definitivo, intero (`offset.offsetMs` della decisione). */
   offsetMs: number;
-  /** Confini del materiale in comune (§4.6). */
-  commonMaterial: { startMs: number; endMs: number };
+  /**
+   * Confini del materiale in comune (§4.6) e lati in cui il film continua a
+   * un altro spostamento oltre il confine (decisione 10): lì l'italiano si
+   * taglia sempre al confine, senza `--edge-mismatch`.
+   */
+  commonMaterial: CommonMaterial;
   /** Scelte indicate da opzione o variabile d'ambiente (§10.1). */
   choices: GivenChoices;
   /** Livelli nei punti di taglio iniziale (`startCuts`); servono per ogni taglio che il piano fa. */
@@ -258,6 +268,8 @@ interface Timeline {
   S: number;
   film: { startMs: number; endMs: number };
   common: { startMs: number; endMs: number };
+  /** Lati con il taglio al confine imposto (decisione 10). */
+  forced: { start: boolean; end: boolean };
   italianAudio: InputTrack[];
   main: InputTrack;
   /** Inizio e fine di ogni traccia audio italiana, sulla linea del tempo del riferimento. */
@@ -280,7 +292,8 @@ function timeline(input: Omit<PlanInput, 'choices' | 'cutLevels'>): Timeline {
   return {
     S,
     film: { startMs: filmStart, endMs: round3(filmStart + reference.video.durationMs) },
-    common: input.commonMaterial,
+    common: { startMs: input.commonMaterial.startMs, endMs: input.commonMaterial.endMs },
+    forced: input.commonMaterial.continuesElsewhere ?? { start: false, end: false },
     italianAudio,
     main,
     extents,
@@ -341,7 +354,7 @@ const mismatch = (ms: number) => (ms > PLAN_PRECISION_MS ? round3(ms) : 0);
  * scelte che non servono non si usano.
  */
 function layout(ctx: Context, values: Partial<Record<ChoiceName, string>>): Layout {
-  const { film, common, cal } = ctx;
+  const { film, common, cal, forced } = ctx;
   const needed = new Set<ChoiceName>();
   const warnings: Warning[] = [];
   const warn = (code: WarningCode, message: string, value?: number) => {
@@ -372,18 +385,23 @@ function layout(ctx: Context, values: Partial<Record<ChoiceName, string>>): Layo
   const startMismatch = mismatch(common.startMs - Math.max(naturalStart, film.startMs));
   const endMismatch = mismatch(Math.min(naturalEnd, film.endMs) - common.endMs);
   const excess = naturalEnd - film.endMs;
-  const edge = value('edgeMismatch', startMismatch > 0 || endMismatch > 0);
+  // Dove il film continua a un altro spostamento oltre il confine (decisione
+  // 10), l'italiano si taglia sempre al confine: `keep` lo metterebbe fuori
+  // sincrono, quindi su quel lato non c'è niente da scegliere.
+  const edge = value('edgeMismatch', (startMismatch > 0 && !forced.start) || (endMismatch > 0 && !forced.end));
   // Con code diverse e `drop` il taglio cade sul confine, prima della fine del
   // video: l'eccesso se ne va comunque e `--tail` non serve.
-  const tail = value('tail', excess > PLAN_PRECISION_MS && !(endMismatch > 0 && edge === 'drop'));
+  const tail = value('tail', excess > PLAN_PRECISION_MS && !forced.end && !(endMismatch > 0 && edge === 'drop'));
 
   const startCut: Cut =
-    startMismatch > 0 && edge === undefined ? PENDING
+    forced.start ? (naturalStart < common.startMs ? at(common.startMs) : NONE)
+    : startMismatch > 0 && edge === undefined ? PENDING
     : startMismatch > 0 && edge === 'drop' ? at(common.startMs)
     : naturalStart < film.startMs ? at(film.startMs)
     : NONE;
   const endCut: Cut =
-    endMismatch > 0 && edge === undefined ? PENDING
+    forced.end ? (naturalEnd > common.endMs ? at(common.endMs) : NONE)
+    : endMismatch > 0 && edge === undefined ? PENDING
     : endMismatch > 0 && edge === 'drop' ? at(common.endMs)
     : needed.has('tail') ? (tail === undefined ? PENDING : tail === 'trim' ? at(film.endMs) : NONE)
     : NONE;
@@ -391,10 +409,10 @@ function layout(ctx: Context, values: Partial<Record<ChoiceName, string>>): Layo
   const italianStart = startCut.kind === 'pending' ? null : startCut.kind === 'at' ? Math.max(naturalStart, startCut.ms) : naturalStart;
   const italianEnd = endCut.kind === 'pending' ? null : endCut.kind === 'at' ? Math.min(naturalEnd, endCut.ms) : naturalEnd;
 
-  if (edge === 'keep' && startMismatch > 0) {
+  if (edge === 'keep' && startMismatch > 0 && !forced.start) {
     warn('INTRO_MISMATCH', `${startMismatch} ms of Italian audio kept over a different intro, before the common material`, startMismatch);
   }
-  if (edge === 'keep' && endMismatch > 0) {
+  if (edge === 'keep' && endMismatch > 0 && !forced.end) {
     warn('OUTRO_MISMATCH', `${endMismatch} ms of Italian audio kept over a different ending, after the common material`, endMismatch);
   }
   if (tail === 'keep') {
@@ -593,7 +611,7 @@ export async function planPair(
   reference: InputFile,
   donor: InputFile,
   offsetMs: number,
-  commonMaterial: { startMs: number; endMs: number },
+  commonMaterial: CommonMaterial,
   choices: GivenChoices,
   cal: Calibration,
   options: PlanOptions = {},

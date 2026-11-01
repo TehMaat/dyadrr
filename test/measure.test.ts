@@ -306,12 +306,17 @@ test('silenzio all\'inizio e alla fine: i confini si fermano vicino al contenuto
   assert.ok(a.measurement!.edgeProbes!.every((x) => x.match === null || x.match.ncc < 0.5));
 });
 
-test('CHECKPOINT_CONTRADICTION: un taglio a metà film, di 4 s o di pochi fotogrammi', async () => {
+test('CHECKPOINT_CONTRADICTION: un taglio a metà film, di 4 s o di pochi fotogrammi; EDGE_CONTINUES_ELSEWHERE vicino al bordo', async () => {
   // 4 s tolti a 60 s: dopo il taglio il film continua a 4 s di distanza,
   // fuori dalla ricerca vicina. Il confine finale cade sul taglio, e oltre il
-  // confine il film si ritrova: è un salto, non una coda diversa.
+  // confine il film si ritrova: è un salto, non una coda diversa. In un film
+  // di 2 minuti il taglio è a meno di 10 min dalla fine, quindi vicino al
+  // bordo (decisione 10): non rifiutano i confini ma la copertura, perché
+  // l'italiano si taglierebbe sul confine e coprirebbe metà film.
   const cut = await analyze('reference', 'donor-cut');
-  assert.deepEqual(reasons(cut), ['CHECKPOINT_CONTRADICTION']);
+  assert.deepEqual(reasons(cut), ['LOW_COVERAGE']);
+  assert.ok(warnings(cut).includes('EDGE_CONTINUES_ELSEWHERE'), JSON.stringify(warnings(cut)));
+  assert.deepEqual(cut.report.commonMaterial?.continuesElsewhere, { start: false, end: true });
   const end = cut.measurement!.boundaries!.endMs;
   assert.ok(end > 57_000 && end < 62_000, String(end));
   const shape = cut.report.contradiction!;
