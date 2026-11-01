@@ -396,6 +396,31 @@ test('CHECKPOINT_UNMATCHED: un tratto con contenuto non trova corrispondenza da 
   assert.equal(r.checkpoints.filter((p) => p.outcome === 'unmatched').length, 4);
 });
 
+test('punti: un picco a S somigliante ma non unico è non conclusivo, non senza corrispondenza', () => {
+  // Come A Quiet Place: picchi proprio a S con NCC 1 ma poco netti (rapporto
+  // 1,05–1,42) su sottofondi continui. Ora non conclusivi: la coppia passa.
+  const pts = series(() => S).map((p, i) => (i % 7 === 3 ? { ...p, local: match(S + 0.5, 1, 1.2) } : p));
+  const r = decide(base({ checkpoints: pts }), cal);
+  assert.equal(r.decision, 'eligible', JSON.stringify(r.reasons));
+  assert.equal(r.checkpoints.filter((p) => p.outcome === 'inconclusive').length, 4);
+  assert.equal(result(r, 'unmatched'), 'pass');
+  assert.deepEqual(warnings(r), ['MANY_INCONCLUSIVE']);
+
+  // Somigliante a meno di un fotogramma da S (Up: 657 o 667 con S 656,5): non conclusivo.
+  const at = (i: number, local: Match, wide: Match | null = null) =>
+    series(() => S).map((p, j) => (j === i ? { ...p, local, wide } : p));
+  const up = decide(base({ checkpoints: at(10, match(S + 11, 1, 1.3)) }), cal);
+  assert.equal(up.checkpoints[10]!.outcome, 'inconclusive');
+  // Lontano da S, o poco somigliante (Ghostbusters, NCC 0,42), resta senza corrispondenza.
+  assert.deepEqual(reasons(decide(base({ checkpoints: at(10, match(S + 50, 1, 1.3)) }), cal)), ['CHECKPOINT_UNMATCHED']);
+  assert.deepEqual(reasons(decide(base({ checkpoints: at(10, match(S, 0.42, 3)) }), cal)), ['CHECKPOINT_UNMATCHED']);
+  // Un picco sicuro altrove nella ricerca ampia resta una contraddizione.
+  assert.deepEqual(reasons(decide(base({ checkpoints: at(10, match(S, 1, 1.2), match(S + 9000)) }), cal)), ['CHECKPOINT_CONTRADICTION']);
+  // Non confermano S: se sono troppi, manca la distribuzione dei punti.
+  const most = decide(base({ checkpoints: series(() => S).map((p, i) => (i % 3 !== 0 ? { ...p, local: match(S, 1, 1.2) } : p)) }), cal);
+  assert.deepEqual(reasons(most), ['TOO_FEW_CHECKPOINTS']);
+});
+
 test('punti: il non conclusivo si decide dall\'energia; la ricerca ampia può dare contraddizione', () => {
   const pos = positions();
   const pts = series(() => S, pos);

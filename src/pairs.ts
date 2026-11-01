@@ -94,6 +94,11 @@ export const ANALYSIS_CHANGES: readonly AnalysisChange[] = [
     what: 'jumps below a frame: warning SUBFRAME_JUMPS instead of CHECKPOINT_CONTRADICTION; shifted checkpoints count for the distribution',
     stale: (r) => r.measurement?.contradiction != null,
   },
+  {
+    version: '0.19.0',
+    what: 'a similar but not unique peak at the offset makes a checkpoint inconclusive, not unmatched',
+    stale: (r) => r.measurement?.checkpoints?.some((c) => c.outcome === 'unmatched') ?? false,
+  },
 ];
 
 /** I campi di `summary.json`, nell'ordine in cui si scrivono. */

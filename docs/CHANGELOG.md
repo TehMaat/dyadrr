@@ -4,6 +4,20 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.19.0] - 2026-11-01
+
+### Cambiato
+- Picchi giusti ma poco netti (decisione 8 della fase 1): un punto di
+  conferma senza picchi sicuri, ma con un picco della ricerca vicina
+  somigliante (NCC almeno θ_ncc) a meno di un fotogramma da S, è non
+  conclusivo invece che senza corrispondenza. Rifiutava coppie buone con lo S
+  giusto ovunque su sottofondi continui, musiche ripetitive e tratti quasi
+  muti: A Quiet Place, Away, tre punti di Up. Le soglie non cambiano; un
+  picco poco somigliante o lontano da S resta `CHECKPOINT_UNMATCHED`
+- L'analisi cambia: voce 0.19.0 in `ANALYSIS_CHANGES`, i report con un punto
+  senza corrispondenza sono superati e vanno rimisurati
+- Documentazione: studio di fattibilità 0.26 (§4.5, §9.6, §18, §20)
+
 ## [0.18.1] - 2026-10-31
 
 ### Corretto

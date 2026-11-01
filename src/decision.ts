@@ -235,6 +235,18 @@ export function isConfident(match: Match | null | undefined, cal: Calibration): 
 }
 
 /**
+ * Un picco della ricerca vicina proprio a S, somigliante ma non unico (dalla
+ * 0.19, decisione 8): NCC almeno θ_ncc, rapporto sotto θ_rapporto, a meno di
+ * un fotogramma da S. Su un sottofondo continuo, una musica ripetitiva o un
+ * tratto quasi muto il film corrisponde, ma somiglia a sé stesso a tanti
+ * spostamenti: il punto non conferma S e non lo smentisce, è non conclusivo.
+ */
+export function similarAtS(local: Match | null | undefined, S: number, frameMs: number, cal: Calibration): boolean {
+  return !!local && local.ncc >= cal.values.nccMin && local.ratio < cal.values.peakRatioMin
+    && Math.abs(local.offsetMs - S) < frameMs;
+}
+
+/**
  * Esito del controllo di trasferimento (§4.7): la mediana dei picchi sicuri,
  * al decimo di ms; `null` se nessun punto ne ha uno. Lo usano la decisione e
  * la stessa verifica sul file finale (§9.5).
@@ -562,7 +574,10 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
     }
     const m = isConfident(c.local, cal) ? c.local : isConfident(c.wide, cal) ? c.wide : null;
     if (m === null) {
-      return { ...base, outcome: 'unmatched', offsetMs: null, deviationMs: null, ncc: null, ratio: null };
+      // Nessun picco sicuro da nessuna parte: con un picco somigliante proprio
+      // a S il punto è non conclusivo, altrimenti senza corrispondenza.
+      const outcome = similarAtS(c.local, anchorS, frameMs, cal) ? 'inconclusive' : 'unmatched';
+      return { ...base, outcome, offsetMs: null, deviationMs: null, ncc: null, ratio: null };
     }
     const deviation = m.offsetMs - anchorS;
     return {
@@ -753,7 +768,7 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
   if (inconclusiveFraction > v.manyInconclusiveFraction) {
     warn(
       'MANY_INCONCLUSIVE',
-      `${inconclusive} of ${points.length} checkpoints are inconclusive (silence or no content)`,
+      `${inconclusive} of ${points.length} checkpoints are inconclusive (silence, or a similar but not unique peak at the offset)`,
       round4(inconclusiveFraction),
     );
   }

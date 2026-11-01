@@ -17,6 +17,7 @@ import {
   checkStructure,
   decide,
   isConfident,
+  similarAtS,
   transferResult,
   type AnchorMeasure,
   type CheckpointMeasure,
@@ -608,7 +609,7 @@ export async function measurePair(
   const outcome = (c: CheckpointMeasure) => {
     if (c.energyDbfs < v.silenceDbfs) return 'inconclusive';
     const m = isConfident(c.local, cal) ? c.local : isConfident(c.wide, cal) ? c.wide : null;
-    if (m === null) return 'unmatched';
+    if (m === null) return similarAtS(c.local, S, frameMs, cal) ? 'inconclusive' : 'unmatched';
     const d = Math.abs(m.offsetMs - S);
     return d <= tol ? 'consistent' : d < frameMs ? 'shifted' : 'contradictory';
   };
