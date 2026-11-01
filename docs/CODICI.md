@@ -65,8 +65,8 @@ Non cambiano la decisione: finiscono nel report.
 | `VIDEO_QUALITY_UNCERTAIN` | Video confrontabile solo in modo incerto |
 | `ORIGINAL_LANGUAGE_NOT_COMMON` | La lingua originale indicata non è presente in entrambi i file |
 | `MEASURE_MIX_DIFFERS` | La somiglianza della coppia di misura è in una fascia bassa ma sufficiente |
-| `MAIN_TRACKS_DISAGREE` | La coppia di misura non è quella delle tracce principali, e le tracce principali danno un altro S oltre la tolleranza, con la differenza: per esempio una misura su due commenti identici |
-| `ITALIAN_TRANSFER_OFFSET` | L'italiano è sfasato rispetto alla lingua di misura dentro il donatore |
+| `MAIN_TRACKS_DISAGREE` | La coppia di misura non è quella delle tracce principali, e le tracce principali, dello stesso formato nei due file (dalla 0.21.0), danno un altro S oltre la tolleranza, con la differenza: per esempio una misura su due commenti identici |
+| `ITALIAN_TRANSFER_OFFSET` | L'italiano è sfasato rispetto alla lingua di misura dentro il donatore oltre la tolleranza per punto; tra tracce di formati diversi oltre [`transferCrossFormatToleranceMs`](TARATURA.md), 40 ms (dalla 0.21.0) |
 | `ITALIAN_UNVERIFIED` | L'allineamento dell'italiano con la lingua di misura non si è potuto verificare |
 | `ITALIAN_TRACKS_SKIPPED` | Una traccia audio italiana scartata con `--italian main`: un avviso per traccia |
 | `REFERENCE_HAS_ITALIAN_SUBS` | Il riferimento ha già PGS italiani, tenuti o scartati (`--reference-italian-subs`) |
@@ -78,12 +78,12 @@ Non cambiano la decisione: finiscono nel report.
 | `OUTRO_MISMATCH` | Code diverse (oltre 1 s di italiano dopo il materiale in comune), audio italiano tenuto (`--edge-mismatch keep`) |
 | `LONG_GAP_WITHOUT_ITALIAN` | All'inizio o alla fine del film manca l'italiano per più di 10 minuti ([`longGapWithoutItalianMs`](TARATURA.md)) |
 | `TAIL_EXCESS_KEPT` | Italiano oltre la fine del video di riferimento lasciato (`--tail keep`) |
-| `ABRUPT_START` | Taglio iniziale con l'italiano sopra −40 dBFS nei 250 ms dopo il taglio ([`abruptStartDbfs`](TARATURA.md)) |
+| `ABRUPT_START` | Taglio iniziale con l'italiano sopra −25 dBFS (−40 fino alla taratura 4) nei 250 ms dopo il taglio ([`abruptStartDbfs`](TARATURA.md)) |
 | `MANY_INCONCLUSIVE` | Più del 10% di punti non conclusivi: silenzio, o dalla 0.19.0 un picco a S somigliante ma poco netto |
 | `SUBFRAME_JUMPS` | Ancore, punti di conferma o prove oltre i confini a più della tolleranza da S ma a meno di un fotogramma del riferimento: salti delle tracce audio, che il video non può dare. Il valore è lo scarto più grande dallo S definitivo: in quei tratti l'italiano è spostato di tanto (dalla 0.18.0) |
 | `EDGE_CONTINUES_ELSEWHERE` | Oltre un confine del materiale in comune vicino al bordo del film (al più 10 min di riferimento, [`longGapWithoutItalianMs`](TARATURA.md)) il film continua a un altro spostamento: titoli di coda, outro o loghi diversi. Su quel lato l'italiano si taglia sul confine, senza `--edge-mismatch`; il valore è il tratto del riferimento oltre il confine (dalla 0.20.0) |
 | `MKVMERGE_WARNING` | Avvisi di mkvmerge (codice 1), uno per avviso, di ogni passata |
-| `OUTPUT_TRANSFER_OFFSET` | Nel file finale l'italiano è sfasato rispetto alla lingua di misura del riferimento oltre la tolleranza per punto: S sbagliato di tanto, o italiano già sfasato nel donatore. Verifica dopo il merge, con il valore |
+| `OUTPUT_TRANSFER_OFFSET` | Nel file finale l'italiano è sfasato rispetto alla lingua di misura del riferimento oltre la tolleranza per punto (tra formati diversi oltre `transferCrossFormatToleranceMs`, dalla 0.21.0): S sbagliato di tanto, o italiano già sfasato nel donatore. Verifica dopo il merge, con il valore |
 | `INPUT_NOT_DELETED` | Con `--inputs delete`, un ingresso cambiato da quando è stato letto o che non si è potuto cancellare: resta dov'è. Il file finale è consegnato ([CLI.md](CLI.md#ingressi-dopo-il-merge)) |
 | `OUTPUT_TRANSFER_UNVERIFIED` | Nel file finale l'italiano non correla con la lingua di misura del riferimento: l'allineamento non si è potuto verificare di nuovo |
 
@@ -156,7 +156,7 @@ citato esista e usi quel codice.
 | `ORIGINAL_LANGUAGE_NOT_COMMON` | `test/decision.test.ts` › ORIGINAL_LANGUAGE_NOT_COMMON: la lingua originale non è in entrambi i file |
 | `MEASURE_MIX_DIFFERS` | `test/decision.test.ts` › MEASURE_MIX_DIFFERS: somiglianza nella fascia bassa ma sufficiente |
 | `MAIN_TRACKS_DISAGREE` | `test/decision.test.ts` › MAIN_TRACKS_DISAGREE: le tracce principali danno un altro S |
-| `ITALIAN_TRANSFER_OFFSET` | `test/decision.test.ts` › ITALIAN_TRANSFER_OFFSET: nel donatore l'italiano è sfasato rispetto alla lingua di misura |
+| `ITALIAN_TRANSFER_OFFSET` | `test/decision.test.ts` › ITALIAN_TRANSFER_OFFSET: nel donatore l'italiano è sfasato rispetto alla lingua di misura<br>`test/decision.test.ts` › ITALIAN_TRANSFER_OFFSET: tra formati diversi la tolleranza è più larga (decisione 3) |
 | `ITALIAN_UNVERIFIED` | `test/decision.test.ts` › ITALIAN_UNVERIFIED: l'italiano non correla con la lingua di misura |
 | `ITALIAN_TRACKS_SKIPPED` | `test/plan.test.ts` › ITALIAN_TRACKS_SKIPPED: con --italian main si prende solo la traccia principale |
 | `REFERENCE_HAS_ITALIAN_SUBS` | `test/plan.test.ts` › REFERENCE_HAS_ITALIAN_SUBS: PGS italiani già nel riferimento, tenuti o scartati |

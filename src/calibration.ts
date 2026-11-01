@@ -52,6 +52,12 @@ export const CALIBRATION_LIMITS = {
   manyInconclusiveFraction: { min: 0.01, max: 0.5 },
   /** Un tratto del film senza italiano, all'inizio o alla fine, più lungo di così dà `LONG_GAP_WITHOUT_ITALIAN`, in ms (§5). */
   longGapWithoutItalianMs: { min: 60_000, max: 1_800_000 },
+  /**
+   * Tolleranza del controllo di trasferimento tra tracce di formati diversi,
+   * in ms (§4.7, §9.5, dalla taratura 5): tracce Dolby compresse e senza
+   * perdita sono sfasate di 20–30 ms anche nello stesso disco. Solo avvisi.
+   */
+  transferCrossFormatToleranceMs: { min: 10, max: 100 },
   /** Livello dell'italiano subito dopo il taglio iniziale oltre il quale scatta `ABRUPT_START`, in dBFS (§5). */
   abruptStartDbfs: { min: -70, max: -10 },
   /**

@@ -514,6 +514,20 @@ test('ITALIAN_TRANSFER_OFFSET: nel donatore l\'italiano è sfasato rispetto alla
   assert.equal(result(r, 'transfer'), 'fail');
 });
 
+test('ITALIAN_TRANSFER_OFFSET: tra formati diversi la tolleranza è più larga (decisione 3)', () => {
+  // Come Kung Fu Panda 2: italiano AC-3 contro inglese TrueHD a 27,2 ms.
+  const at = (ms: number, sameFormat: boolean) => decide(base({
+    transfer: [0.2, 0.5, 0.8].map((f) => ({ positionMs: DURATION * f, match: match(ms, 0.7, 2) })),
+    transferSameFormat: sameFormat,
+  }), cal);
+  assert.deepEqual(warnings(at(27.2, false)), []);
+  assert.equal(result(at(27.2, false), 'transfer'), 'pass');
+  assert.deepEqual(warnings(at(27.2, true)), ['ITALIAN_TRANSFER_OFFSET']);
+  const far = at(61.3, false);
+  assert.deepEqual(warnings(far), ['ITALIAN_TRANSFER_OFFSET']);
+  assert.equal(far.checks.find((c) => c.name === 'transfer')?.threshold, cal.values.transferCrossFormatToleranceMs);
+});
+
 test('ITALIAN_UNVERIFIED: l\'italiano non correla con la lingua di misura', () => {
   const r = decide(base({ transfer: [0.2, 0.5, 0.8].map((f) => ({ positionMs: DURATION * f, match: null })) }), cal);
   assert.equal(r.decision, 'eligible');

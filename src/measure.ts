@@ -144,6 +144,8 @@ export interface Measurement {
   transfer: {
     measureTrackId: number;
     italianTrackId: number;
+    /** La traccia usata ha lo stesso formato dell'italiano: altrimenti vale `transferCrossFormatToleranceMs` (§4.7). */
+    sameFormat: boolean;
     probes: MeasuredTransferProbe[];
     /** Ogni traccia della lingua di misura provata (§4.7), con il suo esito. */
     candidates: TransferCandidate[];
@@ -319,18 +321,33 @@ export function mainTrack<T extends Pick<InputTrack, 'channels' | 'codec' | 'cod
   return tracks.reduce<T | null>((best, t) => (best === null || score(t) > score(best) ? t : best), null);
 }
 
+/** Stesso formato: lo stesso codec (§4.2, §4.7). Tracce di formati diversi possono essere sfasate di qualche decina di ms. */
+export function sameFormat(a: Pick<InputTrack, 'codec' | 'codecId'>, b: Pick<InputTrack, 'codec' | 'codecId'>): boolean {
+  return (a.codecId ?? a.codec) === (b.codecId ?? b.codec);
+}
+
+type PairTracks = Pick<InputTrack, 'channels' | 'codec' | 'codecId'>;
+
 /**
  * La coppia migliore tra `indices` (§4.2): la somiglianza più alta; alla pari
  * (entro `PAIR_TIE_NCC`) due tracce senza perdite, poi lo stesso codec, poi
- * l'ordine delle tracce.
+ * le tracce principali dei due file (dalla 0.21, decisione 7: la traccia del
+ * film, non un commento o una traccia secondaria), poi l'ordine delle tracce.
  */
-function bestPair(indices: readonly number[], pairs: readonly Pair[], ncc: (i: number) => number): number {
+export function bestPair<T extends PairTracks>(
+  indices: readonly number[],
+  pairs: readonly { reference: T; donor: T }[],
+  ncc: (i: number) => number,
+): number {
   const top = Math.max(...indices.map(ncc));
   const tied = indices.filter((i) => ncc(i) >= top - PAIR_TIE_NCC);
+  const mainReference = mainTrack(pairs.map((p) => p.reference));
+  const mainDonor = mainTrack(pairs.map((p) => p.donor));
   const score = (i: number) => {
     const p = pairs[i]!;
-    return (isLossless(p.reference) && isLossless(p.donor) ? 2 : 0) +
-      ((p.reference.codecId ?? p.reference.codec) === (p.donor.codecId ?? p.donor.codec) ? 1 : 0);
+    return (isLossless(p.reference) && isLossless(p.donor) ? 6 : 0) +
+      (sameFormat(p.reference, p.donor) ? 3 : 0) +
+      (p.reference === mainReference ? 1 : 0) + (p.donor === mainDonor ? 1 : 0);
   };
   return tied.reduce((best, i) => (score(i) > score(best) ? i : best));
 }
@@ -385,7 +402,7 @@ export async function measurePair(
 
   progress('anchors', 0, positions.length);
   for (const [n, position] of positions.entries()) {
-    const active = chosen === null ? pairs.map((_, i) => i) : [chosen];
+    const active: number[] = chosen === null ? pairs.map((_, i) => i) : [chosen];
     const unique = (list: TrackSignal[]) => [...new Map(list.map((s) => [key(s), s])).values()];
     const refSignals = unique(active.map((i) => ({ track: pairs[i]!.reference, mix: pairs[i]!.mix })));
     const donorSignals = unique(active.map((i) => ({ track: pairs[i]!.donor, mix: pairs[i]!.mix })));
@@ -414,8 +431,8 @@ export async function measurePair(
     }
     progress('anchors', n + 1, positions.length);
     if (chosen === null) {
-      const confident = active.filter((i) => isConfident(matches.get(i), cal));
-      if (confident.length > 0) chosen = bestPair(confident, pairs, (i) => matches.get(i)!.ncc);
+      const confident: number[] = active.filter((i) => isConfident(matches.get(i), cal));
+      if (confident.length > 0) chosen = bestPair<InputTrack>(confident, pairs, (i: number) => matches.get(i)!.ncc);
     }
     if (chosen !== null) {
       const sure = perPair[chosen]!.filter((a) => isConfident(a, cal));
@@ -425,13 +442,17 @@ export async function measurePair(
   }
 
   // Senza ancore sicure si tiene la coppia più somigliante.
-  const pick = chosen ?? bestPair(pairs.map((_, i) => i), pairs, (i) => Math.max(...perPair[i]!.map((a) => a.ncc)));
+  const pick = chosen ?? bestPair<InputTrack>(pairs.map((_, i) => i), pairs, (i: number) => Math.max(...perPair[i]!.map((a) => a.ncc)));
   // Le tracce principali sull'ancora accettata, se la coppia scelta è un'altra:
   // fino a quell'ancora sono state misurate tutte le coppie.
   const mainIndex = pairs.findIndex((p) =>
     p.reference === mainTrack(pairs.map((x) => x.reference)) && p.donor === mainTrack(pairs.map((x) => x.donor)));
   const acceptedAt = chosen === null ? -1 : perPair[chosen]!.findIndex((a) => isConfident(a, cal));
-  const mainMeasure = mainIndex === -1 || mainIndex === chosen || acceptedAt === -1 ? undefined : perPair[mainIndex]![acceptedAt];
+  // Solo tra tracce dello stesso formato (dalla 0.21, decisione 2): tra formati
+  // diversi le tracce principali sono sfasate di qualche decina di ms anche
+  // quando la misura è giusta (Scott Pilgrim, The Next Karate Kid).
+  const mainMeasure = mainIndex === -1 || mainIndex === chosen || acceptedAt === -1
+    || !sameFormat(pairs[mainIndex]!.reference, pairs[mainIndex]!.donor) ? undefined : perPair[mainIndex]![acceptedAt];
   const mainPair = mainMeasure ? { ...pairIds(pairs[mainIndex]!), match: { offsetMs: mainMeasure.offsetMs, ncc: mainMeasure.ncc, ratio: mainMeasure.ratio } } : null;
   const result = (fields: Partial<Measurement>): Measurement => ({
     measureLanguage,
@@ -706,6 +727,7 @@ export async function measurePair(
     transfer: {
       measureTrackId: candidates[best]!.id,
       italianTrackId: italian.id,
+      sameFormat: sameFormat(candidates[best]!, italian),
       probes: perTrack[best]!,
       candidates: candidates.map((t, i) => {
         const r = transferResult(perTrack[i]!, cal);
@@ -832,7 +854,7 @@ export function decisionMeasures(m: Measurement): Omit<DecisionInput, 'files' | 
     speedRatio: m.speedRatio,
     ...(m.checkpoints ? { checkpoints: m.checkpoints } : {}),
     ...(m.boundaries && m.edgeProbes ? { commonMaterial: { ...m.boundaries, probes: m.edgeProbes } } : {}),
-    ...(m.transfer ? { transfer: m.transfer.probes } : {}),
+    ...(m.transfer ? { transfer: m.transfer.probes, transferSameFormat: m.transfer.sameFormat } : {}),
     mainPair: m.mainPair,
   };
 }

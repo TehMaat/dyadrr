@@ -7,7 +7,7 @@ import { writeOutcomeReport } from './cli.js';
 import { DyadrrError, EXIT_CODES, exitCodeFor, type Decision } from './codes.js';
 import { isConfident, type AnchorOutcome, type ContradictionShape, type Match } from './decision.js';
 import { parseOriginalLanguage } from './languages.js';
-import type { TrackPair } from './measure.js';
+import { bestPair, type TrackPair } from './measure.js';
 import { REPORT_FORMAT, dyadrrVersion, type Report } from './report.js';
 import { JOB_ID } from './runner.js';
 import type { ToolVersions } from './tools.js';
@@ -104,7 +104,68 @@ export const ANALYSIS_CHANGES: readonly AnalysisChange[] = [
     what: 'another offset beyond a boundary near the edge of the film: warning EDGE_CONTINUES_ELSEWHERE, Italian cut at the boundary',
     stale: (r) => r.checks?.some((c) => c.name === 'edges' && c.result === 'fail') ?? false,
   },
+  { version: '0.21.0', what: 'warning MAIN_TRACKS_DISAGREE only between main tracks of the same format', stale: () => false },
+  {
+    version: '0.21.0',
+    what: 'measure pair: at equal similarity, the main tracks before the file order',
+    stale: (r) => pairChoiceChanged(r),
+  },
 ];
+
+/** Una versione della taratura (§9.2) e cosa ha cambiato. */
+export interface CalibrationChange {
+  version: number;
+  what: string;
+  /** Se un report di una taratura di prima non vale più; altrimenti è solo una differenza. */
+  stale: (report: Report) => boolean;
+}
+
+/** I report importati valgono dalla taratura della fase 1. */
+export const CALIBRATION_SINCE = 4;
+
+/**
+ * Le versioni della taratura dopo `CALIBRATION_SINCE` (§9.2, §15). Come per
+ * `ANALYSIS_CHANGES`: un report di una taratura di prima vale se nessuna lo
+ * rende superato, e le altre sono differenze. Una taratura che cambia solo
+ * avvisi non rende superato niente.
+ */
+export const CALIBRATION_CHANGES: readonly CalibrationChange[] = [
+  {
+    version: 5,
+    what: 'ABRUPT_START above -25 dBFS (was -40); transfer tolerance 40 ms between different formats (transferCrossFormatToleranceMs)',
+    stale: () => false,
+  },
+];
+
+/**
+ * La coppia di misura cambierebbe con la regola della 0.21.0 (decisione 7)?
+ * Si rifà la scelta sui picchi delle coppie provate che il report conserva
+ * (`roles.pairs`): alla posizione dell'ultima prova, quella dell'ancora
+ * accettata, o sulla somiglianza più alta se nessuna era sicura.
+ */
+export function pairChoiceChanged(r: Report): boolean {
+  const trials = r.roles?.pairs ?? [];
+  const chosen = r.measurement?.pair;
+  const ref = r.roles ? r.inputs[r.roles.reference] : null;
+  const donor = r.roles ? r.inputs[r.roles.donor] : null;
+  if (!chosen || trials.length === 0 || !r.calibration || !ref || !donor) return false;
+  const keyOf = (t: TrackPair) => `${t.referenceTrackId}/${t.donorTrackId}/${t.mix}`;
+  const ids = [...new Map(trials.map((t) => [keyOf(t), t])).values()];
+  const pairs = ids.map((t) => ({
+    reference: ref.audio.find((a) => a.id === t.referenceTrackId),
+    donor: donor.audio.find((a) => a.id === t.donorTrackId),
+  }));
+  if (pairs.some((p) => !p.reference || !p.donor)) return false;
+  const tracks = pairs as { reference: NonNullable<(typeof pairs)[number]['reference']>; donor: NonNullable<(typeof pairs)[number]['donor']> }[];
+  const last = Math.max(...trials.map((t) => t.positionMs));
+  const at = (i: number) => trials.find((t) => keyOf(t) === keyOf(ids[i]!) && t.positionMs === last)?.match ?? null;
+  const all = ids.map((_, i) => i);
+  const sure = all.filter((i) => isConfident(at(i), r.calibration!));
+  const pick = sure.length > 0
+    ? bestPair(sure, tracks, (i) => at(i)!.ncc)
+    : bestPair(all, tracks, (i) => Math.max(...trials.filter((t) => keyOf(t) === keyOf(ids[i]!)).map((t) => t.match?.ncc ?? 0)));
+  return keyOf(ids[pick]!) !== keyOf(chosen);
+}
 
 /** I campi di `summary.json`, nell'ordine in cui si scrivono. */
 export const SUMMARY_FIELDS = [
@@ -294,12 +355,24 @@ export function checkImport(
   const from = report.dyadrr;
   const later = ANALYSIS_CHANGES.filter((c) => compareVersions(c.version, from) > 0);
   const outdated = later.find((c) => c.stale(report));
+  const calFrom = report.calibration?.version ?? null;
+  const calLater = CALIBRATION_CHANGES.filter((c) => calFrom !== null && c.version > calFrom && c.version <= current.calibration);
+  // Ogni versione dopo quella del report deve essere elencata: una taratura
+  // che non si conosce rende superato il report.
+  const calKnown = calFrom !== null && calFrom >= CALIBRATION_SINCE && calFrom <= current.calibration
+    && calLater.length === current.calibration - calFrom;
+  const calOutdated = calLater.find((c) => c.stale(report));
   const stale = report.format !== REPORT_FORMAT ? `report format ${report.format}, now ${REPORT_FORMAT}`
     : compareVersions(from, IMPORT_SINCE) < 0 ? `Dyadrr ${from}, imports start from ${IMPORT_SINCE}`
-    : report.calibration?.version !== current.calibration ? `calibration ${report.calibration?.version ?? 'none'}, now ${current.calibration}`
+    : !calKnown ? `calibration ${calFrom ?? 'none'}, now ${current.calibration}`
+    : calOutdated ? `calibration ${calFrom}, changed in calibration ${calOutdated.version}: ${calOutdated.what}`
     : outdated ? `Dyadrr ${from}, changed in ${outdated.version}: ${outdated.what}`
     : null;
-  return { from, differences: later.filter((c) => !c.stale(report)).map((c) => `${c.version}: ${c.what}`), stale };
+  const differences = [
+    ...later.filter((c) => !c.stale(report)).map((c) => `${c.version}: ${c.what}`),
+    ...calLater.filter((c) => !c.stale(report)).map((c) => `calibration ${c.version}: ${c.what}`),
+  ];
+  return { from, differences, stale };
 }
 
 // ---------------------------------------------------------------- riassunto di una coppia
