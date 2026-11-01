@@ -505,7 +505,7 @@ test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassu
     differences: ANALYSIS_CHANGES.filter((c) => !c.stale(old)).map((c) => `${c.version}: ${c.what}`),
     stale: null,
   });
-  assert.equal(checkImport(old, moved, current).differences.length, 5);
+  assert.equal(checkImport(old, moved, current).differences.length, 6);
   const oldJumps = jumps(1);
   oldJumps.dyadrr = '0.13.1';
   assert.match(checkImport(oldJumps, moved, current).stale!, /^Dyadrr 0\.13\.1, changed in 0\.14\.0: contradiction shape/);
@@ -514,6 +514,15 @@ test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassu
   const recentJumps = jumps(1);
   recentJumps.dyadrr = '0.17.0';
   assert.match(checkImport(recentJumps, moved, current).stale!, /^Dyadrr 0\.17\.0, changed in 0\.18\.0: jumps below a frame/);
+  // Dalla 0.19.0 un picco a S poco netto è non conclusivo: un report con un
+  // punto senza corrispondenza va rimisurato.
+  const unmatched = variant((r) => {
+    r.dyadrr = '0.18.1';
+    r.decision = 'refused';
+    r.reasons = [{ code: 'CHECKPOINT_UNMATCHED', message: 'no match' }];
+    r.measurement!.checkpoints![0]!.outcome = 'unmatched';
+  });
+  assert.match(checkImport(unmatched, moved, current).stale!, /^Dyadrr 0\.18\.1, changed in 0\.19\.0: a similar but not unique peak/);
   assert.equal(checkImport(variant((r) => (r.dyadrr = '0.12.0')), moved, current).stale, `Dyadrr 0.12.0, imports start from ${IMPORT_SINCE}`);
   assert.match(checkImport(eligible, moved, { ...current, calibration: cal.version + 1 }).stale!, /^calibration \d+, now \d+$/);
   assert.match(checkImport(variant((r) => (r.format = 0)), moved, current).stale!, /^report format 0/);

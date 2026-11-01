@@ -22,7 +22,7 @@ mkvpropedit.
 | `AMBIGUOUS_MATCH` | Corrispondenze somiglianti ma non uniche |
 | `OFFSET_TOO_LARGE` | Spostamento sicuro ma oltre il massimo |
 | `CHECKPOINT_CONTRADICTION` | Lo spostamento cambia a metà film di un fotogramma o più. Il report ne mostra la forma |
-| `CHECKPOINT_UNMATCHED` | Un tratto con contenuto non trova corrispondenza da nessuna parte |
+| `CHECKPOINT_UNMATCHED` | Un tratto con contenuto non trova corrispondenza da nessuna parte. Dalla 0.19.0 non conta un tratto con un picco a S somigliante ma poco netto: è non conclusivo |
 | `DRIFT` | Lo spostamento cresce nel tempo |
 | `TOO_FEW_CHECKPOINTS` | Punti coerenti troppo pochi o mal distribuiti |
 | `LOW_COVERAGE` | Il materiale in comune copre troppo poco del film |
@@ -79,7 +79,7 @@ Non cambiano la decisione: finiscono nel report.
 | `LONG_GAP_WITHOUT_ITALIAN` | All'inizio o alla fine del film manca l'italiano per più di 10 minuti ([`longGapWithoutItalianMs`](TARATURA.md)) |
 | `TAIL_EXCESS_KEPT` | Italiano oltre la fine del video di riferimento lasciato (`--tail keep`) |
 | `ABRUPT_START` | Taglio iniziale con l'italiano sopra −40 dBFS nei 250 ms dopo il taglio ([`abruptStartDbfs`](TARATURA.md)) |
-| `MANY_INCONCLUSIVE` | Più del 10% di punti non conclusivi |
+| `MANY_INCONCLUSIVE` | Più del 10% di punti non conclusivi: silenzio, o dalla 0.19.0 un picco a S somigliante ma poco netto |
 | `SUBFRAME_JUMPS` | Ancore, punti di conferma o prove oltre i confini a più della tolleranza da S ma a meno di un fotogramma del riferimento: salti delle tracce audio, che il video non può dare. Il valore è lo scarto più grande dallo S definitivo: in quei tratti l'italiano è spostato di tanto (dalla 0.18.0) |
 | `MKVMERGE_WARNING` | Avvisi di mkvmerge (codice 1), uno per avviso, di ogni passata |
 | `OUTPUT_TRANSFER_OFFSET` | Nel file finale l'italiano è sfasato rispetto alla lingua di misura del riferimento oltre la tolleranza per punto: S sbagliato di tanto, o italiano già sfasato nel donatore. Verifica dopo il merge, con il valore |
