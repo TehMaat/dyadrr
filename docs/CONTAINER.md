@@ -1,8 +1,9 @@
 # Container
 
 > **Stato:** implementato dalla 0.12.0 (studio §14.1–14.2). Il lato
-> Wayfinderr (servizio nel Compose, volumi, scrittura dei job) è da fare in
-> Wayfinderr (studio §15, fase 2).
+> Wayfinderr (servizio nel Compose, volumi, scrittura dei job) c'è dalla
+> 0.19.0 di Wayfinderr (TehMaat/wayfinderr#48); i file trattenuti,
+> l'abbinamento, l'analisi e il merge vengono dopo (studio §15, fase 2).
 
 In Wayfinderr Dyadrr gira in un container separato, con un'immagine propria
 costruita in questo repo. Wayfinderr gli passa i lavori con file job su una
@@ -153,20 +154,21 @@ report se c'è, altrimenti il runner scrive un report `INTERRUPTED` (uscita
 
 ```yaml
   dyadrr:
-    image: ghcr.io/tehmaat/dyadrr:0.14.0
+    image: ghcr.io/tehmaat/dyadrr:${DYADRR_TAG:-latest}
     profiles: ["merge"]
     hostname: dyadrr            # fisso: gli avanzi di un lavoro interrotto si eliminano al successivo
-    user: "1000:1000"           # lo stesso utente del backend
     stop_grace_period: 30s
     restart: unless-stopped
     volumes:
-      - /percorso/della/cartella/sorvegliata:/data/watch
-      - /percorso/dei/download:/data/downloads:ro
+      - ${MAKEMKV_OUTPUT_DIR:-./makemkv-output}:/data/watch
+      - ${DOWNLOADS_DIR:-./downloads}:/data/downloads:ro
 ```
 
 - **`hostname` fisso:** Dyadrr riconosce i propri temporanei dal nome host
   ([CLI.md](CLI.md#annullamento)); con il nome casuale che Docker dà a ogni
   container, quelli di un container precedente resterebbero.
-- **`user`:** lo stesso del backend, così i file scritti da uno si possono
-  cancellare dall'altro.
+- **Utente:** lo stesso del backend, così i file scritti da uno si possono
+  cancellare dall'altro. Il backend di Wayfinderr gira come root, come
+  l'immagine, quindi `user:` non serve; con un backend che gira con un altro
+  utente, si aggiunge `user:` con quello.
 - **Un solo runner** per cartella dei job.
