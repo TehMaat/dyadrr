@@ -96,6 +96,12 @@ export interface DecisionInput {
   commonMaterial?: { startMs: number; endMs: number; probes: readonly EdgeProbe[] };
   transfer?: readonly TransferProbe[];
   /**
+   * La traccia del trasferimento ha lo stesso formato dell'italiano; tra
+   * formati diversi la tolleranza è `transferCrossFormatToleranceMs` (dalla
+   * 0.21, decisione 3). Assente vale come stesso formato.
+   */
+  transferSameFormat?: boolean;
+  /**
    * Le tracce principali (§4.2) sull'ancora accettata, se la coppia scelta è
    * un'altra; `null` o assente se è la stessa.
    */
@@ -804,18 +810,21 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
   if (!input.transfer) throw missing('transfer probes');
   report.transfer = transferResult(input.transfer, cal);
   const transferOffset = report.transfer.offsetMs;
+  // Tra formati diversi le tracce sono sfasate di 20–30 ms anche nello stesso
+  // disco (decisione 3): lì vale una tolleranza più larga.
+  const transferTol = input.transferSameFormat === false ? v.transferCrossFormatToleranceMs : tol;
   if (transferOffset === null) {
     Object.assign(check('transfer'), { result: 'fail', code: 'ITALIAN_UNVERIFIED' });
     warn('ITALIAN_UNVERIFIED', 'the Italian track does not correlate with the measure language in the donor');
-  } else if (Math.abs(transferOffset) > tol) {
-    Object.assign(check('transfer'), { result: 'fail', code: 'ITALIAN_TRANSFER_OFFSET', measured: transferOffset, threshold: tol });
+  } else if (Math.abs(transferOffset) > transferTol) {
+    Object.assign(check('transfer'), { result: 'fail', code: 'ITALIAN_TRANSFER_OFFSET', measured: transferOffset, threshold: transferTol });
     warn(
       'ITALIAN_TRANSFER_OFFSET',
-      `in the donor the Italian track is offset by ${transferOffset} ms from the measure language`,
+      `in the donor the Italian track is offset by ${transferOffset} ms from the measure language (tolerance ${transferTol} ms${input.transferSameFormat === false ? ', different formats' : ''})`,
       transferOffset,
     );
   } else {
-    pass('transfer', { measured: transferOffset, threshold: tol });
+    pass('transfer', { measured: transferOffset, threshold: transferTol });
   }
 
   return report;

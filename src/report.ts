@@ -111,6 +111,8 @@ export interface ReportMeasurement {
   transfer: {
     measureTrackId: number;
     italianTrackId: number;
+    /** La traccia usata ha lo stesso formato dell'italiano (dalla 0.21.0): altrimenti la tolleranza è più larga. */
+    sameFormat: boolean;
     offsetMs: number | null;
     confident: number;
     probes: MeasuredTransferProbe[];
@@ -203,6 +205,7 @@ export function analysisSections(analysis: PairAnalysis): Pick<Report, 'roles' |
     transfer: m.transfer && d.transfer && {
       measureTrackId: m.transfer.measureTrackId,
       italianTrackId: m.transfer.italianTrackId,
+      sameFormat: m.transfer.sameFormat,
       offsetMs: d.transfer.offsetMs,
       confident: d.transfer.confident,
       probes: m.transfer.probes,

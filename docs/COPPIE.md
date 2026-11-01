@@ -13,6 +13,12 @@ e ne riassume i report: verdetto di ogni coppia, margini rispetto alle soglie,
 criterio di uscita della fase 1. **Non decide le soglie:** le propone chi
 legge il riassunto, nella PR che chiude la decisione 12.
 
+**Solo rip di MakeMKV** (dalla 0.21.0, decisione 6): per la taratura si usano
+rip fatti dal disco con MakeMKV, non remux già fatti da altri. Le soglie devono
+descrivere i dischi, non gli errori di chi ha fatto il remux: WALL-E, con
+l'italiano da un remux, ha salti che un rip non dovrebbe avere (studio §18).
+In fase 2 i file arrivano dai rip di Wayfinderr, e il caso non si pone.
+
 ## Uso
 
 Con l'immagine, perché la taratura vale per le sue versioni di ffmpeg e
@@ -133,9 +139,10 @@ di Dyadrr, un report che non è di un'analisi, una decisione diversa da
 ingressi con altri nomi di file (si confronta il nome, non il percorso, in
 qualsiasi ordine), un'altra lingua originale.
 
-**Report superati** (verdetto `stale`): un report di un altro formato, di
-un'altra versione della taratura, di prima della 0.13.0, o che una modifica
-successiva dell'analisi rende superato. Non conta tra le coppie misurate: va
+**Report superati** (verdetto `stale`): un report di un altro formato, di una
+taratura di prima della 4 o che una taratura successiva rende superato, di
+prima della 0.13.0, o che una modifica successiva dell'analisi rende
+superato. Non conta tra le coppie misurate: va
 rimisurata, con i file. Le versioni che hanno cambiato cosa scrive `analyze`
 sugli stessi file sono elencate nel codice (`ANALYSIS_CHANGES` in
 `src/pairs.ts`), ognuna con quello che cambia e quando rende superato un
@@ -150,6 +157,17 @@ report di prima:
 | 0.18.0 | Salti sotto il fotogramma: avviso `SUBFRAME_JUMPS` invece di `CHECKPOINT_CONTRADICTION`; i punti spostati contano per la distribuzione | ha una contraddizione |
 | 0.19.0 | Un picco a S somigliante ma poco netto rende il punto non conclusivo, non senza corrispondenza | ha un punto senza corrispondenza |
 | 0.20.0 | Un altro spostamento oltre un confine vicino al bordo: avviso `EDGE_CONTINUES_ELSEWHERE`, italiano tagliato al confine | ha il controllo dei confini fallito |
+| 0.21.0 | `MAIN_TRACKS_DISAGREE` solo tra tracce principali dello stesso formato | mai: cambia solo un avviso |
+| 0.21.0 | Coppia di misura: alla pari, le tracce principali prima dell'ordine del file | la scelta, rifatta sui picchi delle coppie provate che il report conserva, dà un'altra coppia |
+
+Lo stesso vale per la taratura (`CALIBRATION_CHANGES` in `src/pairs.ts`, dalla
+0.21.0): una versione che cambia solo avvisi non rende superati i report della
+precedente, che entrano con la differenza. Una versione non elencata, o di
+prima della 4, li rende superati.
+
+| Taratura | Cosa cambia | Report di prima superato se |
+|---|---|---|
+| 5 | `ABRUPT_START` a −25 dBFS invece di −40; tolleranza del trasferimento tra formati diversi 40 ms | mai: cambiano solo avvisi |
 
 Un report importato più vecchio ma valido entra con le sue differenze da oggi
 (`imported.differences`). Se le versioni delle coppie non sono tutte uguali,

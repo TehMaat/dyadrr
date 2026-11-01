@@ -9,6 +9,7 @@ import {
   bestTransfer,
   measureTracks,
   measureTransfer,
+  sameFormat,
   transferCandidates,
   transferPositions,
   type MeasuredTransferProbe,
@@ -513,7 +514,9 @@ async function verify(request: VerifyRequest, build: Build, cal: Calibration, op
         return { trackId: t.id, offsetMs: r.offsetMs, confident: r.confident };
       }),
     };
-    const tol = cal.values.toleranceMs;
+    // Tra formati diversi vale la tolleranza più larga, come nel donatore (§4.7, decisione 3).
+    const same = sameFormat(candidates[best]!, outTrack(italianIndex));
+    const tol = same ? cal.values.toleranceMs : cal.values.transferCrossFormatToleranceMs;
     if (offsetMs === null) {
       const message = 'in the final file the Italian track does not correlate with the measure language of the reference';
       checks.push({ name: 'transfer', result: 'fail', blocking: false, code: 'OUTPUT_TRANSFER_UNVERIFIED', details: [message] });

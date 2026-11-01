@@ -7,10 +7,12 @@ import { decide } from '../src/decision.js';
 import { readInput, type InputFile } from '../src/inputs.js';
 import {
   analyzePair,
+  bestPair,
   candidatePairs,
   decisionMeasures,
   isLossless,
   mainTrack,
+  sameFormat,
   transferCandidates,
   transferMix,
   type PairAnalysis,
@@ -213,6 +215,26 @@ test('coppie di tracce: esclusi i commenti, centrale solo se lo hanno entrambe; 
   assert.equal(transferMix(layout('5.1'), layout('stereo', 2)), 'side');
   assert.equal(transferMix(layout('stereo', 2), layout(null, 2)), 'side');
   assert.equal(transferMix(layout('5.1'), layout('mono', 1)), 'leftRight');
+});
+
+test('coppia di misura alla pari: le tracce principali prima dell\'ordine del file (decisione 7)', () => {
+  const t = (id: number, codec: string, codecId: string, channels: number) => ({ id, codec, codecId, channels });
+  // Come Zero Dark Thirty: nell'UHD due AC-3 5.1 alla pari e la TrueHD, la
+  // principale, alla pari ma di un formato diverso dall'AC-3 del BD. Lo
+  // stesso formato viene prima della traccia principale; tra le due AC-3,
+  // nessuna principale, decide l'ordine del file.
+  const ref = [t(2, 'AC-3', 'A_AC3', 6), t(3, 'AC-3', 'A_AC3', 6), t(1, 'TrueHD Atmos', 'A_TRUEHD', 8)];
+  const don = [t(1, 'AC-3', 'A_AC3', 6)];
+  const pairs = ref.map((r) => ({ reference: r, donor: don[0]! }));
+  const ncc = [0.9999, 1, 0.995];
+  assert.equal(bestPair([0, 1, 2], pairs, (i) => ncc[i]!), 0, 'lo stesso formato prima della traccia principale');
+  // Una coppia con le tracce principali vince tra coppie altrimenti uguali.
+  const stereo = [t(5, 'AC-3', 'A_AC3', 2), t(6, 'AC-3', 'A_AC3', 6)];
+  const same = stereo.map((r) => ({ reference: r, donor: don[0]! }));
+  assert.equal(bestPair([0, 1], same, () => 1), 1, 'il 5.1 del film prima del commento stereo che viene prima nel file');
+  // Senza perdite e stesso formato restano prima della traccia principale.
+  assert.equal(sameFormat(t(1, 'AC-3', 'A_AC3', 6), t(2, 'AC-3', 'A_AC3', 2)), true);
+  assert.equal(sameFormat(t(1, 'TrueHD', 'A_TRUEHD', 8), t(2, 'DTS-HD Master Audio', 'A_DTS', 6)), false);
 });
 
 test('traccia principale e tracce del trasferimento: come Scott Pilgrim e Cattivissimo me 4', () => {
@@ -480,9 +502,11 @@ test('INTRO_MISMATCH: su file veri l\'italiano di un\'intro diversa si tiene o s
   assert.equal(plan.italian.startMs, null);
 
   // keep: l'italiano dall'inizio del film, sopra l'intro diversa. Si taglia
-  // a 0 mentre l'intro del donatore suona già: ABRUPT_START.
+  // a 0 mentre l'intro del donatore suona già: ABRUPT_START se il livello
+  // dopo il taglio supera la soglia della taratura (−25 dBFS dalla taratura 5).
   const keep = await replan(a, 'reference', 'donor-intro', { edgeMismatch: 'keep' });
-  assert.deepEqual(keep.warnings.map((w) => w.code), ['INTRO_MISMATCH', 'ABRUPT_START']);
+  const abrupt = keep.start.cutLevelDbfs! > cal.values.abruptStartDbfs;
+  assert.deepEqual(keep.warnings.map((w) => w.code), abrupt ? ['INTRO_MISMATCH', 'ABRUPT_START'] : ['INTRO_MISMATCH']);
   assert.equal(keep.italian.startMs, 0);
   assert.equal(keep.start.cutMs, 0);
   assert.ok(keep.start.cutLevelDbfs! > -30, String(keep.start.cutLevelDbfs));

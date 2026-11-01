@@ -8,6 +8,7 @@ import { runCli } from '../src/cli.js';
 import { DyadrrError } from '../src/codes.js';
 import {
   ANALYSIS_CHANGES,
+  pairChoiceChanged,
   IMPORT_SINCE,
   PHASE1_CATEGORIES,
   SUMMARY_FIELDS,
@@ -505,7 +506,7 @@ test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassu
     differences: ANALYSIS_CHANGES.filter((c) => !c.stale(old)).map((c) => `${c.version}: ${c.what}`),
     stale: null,
   });
-  assert.equal(checkImport(old, moved, current).differences.length, 7);
+  assert.equal(checkImport(old, moved, current).differences.length, 9);
   const oldJumps = jumps(1);
   oldJumps.dyadrr = '0.13.1';
   assert.match(checkImport(oldJumps, moved, current).stale!, /^Dyadrr 0\.13\.1, changed in 0\.14\.0: contradiction shape/);
@@ -525,6 +526,15 @@ test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassu
   assert.match(checkImport(unmatched, moved, current).stale!, /^Dyadrr 0\.18\.1, changed in 0\.19\.0: a similar but not unique peak/);
   assert.equal(checkImport(variant((r) => (r.dyadrr = '0.12.0')), moved, current).stale, `Dyadrr 0.12.0, imports start from ${IMPORT_SINCE}`);
   assert.match(checkImport(eligible, moved, { ...current, calibration: cal.version + 1 }).stale!, /^calibration \d+, now \d+$/);
+  // La coppia di misura del report di prova è quella che sceglierebbe anche la 0.21.0.
+  assert.equal(pairChoiceChanged(eligible), false);
+  assert.equal(pairChoiceChanged(variant((r) => (r.roles!.pairs = []))), false);
+  // La taratura 5 cambia solo avvisi: un report della taratura 4 vale, con la differenza.
+  const cal4 = variant((r) => (r.calibration = { ...r.calibration!, version: 4 }));
+  const imported4 = checkImport(cal4, moved, { ...current, calibration: 5 });
+  assert.equal(imported4.stale, null);
+  assert.ok(imported4.differences.some((d) => d.startsWith('calibration 5: ABRUPT_START')), JSON.stringify(imported4.differences));
+  assert.match(checkImport(variant((r) => (r.calibration = { ...r.calibration!, version: 3 })), moved, { ...current, calibration: 5 }).stale!, /^calibration 3, now 5$/);
   assert.match(checkImport(variant((r) => (r.format = 0)), moved, current).stale!, /^report format 0/);
 
   // Un report che non è di questa coppia è un errore dell'elenco.

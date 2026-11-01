@@ -4,6 +4,31 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.21.0] - 2026-11-01
+
+### Cambiato
+- Decisioni 2–7 della fase 1, insieme:
+  - `MAIN_TRACKS_DISAGREE` solo tra tracce principali dello stesso formato:
+    tra TrueHD e DTS-HD dava falsi allarmi (Scott Pilgrim, The Next Karate
+    Kid)
+  - controllo di trasferimento, nel donatore e nel file finale: tra tracce di
+    formati diversi la tolleranza è 40 ms (nuovo parametro
+    `transferCrossFormatToleranceMs`); tra lo stesso formato resta 10 ms. Nel
+    report `transfer.sameFormat`
+  - `ABRUPT_START` sopra −25 dBFS invece di −40
+  - gli avvisi sull'italiano restano avvisi; per la taratura solo rip di
+    MakeMKV (solo documentazione)
+  - a parità di somiglianza si misura sulla coppia con le tracce principali
+    prima dell'ordine del file
+- Taratura 5. Per `dyadrr-pairs` un report della taratura 4 resta valido, con
+  la differenza: una taratura che cambia solo avvisi non rende superato niente
+  (`CALIBRATION_CHANGES`)
+- L'analisi cambia: voci 0.21.0 in `ANALYSIS_CHANGES`; superati solo i report
+  la cui coppia di misura cambierebbe, ricalcolata dai picchi delle coppie
+  provate che il report conserva
+- Documentazione: studio di fattibilità 0.28 (§4.2, §4.7, §9.2, §9.5, §9.6,
+  §17, §20), TARATURA, CODICI, REPORT, COPPIE
+
 ## [0.20.0] - 2026-11-01
 
 ### Cambiato

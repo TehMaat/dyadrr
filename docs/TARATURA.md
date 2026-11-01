@@ -19,6 +19,10 @@ questo **non esiste un'opzione né una variabile d'ambiente per cambiarle**.
   misurano con `dyadrr-pairs`, che riassume i margini di ogni soglia
   provvisoria ([COPPIE.md](COPPIE.md)); il riassunto della fase 1 è in
   [fase1/summary.md](fase1/summary.md).
+- **Versione 5 (Dyadrr 0.21.0, decisioni 3 e 5 della fase 2):** `ABRUPT_START`
+  da −40 a −25 dBFS e la tolleranza nuova del trasferimento tra formati
+  diversi, 40 ms. Cambiano solo avvisi: per `dyadrr-pairs` un report della
+  taratura 4 resta valido, con la differenza ([COPPIE.md](COPPIE.md#report-importati)).
 
 ## Parametri
 
@@ -45,7 +49,8 @@ taratura e ai limiti del codice.
 | Copertura minima | `minCoverage` | `0.9` | `0.5` – `1` | no | §4.6, §9.3 |
 | Soglia di `MANY_INCONCLUSIVE` | `manyInconclusiveFraction` | `0.1` | `0.01` – `0.5` | no | §9.3 |
 | Buco senza italiano all'inizio o alla fine oltre cui scatta `LONG_GAP_WITHOUT_ITALIAN` (ms) | `longGapWithoutItalianMs` | `600000` | `60000` – `1800000` | sì | §5 |
-| Livello dopo il taglio iniziale oltre cui scatta `ABRUPT_START` (dBFS) | `abruptStartDbfs` | `-40` | `-70` – `-10` | sì | §5 |
+| Tolleranza del controllo di trasferimento tra tracce di formati diversi (ms) | `transferCrossFormatToleranceMs` | `40` | `10` – `100` | sì | §4.7, §9.5 |
+| Livello dopo il taglio iniziale oltre cui scatta `ABRUPT_START` (dBFS) | `abruptStartDbfs` | `-25` | `-70` – `-10` | sì | §5 |
 | Forced: meno di questa frazione dei blocchi della traccia più grande della stessa lingua | `forcedSubsFraction` | `0.15` | `0.01` – `0.5` | sì | §7 |
 | Margine di bitrate per `VIDEO_QUALITY_UNCERTAIN` | `bitrateMargin` | `0.2` | `0.05` – `1` | no | §3.2 |
 | Differenza relativa massima tra i framerate | `fpsRelativeTolerance` | `0.0001` | `0.000001` – `0.0005` | no | §9.2 |
@@ -111,7 +116,8 @@ E le verifiche dopo il merge, in `src/verify.ts` (studio §9.5): quanto l'inizio
 e la fine di una traccia audio italiana possono scostarsi da quelli previsti,
 "entro un pacchetto" del codec. Il controllo di trasferimento sul file finale
 usa invece i parametri di quello nel donatore (`checkpointWindowMs`,
-`nccMin`, `peakRatioMin`, `toleranceMs`).
+`nccMin`, `peakRatioMin`, `toleranceMs`, e `transferCrossFormatToleranceMs`
+tra formati diversi).
 
 | Costante | Valore |
 |---|---|
@@ -126,7 +132,10 @@ usa invece i parametri di quello nel donatore (`checkpointWindowMs`,
 
 1. Si modifica `src/calibration.json` e si alza il suo `version`. Per una
    soglia provvisoria, la PR porta il `summary.md` delle coppie reali
-   ([COPPIE.md](COPPIE.md)).
+   ([COPPIE.md](COPPIE.md)). La versione nuova va in `CALIBRATION_CHANGES`
+   (`src/pairs.ts`), con quello che cambia e quando rende superato un report
+   di prima: senza, `dyadrr-pairs` considera superati tutti i report della
+   taratura precedente.
 2. Si aggiorna la tabella dei [parametri](#parametri) (il test lo controlla).
 3. Se cambia un limite, o un valore smette di essere provvisorio dopo la
    taratura, si aggiorna anche lo studio (§9.2), con una voce nella cronologia.
