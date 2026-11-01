@@ -4,6 +4,20 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.21.1] - 2026-11-01
+
+### Cambiato
+- Solo documentazione: studio di fattibilità 0.29 (§14.2, §15). Con il merge
+  attivo Wayfinderr trattiene i file senza audio italiano e quelli con un
+  gemello, certo o dubbio, tra i file trattenuti, i rip e i torrent del
+  client, cercato con tutti i titoli TMDB del film; senza gemello il file si
+  carica come prima. I file trattenuti hanno un nuovo stato nel database
+- `docs/CONTAINER.md`: il lato Wayfinderr c'è dalla 0.19.0 di Wayfinderr; nel
+  Compose `user:` non serve, perché il backend di Wayfinderr gira come root
+  come l'immagine; esempio con `DYADRR_TAG` e le cartelle del Compose di
+  Wayfinderr
+- README: stato della fase 2 e taratura 5
+
 ## [0.21.0] - 2026-11-01
 
 ### Cambiato
