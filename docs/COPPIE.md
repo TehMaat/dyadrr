@@ -159,6 +159,7 @@ report di prima:
 | 0.20.0 | Un altro spostamento oltre un confine vicino al bordo: avviso `EDGE_CONTINUES_ELSEWHERE`, italiano tagliato al confine | ha il controllo dei confini fallito |
 | 0.21.0 | `MAIN_TRACKS_DISAGREE` solo tra tracce principali dello stesso formato | mai: cambia solo un avviso |
 | 0.21.0 | Coppia di misura: alla pari, le tracce principali prima dell'ordine del file | la scelta, rifatta sui picchi delle coppie provate che il report conserva, dà un'altra coppia |
+| 0.21.2 | Integrità: un file i cui ultimi cluster finiscono dopo la durata dichiarata non è troncato | un ingresso è risultato troncato con la fine letta oltre la durata dichiarata |
 
 Lo stesso vale per la taratura (`CALIBRATION_CHANGES` in `src/pairs.ts`, dalla
 0.21.0): una versione che cambia solo avvisi non rende superati i report della

@@ -4,6 +4,19 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.21.2] - 2026-11-02
+
+### Corretto
+- Controllo di integrità (`INPUT_TRUNCATED`): la fine degli ultimi cluster si
+  confrontava in valore assoluto con la durata dichiarata, quindi un file con
+  un blocco che finisce dopo l'ultimo fotogramma risultava troncato. Sulla
+  prima coppia vera in Wayfinderr (Lord of War, rip di MakeMKV del BD
+  italiano) un sottotitolo PGS si chiude 1038 ms dopo la durata dichiarata,
+  con video e audio interi. Ora è troncato solo un file che finisce prima
+  della durata dichiarata oltre la tolleranza; il controllo per traccia non
+  cambia. Voce in `ANALYSIS_CHANGES`
+- Documentazione: studio di fattibilità 0.30 (§4.8, §20), `docs/COPPIE.md`
+
 ## [0.21.1] - 2026-11-01
 
 ### Cambiato
