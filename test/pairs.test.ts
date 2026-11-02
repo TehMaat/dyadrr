@@ -506,7 +506,14 @@ test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassu
     differences: ANALYSIS_CHANGES.filter((c) => !c.stale(old)).map((c) => `${c.version}: ${c.what}`),
     stale: null,
   });
-  assert.equal(checkImport(old, moved, current).differences.length, 9);
+  assert.equal(checkImport(old, moved, current).differences.length, 10);
+  // Dalla 0.21.2 un ingresso che finisce dopo la durata dichiarata non è troncato
+  const overshoot = variant((r) => {
+    r.dyadrr = '0.21.1';
+    const integrity = r.inputs[1]!.integrity;
+    Object.assign(integrity, { result: 'fail', declaredDurationMs: 7_303_296, lastTimestampMs: 7_304_334 });
+  });
+  assert.match(checkImport(overshoot, moved, current).stale!, /^Dyadrr 0\.21\.1, changed in 0\.21\.2: integrity/);
   const oldJumps = jumps(1);
   oldJumps.dyadrr = '0.13.1';
   assert.match(checkImport(oldJumps, moved, current).stale!, /^Dyadrr 0\.13\.1, changed in 0\.14\.0: contradiction shape/);

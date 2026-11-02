@@ -110,6 +110,18 @@ export const ANALYSIS_CHANGES: readonly AnalysisChange[] = [
     what: 'measure pair: at equal similarity, the main tracks before the file order',
     stale: (r) => pairChoiceChanged(r),
   },
+  {
+    version: '0.21.2',
+    what: 'integrity: a file whose last clusters end after the declared duration is not truncated',
+    stale: (r) =>
+      r.inputs?.some(
+        (i) =>
+          i?.integrity?.result === 'fail' &&
+          i.integrity.lastTimestampMs != null &&
+          i.integrity.declaredDurationMs != null &&
+          i.integrity.lastTimestampMs > i.integrity.declaredDurationMs
+      ) ?? false,
+  },
 ];
 
 /** Una versione della taratura (§9.2) e cosa ha cambiato. */

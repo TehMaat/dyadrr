@@ -11,6 +11,7 @@ import {
   isCommentaryOrDescription,
   mainItalianTrack,
   parseTagDuration,
+  shortfallMs,
   readInput,
   type InputFile,
 } from '../src/inputs.js';
@@ -307,4 +308,15 @@ test('commenti e audiodescrizioni dai flag o dal nome; traccia italiana principa
   const donor = await read('donor');
   assert.equal(mainItalianTrack(donor.audio)?.name, 'Italiano');
   assert.equal(donor.audio.filter((t) => isCommentaryOrDescription(t)).length, 2);
+});
+
+test('integrity: only a tail that ends before the declared duration is a truncation', () => {
+  // mkvmerge: declared = highest end − first timestamp; others count from zero
+  assert.equal(shortfallMs(7_303_296, 7_303_296, 0), 0);
+  assert.equal(shortfallMs(7_303_296 + 500, 7_303_296, 500), 0);
+  // A subtitle block that closes a second after the last frame (Lord of War): not truncated
+  assert.equal(shortfallMs(7_304_334, 7_303_296, 0), 0);
+  // A file cut 30 s before its end
+  assert.equal(shortfallMs(7_273_296, 7_303_296, 0), 30_000);
+  assert.equal(shortfallMs(7_273_296, 7_303_296, 400), 30_000);
 });

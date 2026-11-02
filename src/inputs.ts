@@ -479,6 +479,17 @@ export async function readInput(file: string, options: ReadInputOptions): Promis
 }
 
 /**
+ * Quanto la fine più alta degli ultimi cluster resta prima della durata
+ * dichiarata (§4.8), nelle due letture: mkvmerge dichiara la fine più alta meno
+ * il primo timestamp, altri la contano da zero. Zero se ci arriva o la supera:
+ * un file troncato finisce prima, mentre un blocco che finisce dopo (un
+ * sottotitolo che si chiude dopo l'ultimo fotogramma) non è un troncamento.
+ */
+export function shortfallMs(maxEndMs: number, declaredMs: number, firstTimestampMs: number): number {
+  return Math.max(0, Math.min(declaredMs - maxEndMs, declaredMs - (maxEndMs - firstTimestampMs)));
+}
+
+/**
  * Controllo di integrità (§4.8): la fine più alta negli ultimi cluster contro
  * la durata dichiarata, e la fine di ogni traccia audio e video contro i suoi
  * tag statistici. Scrive in `tracks` la fine letta di ogni traccia.
@@ -558,10 +569,7 @@ async function checkIntegrity(
   if (scan.maxEndMs === null) {
     return fail(`no cluster found in the last ${Math.min(size, TAIL_MAX_BYTES)} bytes`);
   }
-  // mkvmerge dichiara la fine più alta meno il primo timestamp; altri la
-  // contano da zero (§4.8).
-  const gap = Math.min(Math.abs(scan.maxEndMs - declared), Math.abs(scan.maxEndMs - firstTimestamp - declared));
-  if (gap > toleranceMs) {
+  if (shortfallMs(scan.maxEndMs, declared, firstTimestamp) > toleranceMs) {
     return fail(`the last clusters end at ${scan.maxEndMs} ms, the header declares ${declared} ms`);
   }
   const broken = trackResults.find((t) => t.result === 'fail');
