@@ -7,7 +7,7 @@ import { writeOutcomeReport } from './cli.js';
 import { DyadrrError, EXIT_CODES, exitCodeFor, type Decision } from './codes.js';
 import { isConfident, type AnchorOutcome, type ContradictionShape, type Match } from './decision.js';
 import { parseOriginalLanguage } from './languages.js';
-import { bestPair, type TrackPair } from './measure.js';
+import { CONTENT_MARGIN_DB, bestPair, type TrackPair } from './measure.js';
 import { REPORT_FORMAT, dyadrrVersion, type Report } from './report.js';
 import { JOB_ID } from './runner.js';
 import type { ToolVersions } from './tools.js';
@@ -122,7 +122,26 @@ export const ANALYSIS_CHANGES: readonly AnalysisChange[] = [
           i.integrity.lastTimestampMs > i.integrity.declaredDurationMs
       ) ?? false,
   },
+  {
+    version: '0.22.0',
+    what: 'a silent checkpoint window moves to content at least 10 dB above the silence threshold, if there is any',
+    stale: movedToFaintContent,
+  },
 ];
+
+/**
+ * Se un punto di conferma muto si è spostato su un tratto sotto E_min +
+ * `CONTENT_MARGIN_DB`: dalla 0.22.0 si sposterebbe su un tratto più forte, se
+ * c'è (§4.5, punto 2). Uno spostato su un tratto già sopra il margine resta
+ * dov'è: era anche il più vicino sopra il margine.
+ */
+export function movedToFaintContent(r: Report): boolean {
+  const silence = r.calibration?.values?.silenceDbfs;
+  if (typeof silence !== 'number') return false;
+  return r.measurement?.checkpoints?.some(
+    (c) => c.positionMs !== c.requestedMs && c.energyDbfs !== null && c.energyDbfs < silence + CONTENT_MARGIN_DB,
+  ) ?? false;
+}
 
 /** Una versione della taratura (§9.2) e cosa ha cambiato. */
 export interface CalibrationChange {

@@ -8,6 +8,7 @@ import { runCli } from '../src/cli.js';
 import { DyadrrError } from '../src/codes.js';
 import {
   ANALYSIS_CHANGES,
+  movedToFaintContent,
   pairChoiceChanged,
   IMPORT_SINCE,
   PHASE1_CATEGORIES,
@@ -506,7 +507,7 @@ test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassu
     differences: ANALYSIS_CHANGES.filter((c) => !c.stale(old)).map((c) => `${c.version}: ${c.what}`),
     stale: null,
   });
-  assert.equal(checkImport(old, moved, current).differences.length, 10);
+  assert.equal(checkImport(old, moved, current).differences.length, 11);
   // Dalla 0.21.2 un ingresso che finisce dopo la durata dichiarata non è troncato
   const overshoot = variant((r) => {
     r.dyadrr = '0.21.1';
@@ -531,6 +532,17 @@ test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassu
     r.measurement!.checkpoints![0]!.outcome = 'unmatched';
   });
   assert.match(checkImport(unmatched, moved, current).stale!, /^Dyadrr 0\.18\.1, changed in 0\.19\.0: a similar but not unique peak/);
+  // Dalla 0.22.0 un punto muto si sposta sul contenuto con il margine sopra
+  // E_min: un report con un punto spostato su un tratto quasi muto va
+  // rimisurato (Lord of War); uno spostato su un tratto forte no.
+  const faint = (energyDbfs: number) => variant((r) => {
+    r.dyadrr = '0.21.2';
+    const c = r.measurement!.checkpoints![0]!;
+    Object.assign(c, { requestedMs: c.positionMs - 15_500, energyDbfs });
+  });
+  assert.match(checkImport(faint(-49.23), moved, current).stale!, /^Dyadrr 0\.21\.2, changed in 0\.22\.0: a silent checkpoint window/);
+  assert.equal(checkImport(faint(-30), moved, current).stale, null);
+  assert.equal(movedToFaintContent(eligible), false);
   assert.equal(checkImport(variant((r) => (r.dyadrr = '0.12.0')), moved, current).stale, `Dyadrr 0.12.0, imports start from ${IMPORT_SINCE}`);
   assert.match(checkImport(eligible, moved, { ...current, calibration: cal.version + 1 }).stale!, /^calibration \d+, now \d+$/);
   // La coppia di misura del report di prova è quella che sceglierebbe anche la 0.21.0.

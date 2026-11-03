@@ -90,6 +90,7 @@ Lo stesso vale per le costanti della correlazione, in `src/measure.ts` (studio
 | Rifinitura NCC intorno al picco della correlazione sbiancata | ±2 ms |
 | Banda della correlazione sbiancata | 20 Hz – 3 kHz |
 | Spostamento di una finestra muta sul contenuto | fino a 60 s, a passi di 250 ms, dentro l'intervallo del punto |
+| Margine del contenuto per i punti di conferma (`CONTENT_MARGIN_DB`, dalla 0.22.0) | il tratto più vicino almeno 10 dB sopra E_min; se non c'è, il più vicino sopra E_min. Non per i confini |
 | Finestre brevi e precisione della ricerca dei confini | 2 s; 1 s; al massimo 50 prove per confine |
 | Ricerche oltre i confini | fino a 3 per lato |
 | Punti del controllo di trasferimento | 5 |
