@@ -66,6 +66,44 @@ export const CONTENT_SHIFT_MS = 60_000;
 /** Passo con cui si cerca il contenuto vicino a una finestra muta. */
 export const CONTENT_STEP_MS = 250;
 
+/**
+ * Margine sopra E_min del contenuto su cui si sposta un punto di conferma muto
+ * (§4.5, punto 2, dalla 0.22.0): il tratto più vicino appena sopra E_min è quasi
+ * muto anche lui, e lì il picco è debole (Lord of War, −49,2 dBFS).
+ */
+export const CONTENT_MARGIN_DB = 10;
+
+/**
+ * Dove spostare una finestra muta (§4.5, punto 2; §4.6): le posizioni da
+ * `fromMs` a `toMs`, a passi di `CONTENT_STEP_MS` a partire da `preferMs` e
+ * alternando prima e dopo, con l'energia data da `energyAt` (`null` fuori
+ * dalla lettura). Con `strongDbfs` la prima con energia almeno `strongDbfs`;
+ * se non c'è, o senza `strongDbfs`, la prima almeno `minDbfs`. `null` se è
+ * tutto sotto `minDbfs`.
+ */
+export function pickContent(
+  energyAt: (ms: number) => number | null,
+  fromMs: number,
+  toMs: number,
+  preferMs: number,
+  minDbfs: number,
+  strongDbfs: number | null,
+): number | null {
+  if (toMs < fromMs) return null;
+  let nearest: number | null = null;
+  const steps = Math.ceil(Math.max(preferMs - fromMs, toMs - preferMs) / CONTENT_STEP_MS);
+  for (let k = 0; k <= steps; k++) {
+    for (const q of k === 0 ? [preferMs] : [preferMs - k * CONTENT_STEP_MS, preferMs + k * CONTENT_STEP_MS]) {
+      if (q < fromMs || q > toMs) continue;
+      const e = energyAt(q);
+      if (e === null || e < minDbfs) continue;
+      if (strongDbfs === null || e >= strongDbfs) return q;
+      nearest ??= q;
+    }
+  }
+  return nearest;
+}
+
 /** Finestre brevi della ricerca fine dei confini (§4.6). */
 export const EDGE_WINDOW_MS = 2000;
 
@@ -522,8 +560,10 @@ export async function measurePair(
   /**
    * L'inizio, nel donatore, del tratto lungo `len` con energia sopra E_min più
    * vicino a `preferMs`, con l'inizio tra `fromMs` e `toMs` (§4.5, punto 2).
+   * Con `strong` il più vicino almeno `CONTENT_MARGIN_DB` sopra E_min, se c'è
+   * (`pickContent`).
    */
-  const findContent = async (fromMs: number, toMs: number, len: number, preferMs: number): Promise<number | null> => {
+  const findContent = async (fromMs: number, toMs: number, len: number, preferMs: number, strong = false): Promise<number | null> => {
     if (toMs < fromMs) return null;
     const windows = await donor.read([signal], fromMs, toMs + len);
     if (!windows) return null;
@@ -531,16 +571,14 @@ export async function measurePair(
     const n = Math.round(len * MS);
     const sums = new Float64Array(w.samples.length + 1);
     for (let i = 0; i < w.samples.length; i++) sums[i + 1] = sums[i]! + w.samples[i]! * w.samples[i]!;
-    const steps = Math.ceil(Math.max(preferMs - fromMs, toMs - preferMs) / CONTENT_STEP_MS);
-    for (let k = 0; k <= steps; k++) {
-      for (const q of k === 0 ? [preferMs] : [preferMs - k * CONTENT_STEP_MS, preferMs + k * CONTENT_STEP_MS]) {
-        if (q < fromMs || q > toMs) continue;
-        const i = Math.round((q - w.startMs) * MS);
-        if (i < 0 || i + n > w.samples.length) continue;
-        if (10 * Math.log10((sums[i + n]! - sums[i]!) / n) >= v.silenceDbfs) return w.startMs + i / MS;
-      }
-    }
-    return null;
+    const index = (q: number) => Math.round((q - w.startMs) * MS);
+    const energyAt = (q: number) => {
+      const i = index(q);
+      return i < 0 || i + n > w.samples.length ? null : 10 * Math.log10((sums[i + n]! - sums[i]!) / n);
+    };
+    const strongDbfs = strong ? v.silenceDbfs + CONTENT_MARGIN_DB : null;
+    const q = pickContent(energyAt, fromMs, toMs, preferMs, v.silenceDbfs, strongDbfs);
+    return q === null ? null : w.startMs + index(q) / MS;
   };
 
   const wideSearch = async (needle: Signal): Promise<Match | null> => {
@@ -605,13 +643,14 @@ export async function measurePair(
 
   // 3. Punti di conferma (§4.5), al centro di intervalli uguali del materiale
   // in comune. Una finestra muta si sposta sul contenuto, ma resta nel suo
-  // intervallo: al massimo metà della distanza dai vicini, e 60 s.
+  // intervallo: al massimo metà della distanza dai vicini, e 60 s. Dalla 0.22.0
+  // sul contenuto vero, con un margine sopra E_min, se c'è.
   const measureCheckpoint = async (x: number, bound: number, added: boolean): Promise<MeasuredCheckpoint> => {
     let r = await localCheck(x, Lc);
     if (r.energyDbfs < v.silenceDbfs) {
       const from = Math.max(x - bound, startMs);
       const to = Math.min(x + bound, endMs - Lc);
-      const q = await findContent(from - S, to - S, Lc, x - S);
+      const q = await findContent(from - S, to - S, Lc, x - S, true);
       if (q !== null) r = await localCheck(q + S, Lc);
     }
     // Senza corrispondenza vicina: di nuovo su tutto l'intervallo ±(S_max + margine).

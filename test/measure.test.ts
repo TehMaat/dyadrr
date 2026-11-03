@@ -8,10 +8,13 @@ import { readInput, type InputFile } from '../src/inputs.js';
 import {
   analyzePair,
   bestPair,
+  CONTENT_MARGIN_DB,
+  CONTENT_STEP_MS,
   candidatePairs,
   decisionMeasures,
   isLossless,
   mainTrack,
+  pickContent,
   sameFormat,
   transferCandidates,
   transferMix,
@@ -256,6 +259,33 @@ test('traccia principale e tracce del trasferimento: come Scott Pilgrim e Cattiv
   assert.deepEqual(transferCandidates(dm4, { codec: 'E-AC-3', codecId: 'A_EAC3' }, 1).map((x) => x.id), [2, 1]);
 });
 
+test('finestra muta spostata sul contenuto: il più vicino con il margine sopra E_min, se c\'è (Lord of War)', () => {
+  const silence = cal.values.silenceDbfs;
+  const strong = silence + CONTENT_MARGIN_DB;
+  // Come il punto di Lord of War chiesto a 3745,9 s: muto, un tratto quasi muto
+  // 15,5 s dopo (−49,2 dBFS), contenuto vero più in là, prima e dopo.
+  const energy = (ms: number) =>
+    ms < -50_000 ? null
+    : ms >= 15_500 && ms < 20_000 ? -49.2
+    : ms >= 32_000 && ms < 40_000 ? -30
+    : ms <= -40_000 ? -28
+    : -70;
+  assert.equal(pickContent(energy, -60_000, 60_000, 0, silence, strong), 32_000);
+  // Senza il margine (i confini, §4.6) il più vicino sopra E_min, come prima.
+  assert.equal(pickContent(energy, -60_000, 60_000, 0, silence, null), 15_500);
+  // Con il margine ma nessun tratto forte nell'intervallo: il più vicino sopra E_min.
+  assert.equal(pickContent(energy, -30_000, 30_000, 0, silence, strong), 15_500);
+  // A pari distanza prima il tratto precedente; fuori dalla lettura (`null`) non conta.
+  const both = (ms: number) => (Math.abs(ms) === 10_000 ? -20 : -70);
+  assert.equal(pickContent(both, -60_000, 60_000, 0, silence, strong), -10_000);
+  assert.equal(pickContent(energy, -39_000, 10_000, 0, silence, strong), null);
+  assert.equal(pickContent(energy, -60_000, -50_250, -55_000, silence, strong), null);
+  assert.equal(pickContent(energy, 5000, 1000, 0, silence, strong), null);
+  // A passi di CONTENT_STEP_MS da `preferMs`.
+  const offGrid = (ms: number) => (ms >= 1100 ? -20 : -70);
+  assert.equal(pickContent(offGrid, 0, 5000, 0, silence, strong), 5 * CONTENT_STEP_MS);
+});
+
 test('spostamenti noti con --sync, di entrambi i segni: S dai timestamp dei file prodotti, al decimo di ms', async () => {
   for (const [donor, sign] of [['donor-plus', 1], ['donor-minus', -1]] as const) {
     const shift = realShift(p('donor.mkv'), p(`${donor}.mkv`));
@@ -380,7 +410,7 @@ test('MANY_INCONCLUSIVE: silenzi lunghi danno punti non conclusivi, e punti aggi
   // Le finestre vicine al silenzio si spostano sul contenuto, dentro il loro intervallo.
   const moved = points.filter((c) => c.positionMs !== c.requestedMs);
   assert.ok(moved.length >= 1, 'no checkpoint moved');
-  assert.ok(moved.every((c) => Math.abs(c.positionMs - c.requestedMs) <= 3000 && c.energyDbfs >= cal.values.silenceDbfs));
+  assert.ok(moved.every((c) => Math.abs(c.positionMs - c.requestedMs) <= 3000 && c.energyDbfs >= cal.values.silenceDbfs + CONTENT_MARGIN_DB));
   assert.ok(points.every((c) => !c.added));
 
   // Con più punti coerenti richiesti se ne aggiungono, fino a bastare.

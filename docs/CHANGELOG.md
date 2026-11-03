@@ -4,6 +4,21 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.22.0] - 2026-11-03
+
+### Cambiato
+- Punti di conferma: una finestra muta si sposta sul tratto più vicino almeno
+  10 dB sopra la soglia del silenzio (`CONTENT_MARGIN_DB`, costante del
+  metodo); se nell'intervallo non c'è, sul più vicino sopra la soglia come
+  prima. Prima finiva per costruzione su un tratto quasi muto: su Lord of War
+  un punto spostato a −49,23 dBFS, con il picco a 24 ms da S ma NCC 0,4996
+  contro 0,5, rifiutava una coppia buona con `CHECKPOINT_UNMATCHED`
+  (TehMaat/dyadrr#32). Soglie, esiti e ricerca dei confini non cambiano.
+  Voce in `ANALYSIS_CHANGES`: i report con un punto spostato su un tratto
+  sotto la soglia + 10 dB sono superati
+- Documentazione: studio di fattibilità 0.31 (§4.5, §9.2, §20),
+  `docs/TARATURA.md`, `docs/COPPIE.md`
+
 ## [0.21.2] - 2026-11-02
 
 ### Corretto
