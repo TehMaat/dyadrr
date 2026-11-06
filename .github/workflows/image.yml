@@ -85,6 +85,10 @@ jobs:
           test "$(cat "$jobs/smoke.exit")" = 30
           grep -F '"code": "INPUT_UNREADABLE"' "$jobs/smoke.json"
           grep -F '"event":"end"' "$jobs/smoke.log"
+          cat "$jobs/dyadrr.runner.jsonl"
+          grep -F '"msg":"exit code 30","job":"smoke","code":"INPUT_UNREADABLE"' "$jobs/dyadrr.runner.jsonl"
+          tail -n 2 "$jobs/dyadrr.runner.jsonl" | grep -F '"msg":"SIGTERM: stopping"'
+          tail -n 1 "$jobs/dyadrr.runner.jsonl" | grep -F '"msg":"stopped"'
           test "$(docker inspect -f '{{.State.ExitCode}}' runner)" = 0
 
       # Le coppie reali della fase 1 (§15): un elenco di una coppia che non

@@ -77,6 +77,8 @@ Il report riporta i percorsi del container (`/data/watch/…`).
 | `<id>.exit` | Il runner, per ultimo | Il codice di uscita ([CODICI.md](CODICI.md#codici-di-uscita)) e un a capo |
 | `<id>.cancel` | Wayfinderr | Ferma il lavoro: Dyadrr riceve SIGTERM, una volta sola. Il contenuto non conta |
 | `dyadrr.alive` | Il runner, all'avvio e ogni 5 s | I secondi dall'epoch e un a capo. Più vecchio di 30 s: container spento |
+| `dyadrr.runner.jsonl` | Il runner, man mano | Il [log del runner](#log-del-runner), in JSON Lines |
+| `dyadrr.runner.1.jsonl` | Il runner, alla rotazione | Il log precedente, oltre 1 MiB |
 
 `<id>`: da 1 a 64 tra lettere ASCII, cifre, `-` e `_`, che comincia con una
 lettera o una cifra, mai riusato (un UUID va bene). Un `.job` con un nome
@@ -149,6 +151,53 @@ SIGTERM a Dyadrr, aspetta il report `cancelled`, scrive `.exit` ed esce.
 (SIGKILL, memoria esaurita, corrente). Non si rilancia: `.exit` si ricava dal
 report se c'è, altrimenti il runner scrive un report `INTERRUPTED` (uscita
 40, riprovabile).
+
+## Log del runner
+
+Le righe del runner vanno su stderr, per `docker logs`, e anche in
+`dyadrr.runner.jsonl` nella cartella dei job (studio §14.1). Wayfinderr le
+raccoglie nel suo storico dei log, con la sua retention
+(TehMaat/wayfinderr#54): il runner tiene solo l'ultimo MiB o poco più.
+
+Una riga JSON per evento, con l'a capo:
+
+```json
+{"time":"2026-11-06T14:03:12.481Z","level":"warn","msg":"exit code 20","job":"3f2a…","code":"NO_MATCH","version":"0.23.0"}
+```
+
+| Campo | Cosa contiene |
+|---|---|
+| `time` | Ora in UTC, ISO 8601 con i millisecondi |
+| `level` | `info`, `warn` o `error` |
+| `msg` | Il testo di stderr, in inglese, senza `dyadrr-runner:` e senza l'id |
+| `job` | L'id del lavoro, solo per le righe di un lavoro |
+| `code` | Il codice del report, quando c'è ([CODICI.md](CODICI.md)) |
+| `version` | La versione di Dyadrr |
+
+| Riga (`msg`) | `level` |
+|---|---|
+| `dyadrr <versione>, jobs in <cartella>` (avvio) | `info` |
+| `<command>` (lavoro preso, `analyze` o `merge`) | `info` |
+| `exit code 0` | `info` |
+| `exit code <n>` con `n` diverso da 0, con `code` | `warn` |
+| `not taken: the id was already used` | `warn` |
+| `interrupted, closed with exit code <n>` (all'avvio), con `code` | `warn` |
+| `<segnale>: stopping`, `stopped` | `info` |
+| `dyadrr.alive cannot be written: <errore>` | `error` |
+| `error: <messaggio>` (il runner si ferma) | `error` |
+
+- **Lettura:** le righe si aggiungono in fondo, intere. Una riga senza a capo
+  in fondo al file è ancora in scrittura: si salta e si rilegge dopo.
+- **Rotazione:** se le righe nuove porterebbero il file oltre 1 MiB, prima il
+  file si rinomina in `dyadrr.runner.1.jsonl` (al posto del precedente) e si
+  ricomincia da un file nuovo. Chi legge per offset, trovando il file più
+  corto dell'ultimo offset, finisce prima `dyadrr.runner.1.jsonl`.
+- **Errori:** un file che non si scrive (disco pieno, permessi) non ferma il
+  runner né un lavoro. Le righe di quel momento vanno solo su stderr, con
+  `dyadrr-runner: dyadrr.runner.jsonl cannot be written: <errore>` una volta
+  sola, finché il file non torna scrivibile.
+- **Senza cartella sorvegliata** il runner non parte e le righe vanno solo su
+  stderr: la cartella dei job non c'è.
 
 ## Nel Compose di Wayfinderr
 

@@ -43,8 +43,8 @@ Il test `test/docs.test.ts` controlla che questa tabella elenchi tutti i file
 | `src/report.ts` | Il report (§11.3): forma (`Report`, `REPORT_FIELDS`), versione del formato (`REPORT_FORMAT`), fasi dell'avanzamento (`PROGRESS_PHASES`), scrittura con un nome temporaneo e rinomina, nome predefinito; lettura del report di `--expect` e confronto di impronte, ruoli, S e piano | §10–11 |
 | `src/cli.ts` | Riga di comando (`runCli`): argomenti, ordine di analyze e merge (`analyzePair`, scelte, `buildMerge`, `verifyBuild`, `commitBuild`), scelte chieste in un terminale, `--expect` (`INPUT_CHANGED`), ingressi dopo il merge (`--inputs`, `INPUT_NOT_DELETED`), `--progress json`, annullamento (`CANCELLED`), report sempre scritto e codice di uscita da `exitCodeFor`. Non tocca il processo: tutto arriva da `CliEnvironment` | §9.4, §10–11 |
 | `src/bin.ts` | Il processo `dyadrr`: segnali di stop (SIGINT, SIGTERM, SIGHUP) su un `AbortController`, secondo segnale, domande in un terminale con readline, codice di uscita | §10 |
-| `src/runner.ts` | Runner dei file job (`runRunner`): cartelle nel container e intervalli (`RUNNER`), lettura del job (`parseJob`, `BAD_ARGUMENTS`), percorsi relativi a `/data`, argomenti della riga di comando (`jobArguments`), un lavoro alla volta da `.job` a `.exit`, `.cancel` con un solo SIGTERM, report scritto dal runner (`writeOutcomeReport`) quando Dyadrr non lo scrive, lavori interrotti all'avvio (`INTERRUPTED`), `dyadrr.alive` | §14.1 |
-| `src/runner-bin.ts` | Il processo `dyadrr-runner`, comando di default dell'immagine: `--data`, segnali di stop, secondo segnale | §14.1 |
+| `src/runner.ts` | Runner dei file job (`runRunner`): cartelle nel container e intervalli (`RUNNER`), lettura del job (`parseJob`, `BAD_ARGUMENTS`), percorsi relativi a `/data`, argomenti della riga di comando (`jobArguments`), un lavoro alla volta da `.job` a `.exit`, `.cancel` con un solo SIGTERM, report scritto dal runner (`writeOutcomeReport`) quando Dyadrr non lo scrive, lavori interrotti all'avvio (`INTERRUPTED`), `dyadrr.alive`, log del runner su stderr (`logLine`) e in `dyadrr.runner.jsonl`, con la rotazione | §14.1 |
+| `src/runner-bin.ts` | Il processo `dyadrr-runner`, comando di default dell'immagine: `--data`, segnali di stop, secondo segnale, righe del log su stderr | §14.1 |
 | `src/pairs.ts` | Le coppie reali della fase 1 (`runPairs`): lettura dell'elenco (`parsePairList`, `BAD_ARGUMENTS`), argomenti di `analyze` (`pairArguments`), report riusabili (`reusable`), una coppia alla volta nel suo processo, con il report scritto qui se Dyadrr non lo scrive; riassunto di una coppia (`summarizePair`: verdetto, S, punti, margini dei picchi rispetto alle soglie) e della serie (`summarizeSeries`: criterio di uscita della fase 1, margini delle soglie), `summary.json` e `summary.md` ([COPPIE.md](COPPIE.md)) | §15 |
 | `src/pairs-bin.ts` | Il processo `dyadrr-pairs`: argomenti, segnali di stop, secondo segnale | §15 |
 | `src/decision.ts` | Decisione: funzione pura dalle misure e dalla taratura a decisione, controlli, motivi, avvisi, S definitivo, deriva, forma della contraddizione e copertura; `checkStructure` per i soli controlli strutturali, prima di misurare | §4.4–4.7, §9.3–9.4, §9.6 |
@@ -116,9 +116,10 @@ Nessuno: il container (studio §14, decisione 7) è fatto dalla 0.12.0.
 - `test/runner.test.ts` prova il runner su una cartella con la forma di
   `/data`: file job letti e tradotti in argomenti, il Dyadrr vero su MKV di
   60 s (job sbagliati, un valore sbagliato, `.cancel` durante l'analisi e
-  prima di cominciare, id riusati, `dyadrr.alive`), un Dyadrr finto per i
-  crash, i processi uccisi, i `.run` rimasti all'avvio e lo stop del runner;
-  infine il processo `dyadrr-runner`.
+  prima di cominciare, id riusati, `dyadrr.alive`, il log del runner), un
+  Dyadrr finto per i crash, i processi uccisi, i `.run` rimasti all'avvio e
+  lo stop del runner; il log del runner oltre il limite e su un file che non
+  si scrive; infine il processo `dyadrr-runner`.
 - `test/pairs.test.ts` prova le coppie reali: l'elenco e i suoi errori, i
   report riusabili, il riassunto di una coppia sul report vero di un'analisi
   idonea (MKV di 60 s di rumore rosa) e su sue varianti (rifiuti per salti,

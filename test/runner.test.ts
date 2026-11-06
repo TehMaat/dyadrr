@@ -6,7 +6,8 @@ import { join, resolve } from 'node:path';
 import { USAGE } from '../src/cli.js';
 import { DyadrrError } from '../src/codes.js';
 import type { Report } from '../src/report.js';
-import { JOB_KEYS, RUNNER, jobArguments, parseJob, runRunner } from '../src/runner.js';
+import { JOB_KEYS, RUNNER, jobArguments, logLine, parseJob, runRunner, type RunnerLogEntry } from '../src/runner.js';
+import { dyadrrVersion } from '../src/report.js';
 import { ffmpegSource, mkvmerge, settle, tempDir } from './helpers/mkv.js';
 
 // Il runner dei file job (studio §14.1) su una cartella di prova con la stessa
@@ -55,6 +56,21 @@ async function until(what: string, condition: () => boolean, timeoutMs = 60_000)
 
 const read = (path: string) => readFileSync(path, 'utf8');
 const report = (path: string) => JSON.parse(read(path)) as Report;
+
+/** Le righe di `dyadrr.runner.jsonl` (o di un altro file JSON Lines). */
+function logEntries(path: string): Array<Record<string, unknown>> {
+  const text = read(path);
+  assert.ok(text === '' || text.endsWith('\n'), 'whole lines only');
+  return text.split('\n').filter((l) => l !== '').map((l) => JSON.parse(l) as Record<string, unknown>);
+}
+
+/** Una riga del file senza `time` e `version`, dopo averli controllati. */
+function withoutTime(line: Record<string, unknown>): Record<string, unknown> {
+  const { time, version, ...rest } = line;
+  assert.match(String(time), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  assert.equal(version, dyadrrVersion());
+  return rest;
+}
 
 /** Scrive un job come Wayfinderr, con una data di modifica che ne fissa l'ordine. */
 function writeJob(path: string, lines: string[], secondsAgo = 0): void {
@@ -116,9 +132,10 @@ test('file job: chiavi e percorsi relativi alle cartelle montate; BAD_ARGUMENTS 
   bad(['command=merge', 'input=watch/a.mkv', 'input=watch/b.mkv', 'expect=../a.json'], /"\.\.\/a\.json" is not a path/);
 });
 
-test('runner: un job alla volta dal più vecchio, .log, .json e .exit; .cancel; BAD_ARGUMENTS; id riusati', async () => {
+test('runner: un job alla volta dal più vecchio, .log, .json e .exit; .cancel; BAD_ARGUMENTS; id riusati; dyadrr.runner.jsonl', async () => {
   const { data, jobs, file } = dataDir('data');
   const pair = ['input=watch/reference.mkv', 'input=watch/donor.mkv'];
+  writeJob(file('dyadrr', 'job'), ['command=analyse', ...pair], 50);
   writeJob(file('a-parse', 'job'), ['command=analyse', ...pair], 40);
   writeJob(file('b-value', 'job'), ['command=analyze', ...pair, 'tail=cut'], 30);
   writeJob(file('c-cancel', 'job'), ['command=analyze', ...pair], 20);
@@ -127,9 +144,14 @@ test('runner: un job alla volta dal più vecchio, .log, .json e .exit; .cancel; 
   writeFileSync(join(jobs, '.e-temp.job'), 'command=analyze\n');
   writeFileSync(join(jobs, 'not an id.job'), 'command=analyze\n');
 
-  const lines: string[] = [];
+  const lines: RunnerLogEntry[] = [];
   const stop = new AbortController();
   const running = runRunner({ dataDir: data, signal: stop.signal, log: (l) => lines.push(l), pollMs: 50, aliveMs: 100 });
+
+  // L'id `dyadrr` si prende anche con il log del runner nella cartella.
+  await until('dyadrr.exit', () => existsSync(file('dyadrr', 'exit')));
+  assert.equal(read(file('dyadrr', 'exit')), '30\n');
+  assert.ok(existsSync(join(jobs, RUNNER.logFile)));
 
   // Un job sbagliato: il report lo scrive il runner, Dyadrr non parte.
   await until('a-parse.exit', () => existsSync(file('a-parse', 'exit')));
@@ -178,7 +200,7 @@ test('runner: un job alla volta dal più vecchio, .log, .json e .exit; .cancel; 
   // Un id già usato non si prende e non si sovrascrive niente; i nomi che non
   // sono un id si ignorano.
   writeJob(file('a-parse', 'job'), ['command=analyze', ...pair]);
-  await until('the reused id in the log', () => lines.includes('a-parse: not taken: the id was already used'));
+  await until('the reused id in the log', () => lines.some((l) => logLine(l) === 'a-parse: not taken: the id was already used'));
   assert.ok(existsSync(file('a-parse', 'job')));
   assert.equal(read(file('a-parse', 'exit')), '30\n');
   assert.ok(existsSync(join(jobs, '.e-temp.job')) && existsSync(join(jobs, 'not an id.job')));
@@ -186,12 +208,32 @@ test('runner: un job alla volta dal più vecchio, .log, .json e .exit; .cancel; 
   const alive = read(join(jobs, RUNNER.alive));
   assert.match(alive, /^\d+\n$/);
   assert.ok(Math.abs(Number(alive) - Date.now() / 1000) < 10);
-  stop.abort();
+  stop.abort('SIGTERM');
   await running;
   // Il runner non cancella niente.
-  for (const id of ['a-parse', 'b-value', 'c-cancel', 'd-early']) {
+  for (const id of ['dyadrr', 'a-parse', 'b-value', 'c-cancel', 'd-early']) {
     for (const ext of ['run', 'log', 'json', 'exit']) assert.ok(existsSync(file(id, ext)), `${id}.${ext}`);
   }
+
+  // Il log del runner: le stesse righe di stderr, con livello, lavoro e codice.
+  const entries = logEntries(join(jobs, RUNNER.logFile)).map(withoutTime);
+  assert.deepEqual(entries, lines.map((l) => JSON.parse(JSON.stringify(l)) as Record<string, unknown>));
+  assert.deepEqual(entries, [
+    { level: 'info', msg: `dyadrr ${dyadrrVersion()}, jobs in ${jobs}` },
+    { level: 'warn', msg: 'exit code 30', job: 'dyadrr', code: 'BAD_ARGUMENTS' },
+    { level: 'warn', msg: 'exit code 30', job: 'a-parse', code: 'BAD_ARGUMENTS' },
+    { level: 'info', msg: 'analyze', job: 'b-value' },
+    { level: 'warn', msg: 'exit code 30', job: 'b-value', code: 'BAD_ARGUMENTS' },
+    { level: 'info', msg: 'analyze', job: 'c-cancel' },
+    { level: 'warn', msg: 'exit code 50', job: 'c-cancel', code: 'CANCELLED' },
+    { level: 'info', msg: 'analyze', job: 'd-early' },
+    { level: 'warn', msg: 'exit code 50', job: 'd-early', code: 'CANCELLED' },
+    { level: 'warn', msg: 'not taken: the id was already used', job: 'a-parse' },
+    { level: 'info', msg: 'SIGTERM: stopping' },
+    { level: 'info', msg: 'stopped' },
+  ]);
+  assert.equal(logLine(lines.find((l) => l.job === 'c-cancel' && l.code)!), 'c-cancel: exit code 50');
+  assert.ok(!existsSync(join(jobs, RUNNER.logPrevious)), 'no rotation under the limit');
 });
 
 test('INTERRUPTED: .run rimasti all\'avvio e Dyadrr ucciso; INTERNAL senza report; lo stop del runner annulla con un solo SIGTERM', async () => {
@@ -245,6 +287,11 @@ setInterval(() => {}, 1000);
   assert.deepEqual(old.arguments.files, [join(data, 'watch/old.mkv'), join(data, 'watch/old.mkv')]);
   assert.equal(read(file('old', 'log')), '');
   assert.equal(read(file('done', 'exit')), '20\n', 'the exit code comes from the report');
+  const recovered = logEntries(join(data, RUNNER.jobs, RUNNER.logFile)).map(withoutTime).filter((l) => /interrupted/.test(String(l.msg)));
+  assert.deepEqual(recovered, [
+    { level: 'warn', msg: 'interrupted, closed with exit code 20', job: 'done', code: 'NO_MATCH' },
+    { level: 'warn', msg: 'interrupted, closed with exit code 40', job: 'old', code: 'INTERRUPTED' },
+  ]);
   assert.equal(report(file('done', 'json')).reasons[0]!.code, 'NO_MATCH', 'the report stays');
 
   assert.equal(read(file('e-kill', 'exit')), '40\n');
@@ -287,5 +334,44 @@ test('processo: dyadrr-runner senza la cartella sorvegliata non parte; con SIGTE
   await until('dyadrr.alive', () => existsSync(join(jobs, RUNNER.alive)), 10_000);
   runner.child.kill('SIGTERM');
   assert.equal(await runner.code, 0, runner.out());
-  assert.match(runner.out(), /SIGTERM: stopping\n.*stopped\n$/s);
+  assert.match(runner.out(), /^dyadrr-runner: dyadrr \d+\.\d+\.\d+, jobs in .*\ndyadrr-runner: SIGTERM: stopping\ndyadrr-runner: stopped\n$/s);
+  assert.deepEqual(logEntries(join(jobs, RUNNER.logFile)).map(withoutTime).map((l) => l.msg).slice(-2), ['SIGTERM: stopping', 'stopped']);
+});
+
+test('dyadrr.runner.jsonl: rotazione oltre il limite; un file che non si scrive non ferma il runner e si dice una volta', async () => {
+  const bad = (file: (id: string, ext: string) => string, ids: string[]) =>
+    ids.forEach((id, i) => writeJob(file(id, 'job'), ['command=analyse'], 60 - i));
+
+  // Rotazione: con un limite di 400 byte il file passa a dyadrr.runner.1.jsonl.
+  const small = dataDir('data-log-1');
+  bad(small.file, ['j1', 'j2', 'j3', 'j4', 'j5', 'j6']);
+  let stop = new AbortController();
+  let running = runRunner({ dataDir: small.data, signal: stop.signal, pollMs: 20, aliveMs: 100, logMaxBytes: 400 });
+  await until('j6.exit', () => existsSync(small.file('j6', 'exit')));
+  stop.abort();
+  await running;
+  const previous = logEntries(join(small.jobs, RUNNER.logPrevious));
+  const current = logEntries(join(small.jobs, RUNNER.logFile));
+  assert.ok(previous.length > 0 && current.length > 0);
+  assert.ok(statSync(join(small.jobs, RUNNER.logPrevious)).size <= 400);
+  assert.equal(current.at(-1)!.msg, 'stopped');
+  const msgs = [...previous, ...current].map((l) => `${String(l.job ?? '')} ${String(l.msg)}`);
+  assert.deepEqual(msgs.slice(-3), ['j6 exit code 30', ' stopping', ' stopped'], 'in order, nothing repeated');
+
+  // Un file che non si scrive (qui è una cartella): i lavori vanno avanti, e
+  // l'errore arriva una volta sola, solo a stderr.
+  const broken = dataDir('data-log-2');
+  mkdirSync(join(broken.jobs, RUNNER.logFile));
+  bad(broken.file, ['k1', 'k2', 'k3']);
+  const lines: RunnerLogEntry[] = [];
+  stop = new AbortController();
+  running = runRunner({ dataDir: broken.data, signal: stop.signal, log: (l) => lines.push(l), pollMs: 20, aliveMs: 100 });
+  await until('k3.exit', () => existsSync(broken.file('k3', 'exit')));
+  stop.abort();
+  await running;
+  const errors = lines.filter((l) => l.msg.startsWith(`${RUNNER.logFile} cannot be written`));
+  assert.equal(errors.length, 1, JSON.stringify(lines));
+  assert.deepEqual(errors[0], { level: 'error', msg: `${RUNNER.logFile} cannot be written: EISDIR` });
+  assert.ok(lines.some((l) => l.job === 'k3' && l.msg === 'exit code 30'));
+  assert.equal(lines.at(-1)!.msg, 'stopped');
 });

@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 import { dyadrrVersion } from './report.js';
-import { RUNNER, runRunner } from './runner.js';
+import { RUNNER, logLine, runRunner, type RunnerLogEntry } from './runner.js';
 
 // Il processo `dyadrr-runner` (studio §14.1), il comando di default
-// dell'immagine: segnali di stop e argomenti. Il protocollo è in `runner.ts`.
+// dell'immagine: segnali di stop e argomenti. Il protocollo è in `runner.ts`,
+// che scrive le righe del log anche in `dyadrr.runner.jsonl`; qui vanno su
+// stderr.
 
 const USAGE = `Usage: dyadrr-runner [--data <dir>]
 
@@ -35,25 +37,20 @@ if (values.version) {
 
 const controller = new AbortController();
 let stops = 0;
-const log = (line: string) => process.stderr.write(`dyadrr-runner: ${line}\n`);
+const log = (entry: RunnerLogEntry) => process.stderr.write(`dyadrr-runner: ${logLine(entry)}\n`);
 
-/** Il primo segnale chiude il lavoro in corso (annullato) e ferma il runner; il secondo esce subito. */
+/**
+ * Il primo segnale chiude il lavoro in corso (annullato) e ferma il runner,
+ * che scrive "<segnale>: stopping"; il secondo esce subito.
+ */
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
   process.on(signal, () => {
     if (++stops > 1) process.exit(1);
-    log(`${signal}: stopping`);
-    controller.abort();
+    controller.abort(signal);
   });
 }
 
-const dataDir = values.data ?? RUNNER.dataDir;
-log(`dyadrr ${dyadrrVersion()}, jobs in ${dataDir}/${RUNNER.jobs}`);
-runRunner({ dataDir, signal: controller.signal, log }).then(
-  () => {
-    log('stopped');
-  },
-  (e: unknown) => {
-    log(`error: ${e instanceof Error ? e.message : String(e)}`);
-    process.exitCode = 1;
-  },
-);
+// Avvio, stop ed errori li scrive il runner.
+runRunner({ dataDir: values.data ?? RUNNER.dataDir, signal: controller.signal, log }).catch(() => {
+  process.exitCode = 1;
+});
