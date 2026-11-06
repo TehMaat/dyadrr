@@ -4,6 +4,23 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.23.0] - 2026-11-06
+
+### Aggiunto
+- `dyadrr-runner`: le righe del runner vanno anche in
+  `dyadrr.runner.jsonl`, nella cartella dei job, in JSON Lines con ora,
+  livello (`info`, `warn`, `error`), messaggio, lavoro, codice del report e
+  versione. Wayfinderr le raccoglie nel suo storico dei log
+  (TehMaat/wayfinderr#54), perché non vede i log dei container. Oltre 1 MiB
+  il file passa a `dyadrr.runner.1.jsonl`; un file che non si scrive non
+  ferma il runner e si dice una volta su stderr (TehMaat/dyadrr#35)
+
+### Cambiato
+- Le righe di avvio, stop ed errore le scrive il runner (`runRunner`), non
+  più il processo: su stderr restano le stesse
+- Documentazione: studio di fattibilità 0.32 (§14, §14.1, §20),
+  `docs/CONTAINER.md`, `docs/ARCHITETTURA.md`
+
 ## [0.22.0] - 2026-11-03
 
 ### Cambiato
