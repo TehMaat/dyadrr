@@ -127,6 +127,11 @@ export const ANALYSIS_CHANGES: readonly AnalysisChange[] = [
     what: 'a silent checkpoint window moves to content at least 10 dB above the silence threshold, if there is any',
     stale: movedToFaintContent,
   },
+  {
+    version: '0.24.0',
+    what: 'a checkpoint without a match is tried again on the other track pairs, each at its own offset on the anchor',
+    stale: (r) => r.measurement?.checkpoints?.some((c) => c.outcome === 'unmatched') ?? false,
+  },
 ];
 
 /**

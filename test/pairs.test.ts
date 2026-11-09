@@ -507,7 +507,7 @@ test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassu
     differences: ANALYSIS_CHANGES.filter((c) => !c.stale(old)).map((c) => `${c.version}: ${c.what}`),
     stale: null,
   });
-  assert.equal(checkImport(old, moved, current).differences.length, 11);
+  assert.equal(checkImport(old, moved, current).differences.length, 12);
   // Dalla 0.21.2 un ingresso che finisce dopo la durata dichiarata non è troncato
   const overshoot = variant((r) => {
     r.dyadrr = '0.21.1';
@@ -532,6 +532,12 @@ test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassu
     r.measurement!.checkpoints![0]!.outcome = 'unmatched';
   });
   assert.match(checkImport(unmatched, moved, current).stale!, /^Dyadrr 0\.18\.1, changed in 0\.19\.0: a similar but not unique peak/);
+  // Dalla 0.24.0 un punto senza corrispondenza si riprova sulle altre coppie: anche un report recente va rimisurato.
+  const recentUnmatched = variant((r) => {
+    Object.assign(r, structuredClone(unmatched));
+    r.dyadrr = '0.23.0';
+  });
+  assert.match(checkImport(recentUnmatched, moved, current).stale!, /^Dyadrr 0\.23\.0, changed in 0\.24\.0: a checkpoint without a match is tried again/);
   // Dalla 0.22.0 un punto muto si sposta sul contenuto con il margine sopra
   // E_min: un report con un punto spostato su un tratto quasi muto va
   // rimisurato (Lord of War); uno spostato su un tratto forte no.

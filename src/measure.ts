@@ -15,10 +15,11 @@ import {
 import { findPeaks, stretch } from './correlation.js';
 import {
   checkStructure,
+  checkpointPeak,
   decide,
   isConfident,
-  similarAtS,
   transferResult,
+  type AlternateMeasure,
   type AnchorMeasure,
   type CheckpointMeasure,
   type CheckpointOutcome,
@@ -147,6 +148,8 @@ export interface PairTrial extends TrackPair {
 export interface MeasuredCheckpoint extends CheckpointMeasure {
   /** Posizione richiesta, prima dell'eventuale spostamento sul contenuto. */
   requestedMs: number;
+  /** Seconda prova sulle altre coppie di tracce (§4.5, punto 3): vuota se non è servita. */
+  alternates: AlternateMeasure[];
 }
 
 /** Una traccia provata nel controllo di trasferimento: spostamento mediano e picchi sicuri. */
@@ -541,21 +544,40 @@ export async function measurePair(
   }
 
   /**
-   * Il tratto [x, x + len] del riferimento cercato nel donatore vicino a S
-   * (±1 s), con l'energia della finestra corrispondente del donatore. Su una
-   * finestra muta non si correla: il non conclusivo si decide dall'energia.
+   * Il tratto [x, x + len] del riferimento cercato nel donatore vicino allo
+   * spostamento `offset` (±1 s), con l'energia della finestra corrispondente
+   * del donatore, sulle tracce date. Su una finestra muta non si correla: il
+   * non conclusivo si decide dall'energia. `null` se il tratto è fuori dalla
+   * traccia del riferimento.
    */
-  const localCheck = async (x: number, len: number): Promise<Local> => {
+  const localCheckOn = async (refSig: TrackSignal, donorSig: TrackSignal, offset: number, x: number, len: number): Promise<Local | null> => {
     const [refWindows, donorWindows] = await Promise.all([
-      ref.read([refSignal], x, x + len),
-      donor.read([signal], x - S - LOCAL_SEARCH_MS, x + len - S + LOCAL_SEARCH_MS),
+      ref.read([refSig], x, x + len),
+      donor.read([donorSig], x - offset - LOCAL_SEARCH_MS, x + len - offset + LOCAL_SEARCH_MS),
     ]);
-    if (!refWindows) throw new DyadrrError('INTERNAL', `window at ${x} ms is outside reference track ${pair.reference.id}`);
+    if (!refWindows) return null;
     const needle = refWindows[0]!;
     const hay = donorWindows?.[0] ?? null;
-    const e = energy(hay && slice(hay, needle.startMs - S, needle.startMs - S + durationOf(needle)));
+    const e = energy(hay && slice(hay, needle.startMs - offset, needle.startMs - offset + durationOf(needle)));
     return { needle, energyDbfs: e, local: e >= v.silenceDbfs ? search([needle], hay, cal)[0]! : null };
   };
+
+  /** `localCheckOn` sulla coppia di misura, vicino a S. */
+  const localCheck = async (x: number, len: number): Promise<Local> => {
+    const r = await localCheckOn(refSignal, signal, S, x, len);
+    if (!r) throw new DyadrrError('INTERNAL', `window at ${x} ms is outside reference track ${pair.reference.id}`);
+    return r;
+  };
+
+  // Seconda prova (§4.5, punto 3, dalla 0.24.0): le altre coppie con un picco
+  // sicuro sull'ancora accettata a meno di un fotogramma da S, dalla più
+  // somigliante lì. Sono già state misurate tutte su quell'ancora (§4.2).
+  const alternatePairs = pairs
+    .flatMap((p, i) => {
+      const a = i === pick ? undefined : perPair[i]![acceptedAt];
+      return a && isConfident(a, cal) && Math.abs(a.offsetMs - S) < frameMs ? [{ p, a }] : [];
+    })
+    .sort((x, y) => y.a.ncc - x.a.ncc);
 
   /**
    * L'inizio, nel donatore, del tratto lungo `len` con energia sopra E_min più
@@ -655,22 +677,32 @@ export async function measurePair(
     }
     // Senza corrispondenza vicina: di nuovo su tutto l'intervallo ±(S_max + margine).
     const wide = r.energyDbfs >= v.silenceDbfs && !isConfident(r.local, cal) ? await wideSearch(r.needle) : null;
-    return {
+    const point: MeasuredCheckpoint = {
       requestedMs: round3(x),
       positionMs: round3(r.needle.startMs),
       energyDbfs: r.energyDbfs,
       local: r.local,
       wide,
       added,
+      alternates: [],
     };
+    // Senza corrispondenza sulla coppia di misura: lo stesso tratto sulle altre
+    // coppie, ognuna al suo spostamento sull'ancora, fino alla prima con un picco sicuro.
+    if (checkpointPeak(point, S, frameMs, cal) === 'unmatched') {
+      for (const { p, a } of alternatePairs) {
+        const s = await localCheckOn({ track: p.reference, mix: p.mix }, { track: p.donor, mix: p.mix }, a.offsetMs, r.needle.startMs, Lc);
+        point.alternates.push({ ...pairIds(p), anchorOffsetMs: a.offsetMs, match: s?.local ?? null });
+        if (isConfident(s?.local, cal)) break;
+      }
+    }
+    return point;
   };
 
   /** Esito di un punto, con le regole della decisione (§9.6). */
   const outcome = (c: CheckpointMeasure) => {
-    if (c.energyDbfs < v.silenceDbfs) return 'inconclusive';
-    const m = isConfident(c.local, cal) ? c.local : isConfident(c.wide, cal) ? c.wide : null;
-    if (m === null) return similarAtS(c.local, S, frameMs, cal) ? 'inconclusive' : 'unmatched';
-    const d = Math.abs(m.offsetMs - S);
+    const peak = checkpointPeak(c, S, frameMs, cal);
+    if (typeof peak === 'string') return peak;
+    const d = Math.abs(peak.match.offsetMs - S);
     return d <= tol ? 'consistent' : d < frameMs ? 'shifted' : 'contradictory';
   };
   /** Coerente o spostato sotto il fotogramma: conferma S (§9.3). */

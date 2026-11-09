@@ -4,6 +4,29 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.24.0] - 2026-11-09
+
+### Cambiato
+- Punti di conferma, seconda prova su un'altra coppia di tracce
+  (TehMaat/dyadrr#32, proposta B): un punto che sulla coppia di misura non
+  trova corrispondenza si riprova, nello stesso tratto, con le altre coppie
+  della lingua di misura che sull'ancora accettata concordano con S entro un
+  fotogramma, ognuna al suo spostamento su quell'ancora. La prima con un picco
+  sicuro decide il punto, con il suo scarto riportato su S; se nessuna lo ha,
+  il punto resta senza corrispondenza. Su Ghostbusters: Minaccia glaciale un
+  solo punto con il mix Atmos diverso dal 5.1 (NCC 0,42) rifiutava lo stesso
+  film, mentre le due AC-3 stereo dei dischi sono identiche. Un tratto
+  davvero diverso non corrisponde su nessuna traccia e resta rifiutato.
+  Soglie e taratura non cambiano
+- Report: nei punti di conferma `alternatePair` (la coppia che ha deciso,
+  `null` per la coppia di misura) e, in `measurement.checkpoints`,
+  `alternates` (le coppie riprovate con il picco). Campi nuovi: il formato
+  resta 1
+- Voce in `ANALYSIS_CHANGES`: i report con un punto senza corrispondenza
+  sono superati
+- Documentazione: studio di fattibilità 0.33 (§4.5, §9.6, §20),
+  `docs/REPORT.md`, `docs/COPPIE.md`
+
 ## [0.23.0] - 2026-11-06
 
 ### Aggiunto
