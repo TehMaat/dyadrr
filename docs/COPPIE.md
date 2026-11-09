@@ -161,6 +161,7 @@ report di prima:
 | 0.21.0 | Coppia di misura: alla pari, le tracce principali prima dell'ordine del file | la scelta, rifatta sui picchi delle coppie provate che il report conserva, dà un'altra coppia |
 | 0.21.2 | Integrità: un file i cui ultimi cluster finiscono dopo la durata dichiarata non è troncato | un ingresso è risultato troncato con la fine letta oltre la durata dichiarata |
 | 0.22.0 | Un punto di conferma muto si sposta sul contenuto almeno 10 dB sopra E_min, se c'è | un punto si è spostato su un tratto sotto E_min + 10 dB |
+| 0.24.0 | Un punto senza corrispondenza si riprova sulle altre coppie di tracce, ognuna al suo spostamento sull'ancora | ha un punto senza corrispondenza |
 
 Lo stesso vale per la taratura (`CALIBRATION_CHANGES` in `src/pairs.ts`, dalla
 0.21.0): una versione che cambia solo avvisi non rende superati i report della

@@ -70,6 +70,26 @@ export interface CheckpointMeasure {
   wide: Match | null;
   /** Punto aggiunto nei tratti scoperti (§4.5, punto 7). */
   added: boolean;
+  /**
+   * Seconda prova sulle altre coppie di tracce (§4.5, punto 3, dalla 0.24.0),
+   * nell'ordine in cui si sono provate; vuota o assente se non è servita.
+   */
+  alternates?: readonly AlternateMeasure[];
+}
+
+/** Una coppia di tracce, per ID di mkvmerge e segnale (§4.2). */
+export interface PairIds {
+  referenceTrackId: number;
+  donorTrackId: number;
+  mix: 'center' | 'leftRight' | 'side';
+}
+
+/** Un punto di conferma riprovato su un'altra coppia di tracce (§4.5, punto 3). */
+export interface AlternateMeasure extends PairIds {
+  /** Spostamento della coppia sull'ancora accettata: la ricerca vicina è intorno a questo. */
+  anchorOffsetMs: number;
+  /** Picco migliore entro ±1 s da `anchorOffsetMs`; `null` se nel donatore è muto o non c'è audio. */
+  match: Match | null;
 }
 
 /** Ricerca prima del confine iniziale o oltre quello finale (§4.6). */
@@ -171,6 +191,12 @@ export interface CheckpointReport {
   ncc: number | null;
   ratio: number | null;
   added: boolean;
+  /**
+   * La coppia della seconda prova che ha deciso il punto (dalla 0.24.0);
+   * `null` se ha deciso la coppia di misura. Spostamento e scarto sono allora
+   * riportati sulla scala della coppia di misura (§9.6).
+   */
+  alternatePair: PairIds | null;
 }
 
 export interface Jump {
@@ -256,6 +282,33 @@ export function isConfident(match: Match | null | undefined, cal: Calibration): 
 export function similarAtS(local: Match | null | undefined, S: number, frameMs: number, cal: Calibration): boolean {
   return !!local && local.ncc >= cal.values.nccMin && local.ratio < cal.values.peakRatioMin
     && Math.abs(local.offsetMs - S) < frameMs;
+}
+
+/**
+ * Il picco che decide un punto di conferma (§4.5, punto 3; §9.6), o perché
+ * non ce n'è uno: muto o picco poco netto a S (`inconclusive`), nessun picco
+ * sicuro neanche sulle altre coppie (`unmatched`). Prima la coppia di misura
+ * (ricerca vicina, poi ampia); poi la prima coppia della seconda prova con un
+ * picco sicuro, riportato sulla scala della coppia di misura:
+ * S + (picco − spostamento della coppia sull'ancora). La usano la decisione e
+ * la misura, che ne ha bisogno per sapere quando fermarsi.
+ */
+export function checkpointPeak(
+  c: CheckpointMeasure,
+  S: number,
+  frameMs: number,
+  cal: Calibration,
+): { match: Match; alternate: AlternateMeasure | null } | 'inconclusive' | 'unmatched' {
+  // Il non conclusivo si decide dall'energia, mai dall'assenza di un picco.
+  if (c.energyDbfs < cal.values.silenceDbfs) return 'inconclusive';
+  const m = isConfident(c.local, cal) ? c.local : isConfident(c.wide, cal) ? c.wide : null;
+  if (m) return { match: m, alternate: null };
+  // Nessun picco sicuro: con un picco somigliante proprio a S il punto è non conclusivo.
+  if (similarAtS(c.local, S, frameMs, cal)) return 'inconclusive';
+  const alternate = c.alternates?.find((a) => isConfident(a.match, cal));
+  if (!alternate) return 'unmatched';
+  const { offsetMs, ncc, ratio } = alternate.match!;
+  return { match: { offsetMs: S + (offsetMs - alternate.anchorOffsetMs), ncc, ratio }, alternate };
 }
 
 /**
@@ -580,18 +633,13 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
   if (!input.checkpoints) throw missing('checkpoints');
   report.checkpoints = input.checkpoints.map((c): CheckpointReport => {
     const base = { positionMs: c.positionMs, energyDbfs: c.energyDbfs, added: c.added };
-    // Il non conclusivo si decide dall'energia, mai dall'assenza di un picco.
-    if (c.energyDbfs < v.silenceDbfs) {
-      return { ...base, outcome: 'inconclusive', offsetMs: null, deviationMs: null, ncc: null, ratio: null };
+    const peak = checkpointPeak(c, anchorS, frameMs, cal);
+    if (typeof peak === 'string') {
+      return { ...base, outcome: peak, offsetMs: null, deviationMs: null, ncc: null, ratio: null, alternatePair: null };
     }
-    const m = isConfident(c.local, cal) ? c.local : isConfident(c.wide, cal) ? c.wide : null;
-    if (m === null) {
-      // Nessun picco sicuro da nessuna parte: con un picco somigliante proprio
-      // a S il punto è non conclusivo, altrimenti senza corrispondenza.
-      const outcome = similarAtS(c.local, anchorS, frameMs, cal) ? 'inconclusive' : 'unmatched';
-      return { ...base, outcome, offsetMs: null, deviationMs: null, ncc: null, ratio: null };
-    }
+    const m = peak.match;
     const deviation = m.offsetMs - anchorS;
+    const alt = peak.alternate;
     return {
       ...base,
       outcome: ({ within: 'consistent', subframe: 'shifted', beyond: 'contradictory' } as const)[gap(deviation, frameMs)],
@@ -599,6 +647,7 @@ function evaluate(input: DecisionInput, cal: Calibration, structureOnly: boolean
       deviationMs: round1(deviation),
       ncc: m.ncc,
       ratio: m.ratio,
+      alternatePair: alt && { referenceTrackId: alt.referenceTrackId, donorTrackId: alt.donorTrackId, mix: alt.mix },
     };
   });
   const points = report.checkpoints;

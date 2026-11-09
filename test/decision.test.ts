@@ -4,7 +4,9 @@ import { loadCalibration } from '../src/calibration.js';
 import { DyadrrError } from '../src/codes.js';
 import {
   checkStructure,
+  checkpointPeak,
   decide,
+  type AlternateMeasure,
   type AnchorMeasure,
   type CheckpointMeasure,
   type DecisionInput,
@@ -448,6 +450,40 @@ test('punti: un picco a S somigliante ma non unico è non conclusivo, non senza 
   // Non confermano S: se sono troppi, manca la distribuzione dei punti.
   const most = decide(base({ checkpoints: series(() => S).map((p, i) => (i % 3 !== 0 ? { ...p, local: match(S, 1, 1.2) } : p)) }), cal);
   assert.deepEqual(reasons(most), ['TOO_FEW_CHECKPOINTS']);
+});
+
+test('punti: la seconda prova su un\'altra coppia di tracce conferma, contraddice o lascia senza corrispondenza', () => {
+  // Come Ghostbusters: la coppia di misura non ha picchi al punto 10 (un altro
+  // mix), le AC-3 stereo identiche hanno sull'ancora 0 ms invece di S.
+  const stereo = { referenceTrackId: 3, donorTrackId: 4, mix: 'leftRight' as const, anchorOffsetMs: S + 29 };
+  const center = { referenceTrackId: 1, donorTrackId: 3, mix: 'center' as const, anchorOffsetMs: S + 8 };
+  const at = (alternates: AlternateMeasure[]) =>
+    series(() => S).map((p, j) => (j === 10 ? { ...p, local: match(S - 2, 0.42, 0.92), wide: match(S - 2, 0.43, 0.93), alternates } : p));
+
+  const ok = decide(base({ checkpoints: at([{ ...center, match: match(S + 8, 0.45, 2) }, { ...stereo, match: match(S + 29 + 3, 1, 30) }]) }), cal);
+  assert.equal(ok.decision, 'eligible', JSON.stringify(ok.reasons));
+  const p = ok.checkpoints[10]!;
+  // Lo scarto della coppia dal suo spostamento, riportato su S.
+  assert.deepEqual([p.outcome, p.deviationMs, p.ncc], ['consistent', 3, 1]);
+  assert.ok(Math.abs(p.offsetMs! - (S + 3)) < 1e-9);
+  assert.deepEqual(p.alternatePair, { referenceTrackId: 3, donorTrackId: 4, mix: 'leftRight' });
+  assert.ok(ok.checkpoints.filter((c, j) => j !== 10).every((c) => c.alternatePair === null));
+  assert.equal(result(ok, 'unmatched'), 'pass');
+
+  // A meno di un fotogramma dal suo spostamento: spostato; da un fotogramma in su: contraddizione.
+  const shifted = decide(base({ checkpoints: at([{ ...stereo, match: match(S + 29 + 25, 1, 30) }]) }), cal);
+  assert.equal(shifted.checkpoints[10]!.outcome, 'shifted');
+  const beyond = decide(base({ checkpoints: at([{ ...stereo, match: match(S + 29 + 60, 1, 30) }]) }), cal);
+  assert.deepEqual(reasons(beyond), ['CHECKPOINT_CONTRADICTION']);
+  // Nessun picco sicuro neanche lì (AvP): senza corrispondenza.
+  for (const alternates of [[], [{ ...stereo, match: match(S + 29, 0.2, 1.1) }, { ...center, match: null }]]) {
+    assert.deepEqual(reasons(decide(base({ checkpoints: at(alternates) }), cal)), ['CHECKPOINT_UNMATCHED']);
+  }
+  // Muto o con un picco poco netto a S, la seconda prova non conta.
+  const quiet = at([{ ...stereo, match: match(S + 29, 1, 30) }]);
+  quiet[10] = { ...quiet[10]!, energyDbfs: -70 };
+  assert.equal(decide(base({ checkpoints: quiet }), cal).checkpoints[10]!.outcome, 'inconclusive');
+  assert.equal(checkpointPeak({ ...at([])[10]!, local: match(S, 1, 1.2) }, S, 1000 / 24, cal), 'inconclusive');
 });
 
 test('punti: il non conclusivo si decide dall\'energia; la ricerca ampia può dare contraddizione', () => {

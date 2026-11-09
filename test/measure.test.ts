@@ -107,6 +107,8 @@ const speed = (rate: number): Variant => (i, o) => [`[${i}]asetrate=${rate},ares
 const loop: Variant = (i, o) => [`[${i}]atrim=0:1.5,aloop=loop=-1:size=${1.5 * RATE},atrim=0:${SECONDS}[${o}]`];
 /** Downmix stereo di un 5.1, come lo farebbe un disco. */
 const stereo: Variant = (i, o) => [`[${i}]pan=stereo|FL=FL+0.707*FC+0.707*BL|FR=FR+0.707*FC+0.707*BR[${o}]`];
+/** Downmix stereo del 5.1 con il tratto sostituito. */
+const replacedStereo: Variant = (i, o) => [...replaced(i, `${o}r`), ...stereo(`${o}r`, o)];
 
 interface TrackSpec {
   seeds: readonly number[];
@@ -173,6 +175,23 @@ before(async () => {
     film('donor-stereo', 'donor-video.mkv', [
       { seeds: ITALIAN, variant: stereo, language: 'ita' },
       { seeds: ENGLISH, variant: stereo, language: 'eng' },
+    ]),
+    // Come Ghostbusters: il 5.1 inglese del donatore è diverso da 60 a 80 s (un
+    // altro mix), lo stereo è identico a quello del riferimento.
+    film('ref-two', 'ref-video.mkv', [
+      { seeds: ENGLISH, language: 'eng' },
+      { seeds: ENGLISH, variant: stereo, language: 'eng' },
+    ]),
+    film('donor-remixed', 'donor-video.mkv', [
+      { seeds: ITALIAN, language: 'ita' },
+      { seeds: ENGLISH, variant: replaced, language: 'eng' },
+      { seeds: ENGLISH, variant: stereo, language: 'eng' },
+    ]),
+    // Come AvP: lo stesso tratto è diverso su tutte le tracce.
+    film('donor-scene', 'donor-video.mkv', [
+      { seeds: ITALIAN, variant: replaced, language: 'ita' },
+      { seeds: ENGLISH, variant: replaced, language: 'eng' },
+      { seeds: ENGLISH, variant: replacedStereo, language: 'eng' },
     ]),
     film('donor-multi', 'donor-video.mkv', [
       { seeds: ITALIAN, language: 'ita' },
@@ -397,6 +416,28 @@ test('CHECKPOINT_UNMATCHED: un tratto sostituito a metà film non trova corrispo
   // Prima di dirlo si è cercato su tutto l'intervallo.
   const measured = a.measurement!.checkpoints!.filter((c) => unmatched.some((u) => u.positionMs === c.positionMs));
   assert.ok(measured.every((c) => c.wide !== null && c.wide.ncc < 0.3));
+});
+
+test('seconda prova: un tratto con un altro mix si conferma sulle tracce stereo identiche (Ghostbusters); un tratto diverso no (AvP)', async () => {
+  const a = await analyze('ref-two', 'donor-remixed');
+  assert.equal(a.report.decision, 'eligible', JSON.stringify(a.report.reasons));
+  // La coppia di misura è quella delle tracce principali, il 5.1 con il centrale.
+  assert.deepEqual(a.measurement!.pair, { referenceTrackId: 1, donorTrackId: 2, mix: 'center' });
+  const viaStereo = a.report.checkpoints.filter((c) => c.alternatePair !== null);
+  assert.ok(viaStereo.length >= 2, JSON.stringify(a.report.checkpoints.map((c) => [c.positionMs, c.outcome])));
+  assert.ok(viaStereo.every((c) => c.positionMs > 57_000 && c.positionMs < 80_000 && c.outcome === 'consistent'));
+  assert.ok(viaStereo.every((c) => c.alternatePair!.referenceTrackId === 2 && c.alternatePair!.donorTrackId === 3 && c.alternatePair!.mix === 'leftRight'));
+  assert.equal(a.report.offset!.offsetMs, 0);
+  // Gli altri punti non hanno avuto bisogno della seconda prova.
+  const measured = a.measurement!.checkpoints!;
+  assert.ok(measured.filter((c) => c.alternates.length > 0).every((c) => viaStereo.some((v) => v.positionMs === c.positionMs)));
+
+  const b = await analyze('ref-two', 'donor-scene');
+  assert.deepEqual(reasons(b), ['CHECKPOINT_UNMATCHED']);
+  const unmatched = b.measurement!.checkpoints!.filter((c) => b.report.checkpoints.some((r) => r.positionMs === c.positionMs && r.outcome === 'unmatched'));
+  assert.ok(unmatched.length >= 1);
+  // Riprovati su tutte le altre coppie, senza un picco sicuro.
+  assert.ok(unmatched.every((c) => c.alternates.length >= 1 && c.alternates.every((x) => x.match === null || x.match.ncc < 0.3)), JSON.stringify(unmatched.map((c) => c.alternates)));
 });
 
 test('MANY_INCONCLUSIVE: silenzi lunghi danno punti non conclusivi, e punti aggiunti nei tratti scoperti', async () => {
