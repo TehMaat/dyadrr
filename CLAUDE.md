@@ -17,6 +17,21 @@ studio (con una voce nella cronologia, §20).
   stato delle voci previste, studio).
 - **Test:** `npm test` deve passare; comprende `test/docs.test.ts`, che
   confronta la documentazione con il codice.
+- **README, docs, diagrammi e schermate sempre aggiornati**, in ogni PR:
+  - un comando, un'opzione, una variabile, il report o l'uscita di
+    `dyadrr-pairs` cambiano → `npm run build && npm run docs:screens` e si
+    committano le schermate (la CI fallisce se sono vecchie);
+  - un flusso, una fase, un modulo, un workflow o una regola cambiano → il
+    diagramma in `docs/diagrams/*.mmd` e `npm run docs:diagrams`;
+  - installazione, requisiti, variabili → `README.md` e
+    `docs/INSTALLAZIONE.md`; un errore frequente → `docs/FAQ.md`;
+  - mai diagrammi ASCII nei `.md`: sempre immagini da sorgente Mermaid.
+- **Full Vibe Coded:** la dicitura resta nel README e in `docs/README.md`.
+- **Nomi inventati:** negli esempi, nei test e nei documenti mai titoli veri
+  dei film, nomi di persone, utenti, host o percorsi personali
+  (`docs/README.md`, "Nomi").
+- **Branch:** si cancellano da soli dopo il merge (workflow **Branch
+  cleanup**, `docs/WORKFLOW.md`).
 
 ## Convenzioni
 

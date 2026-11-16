@@ -18,6 +18,11 @@ su una cartella condivisa, e il runner nel container lancia la riga di comando
   `dyadrr-runner` è `dist/runner-bin.js`, `dyadrr-pairs` è
   `dist/pairs-bin.js`.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/diagrams/architettura-dark.svg">
+  <img alt="I moduli di src a livelli: i processi dyadrr, dyadrr-runner e dyadrr-pairs; l'orchestrazione con cli, runner e pairs; le fasi da inputs a report; le basi come audio, correlation, tools e codes" src="img/diagrams/architettura.svg">
+</picture>
+
 ## Moduli
 
 Il test `test/docs.test.ts` controlla che questa tabella elenchi tutti i file
@@ -71,7 +76,10 @@ Nessuno: il container (studio §14, decisione 7) è fatto dalla 0.12.0.
 - `node:test`, file in `test/*.test.ts`, compilati in `build/` ed eseguiti con
   `npm test`.
 - `test/docs.test.ts` tiene la documentazione allineata al codice
-  (vedi [CONTRIBUTING.md](../CONTRIBUTING.md#documentazione)).
+  (vedi [CONTRIBUTING.md](../CONTRIBUTING.md#documentazione)): tabelle,
+  variabili, link, immagini, diagrammi e nomi inventati.
+- `test/branch-cleanup.test.ts` prova le regole della pulizia dei branch
+  (`scripts/branch-cleanup.mjs`, [WORKFLOW.md](WORKFLOW.md#pulizia-dei-branch)).
 - `test/inputs.test.ts`, `test/audio.test.ts`, `test/measure.test.ts`,
   `test/build.test.ts`, `test/verify.test.ts`, `test/cli.test.ts` e `test/tools.test.ts` usano
   ffmpeg, ffprobe e mkvtoolnix veri: generano piccoli MKV in una cartella temporanea
@@ -128,3 +136,16 @@ Nessuno: il container (studio §14, decisione 7) è fatto dalla 0.12.0.
   ucciso, annullamento con un solo SIGTERM); infine il processo
   `dyadrr-pairs` con il Dyadrr vero.
 - Il workflow **Image** ripete tutta la suite dentro l'immagine (sopra).
+
+## Script
+
+Fuori da `src/`, in `scripts/`; non fanno parte della libreria
+([WORKFLOW.md](WORKFLOW.md)).
+
+| File | Cosa fa |
+|---|---|
+| `scripts/check-version.mjs` | Controllo di versione e CHANGELOG nelle PR (`npm run check:version`) |
+| `scripts/changelog.mjs` | Le note della release dalla sezione del CHANGELOG (workflow **Release**) |
+| `scripts/branch-cleanup.mjs` | La pulizia dei branch (workflow **Branch cleanup**) |
+| `scripts/docs-diagrams.mjs` | I diagrammi della documentazione, da Mermaid a SVG (`npm run docs:diagrams`) |
+| `scripts/docs-screens.mjs` | Le schermate del terminale della documentazione (`npm run docs:screens`) |

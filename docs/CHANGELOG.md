@@ -4,6 +4,42 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.25.0] - 2026-11-16
+
+### Aggiunto
+- README e documentazione rifatti (TehMaat/dyadrr#40): badge, indice, avvio
+  rapido, tabella di tutte le variabili `DYADRR_*`, codici di uscita in breve.
+  Documenti nuovi: `docs/INSTALLAZIONE.md` (requisiti, Docker, Docker Compose
+  con Wayfinderr, da sorgente, variabili, aggiornare e disinstallare),
+  `docs/WORKFLOW.md`, `docs/FAQ.md`, `docs/GLOSSARIO.md`; indice dei
+  documenti per chi li legge
+- Diagrammi come immagini, chiare e scure: flusso, fasi dell'analisi con i
+  rifiuti, merge, moduli, un lavoro con Wayfinderr, workflow, pulizia dei
+  branch. Sorgenti Mermaid in `docs/diagrams/`, SVG generati con
+  `npm run docs:diagrams`
+- Schermate del terminale (`docs/img/screens/`), generate con
+  `npm run docs:screens` lanciando i veri `dyadrr` e `dyadrr-pairs` su film
+  sintetici con nomi inventati; la CI le rigenera e fallisce se sono vecchie
+- "Full Vibe Coded" nel README, nell'indice dei documenti e in
+  `CONTRIBUTING.md` (TehMaat/dyadrr#38)
+- Workflow **Branch cleanup** (TehMaat/dyadrr#39): alla chiusura di una PR
+  mergiata ne cancella il branch; ogni lunedì, e a mano con una prova a vuoto,
+  applica le regole a tutti i branch (PR mergiata, già in `main`, PR chiusa da
+  più di 14 giorni, nessuna PR né commit da più di 30). Regole in
+  `scripts/branch-cleanup.mjs`, numeri ed eccezioni in
+  `.github/branch-cleanup.json`
+- `test/docs.test.ts` controlla anche variabili del README, link e ancore,
+  immagini, diagrammi rigenerati, assenza di diagrammi ASCII, la dicitura Full
+  Vibe Coded e i nomi inventati; `test/branch-cleanup.test.ts` le regole dei
+  branch
+
+### Cambiato
+- Nomi inventati ovunque: i film delle prove reali (studio, CHANGELOG,
+  riassunto della fase 1, commenti e test) hanno un titolo di fantasia, come
+  gli esempi e i percorsi. Le misure restano quelle reali
+- `CONTRIBUTING.md` e `CLAUDE.md`: schermate, diagrammi, installazione, FAQ e
+  nomi inventati da aggiornare in ogni PR; sezione "Branch"
+
 ## [0.24.0] - 2026-11-09
 
 ### Cambiato
@@ -13,7 +49,7 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
   della lingua di misura che sull'ancora accettata concordano con S entro un
   fotogramma, ognuna al suo spostamento su quell'ancora. La prima con un picco
   sicuro decide il punto, con il suo scarto riportato su S; se nessuna lo ha,
-  il punto resta senza corrispondenza. Su Ghostbusters: Minaccia glaciale un
+  il punto resta senza corrispondenza. Su Acchiappaspettri: Gelo eterno un
   solo punto con il mix Atmos diverso dal 5.1 (NCC 0,42) rifiutava lo stesso
   film, mentre le due AC-3 stereo dei dischi sono identiche. Un tratto
   davvero diverso non corrisponde su nessuna traccia e resta rifiutato.
@@ -50,7 +86,7 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 - Punti di conferma: una finestra muta si sposta sul tratto più vicino almeno
   10 dB sopra la soglia del silenzio (`CONTENT_MARGIN_DB`, costante del
   metodo); se nell'intervallo non c'è, sul più vicino sopra la soglia come
-  prima. Prima finiva per costruzione su un tratto quasi muto: su Lord of War
+  prima. Prima finiva per costruzione su un tratto quasi muto: su Mercante di Varno
   un punto spostato a −49,23 dBFS, con il picco a 24 ms da S ma NCC 0,4996
   contro 0,5, rifiutava una coppia buona con `CHECKPOINT_UNMATCHED`
   (TehMaat/dyadrr#32). Soglie, esiti e ricerca dei confini non cambiano.
@@ -65,7 +101,7 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 - Controllo di integrità (`INPUT_TRUNCATED`): la fine degli ultimi cluster si
   confrontava in valore assoluto con la durata dichiarata, quindi un file con
   un blocco che finisce dopo l'ultimo fotogramma risultava troncato. Sulla
-  prima coppia vera in Wayfinderr (Lord of War, rip di MakeMKV del BD
+  prima coppia vera in Wayfinderr (Mercante di Varno, rip di MakeMKV del BD
   italiano) un sottotitolo PGS si chiude 1038 ms dopo la durata dichiarata,
   con video e audio interi. Ora è troncato solo un file che finisce prima
   della durata dichiarata oltre la tolleranza; il controllo per traccia non
@@ -91,8 +127,8 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 ### Cambiato
 - Decisioni 2–7 della fase 1, insieme:
   - `MAIN_TRACKS_DISAGREE` solo tra tracce principali dello stesso formato:
-    tra TrueHD e DTS-HD dava falsi allarmi (Scott Pilgrim, The Next Karate
-    Kid)
+    tra TrueHD e DTS-HD dava falsi allarmi (Gina contro tutti, L'allieva del
+    dojo)
   - controllo di trasferimento, nel donatore e nel file finale: tra tracce di
     formati diversi la tolleranza è 40 ms (nuovo parametro
     `transferCrossFormatToleranceMs`); tra lo stesso formato resta 10 ms. Nel
@@ -119,8 +155,8 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
   film continua a un altro spostamento, la coppia non si rifiuta più. Su quel
   lato l'italiano si taglia sempre sul confine, senza la scelta
   `--edge-mismatch`, e scatta l'avviso nuovo `EDGE_CONTINUES_ELSEWHERE`. Più
-  lontano dal bordo resta `CHECKPOINT_CONTRADICTION`. Rifiutava Up (outro 30 s
-  più avanti per i crediti italiani) e Zero Dark Thirty (titoli di coda
+  lontano dal bordo resta `CHECKPOINT_CONTRADICTION`. Rifiutava Casa Volante (outro 30 s
+  più avanti per i crediti italiani) e Ora Zero e Trenta (titoli di coda
   spostati di 1,8 s)
 - Nel report `commonMaterial.continuesElsewhere`, con i lati interessati
 - L'analisi cambia: voce 0.20.0 in `ANALYSIS_CHANGES`, i report con il
@@ -135,7 +171,7 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
   somigliante (NCC almeno θ_ncc) a meno di un fotogramma da S, è non
   conclusivo invece che senza corrispondenza. Rifiutava coppie buone con lo S
   giusto ovunque su sottofondi continui, musiche ripetitive e tratti quasi
-  muti: A Quiet Place, Away, tre punti di Up. Le soglie non cambiano; un
+  muti: Paese Muto, Lontano, tre punti di Casa Volante. Le soglie non cambiano; un
   picco poco somigliante o lontano da S resta `CHECKPOINT_UNMATCHED`
 - L'analisi cambia: voce 0.19.0 in `ANALYSIS_CHANGES`, i report con un punto
   senza corrispondenza sono superati e vanno rimisurati
@@ -148,7 +184,7 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
   il report di un'esecuzione finita (`eligible` o `refused`) con lo stesso
   `--report`: il loro report va accanto,
   `<nome>-<decisione>-<AAAAMMGG>T<HHMMSS>Z.json`, e stdout dà il percorso
-  scritto. Su A Quiet Place un'analisi annullata aveva cancellato quella
+  scritto. Su Paese Muto un'analisi annullata aveva cancellato quella
   finita. L'analisi non cambia
 - Documentazione: studio di fattibilità 0.25 (§10, §18, §20)
 
@@ -161,7 +197,7 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
   `shifted` e scatta l'avviso nuovo `SUBFRAME_JUMPS`, con lo scarto più grande
   dallo S definitivo; da un fotogramma in su resta `CHECKPOINT_CONTRADICTION`.
   Il video salta solo di fotogrammi interi: sotto sono le tracce audio dei
-  dischi, che rifiutavano Zero Dark Thirty e Up
+  dischi, che rifiutavano Ora Zero e Trenta e Casa Volante
 - I punti spostati contano per la distribuzione dei punti (§9.3); S definitivo
   resta la mediana dei soli punti coerenti
 - Nel report l'esito `shifted` per ancore e punti, e nelle righe di
@@ -197,7 +233,7 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
   riga a schermo si perde come per i PGS (`SUBTITLES_DROPPED_AT_CUT`); al
   taglio finale resta, perché ha la sua durata. Nel file finale non sono mai
   compressi; il primo forced, PGS o di testo, è predefinito. Nel report il
-  campo `text` dei sottotitoli. Per Turning Red, con i sottotitoli italiani in
+  campo `text` dei sottotitoli. Per Diventare Volpe, con i sottotitoli italiani in
   SubRip in un file montato a mano
 - Documentazione: studio di fattibilità 0.21 (P6, §6, §7)
 
@@ -218,8 +254,8 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 - Verifiche dopo il merge: l'inizio di una traccia italiana che parte dopo i
   primi 10 s circa del file finale. mkvmerge -J non lo riporta, e il merge
   finiva in `VERIFY_FAILED` (*track 1 starts at none ms*); ora si legge il
-  primo pacchetto con ffprobe, più il ritardo del codec. Trovato su Kung Fu
-  Panda 2, con l'italiano a 24,7 s dopo il logo Universal. L'analisi non
+  primo pacchetto con ffprobe, più il ritardo del codec. Trovato su Tasso
+  Volante 2, con l'italiano a 24,7 s dopo il logo dello studio. L'analisi non
   cambia
 - Documentazione: studio di fattibilità 0.20 (§9.5)
 
@@ -230,7 +266,7 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
   un'altra rende inutile non è più una differenza. Con code diverse e
   `--edge-mismatch drop` `--tail` non serve, e il merge finiva in
   `INPUT_CHANGED` (*choice tail: not needed, confirmed needed*) anche con il
-  piano uguale a quello confermato. Trovato su Kung Fu Panda 2. L'analisi non
+  piano uguale a quello confermato. Trovato su Tasso Volante 2. L'analisi non
   cambia
 - Documentazione: studio di fattibilità 0.19 (§10)
 
@@ -261,7 +297,7 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 ### Aggiunto
 - Avviso `MAIN_TRACKS_DISAGREE`: la coppia di misura non è quella delle tracce
   principali (più canali, poi lossless), e le tracce principali danno un altro
-  S oltre la tolleranza. Su Scott Pilgrim la misura era su due commenti
+  S oltre la tolleranza. Su Gina contro tutti la misura era su due commenti
   identici, a 0 ms, mentre il film dava 27 e 80 ms
 - Report: `measurement.transfer.candidates` e
   `output.verification.transfer.candidates`, ogni traccia della lingua di
@@ -279,7 +315,7 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 
 ### Corretto
 - Forma della contraddizione: un tratto di un punto solo all'inizio o alla
-  fine del film è un salto, non rumore. Su Thor: Ragnarok due salti di −27 ms
+  fine del film è un salto, non rumore. Su Martello di Vetro due salti di −27 ms
   e di un fotogramma risultavano `noise`, e `dyadrr-pairs` non li contava tra
   i salti di 1–2 fotogrammi
 

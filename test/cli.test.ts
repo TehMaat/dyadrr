@@ -341,7 +341,7 @@ test('CANCELLED: un segnale di stop durante il merge o durante l\'analisi; tempo
 });
 
 test('report: un annullamento o un errore non sostituiscono il report di un\'esecuzione finita', async () => {
-  // A Quiet Place (studio §18): un'analisi annullata con lo stesso --report
+  // Paese Muto (studio §18): un'analisi annullata con lo stesso --report
   // aveva cancellato il report di quella finita.
   await analyzed();
   copyFileSync(p('analysis.json'), p('kept.json'));

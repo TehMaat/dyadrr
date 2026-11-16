@@ -233,7 +233,7 @@ test('OUTRO_MISMATCH: code diverse, l\'italiano dopo il materiale in comune si t
 });
 
 test('decisione 10: dove il film continua altrove oltre il confine, l\'italiano si taglia sempre al confine', () => {
-  // Come Up: il materiale in comune finisce 140 s prima della fine, il
+  // Come Casa Volante: il materiale in comune finisce 140 s prima della fine, il
   // donatore ha più coda (i crediti italiani). Niente --edge-mismatch né
   // --tail su quel lato: il taglio è al confine.
   const end = FILM - 140_000;
@@ -327,7 +327,7 @@ test('--tail non serve con code diverse e --edge-mismatch drop: il taglio cade g
 });
 
 test('--expect: --tail in sospeso nell\'analisi non serve più dopo --edge-mismatch drop', () => {
-  // Kung Fu Panda 2: l'analisi chiede --edge-mismatch e --tail; con drop il
+  // Tasso Volante 2: l'analisi chiede --edge-mismatch e --tail; con drop il
   // merge non chiede più --tail, e il piano resta quello confermato.
   const base = input({
     donor: donor([italian(2, 0, FILM + 60_000)]),

@@ -70,7 +70,7 @@ export const CONTENT_STEP_MS = 250;
 /**
  * Margine sopra E_min del contenuto su cui si sposta un punto di conferma muto
  * (§4.5, punto 2, dalla 0.22.0): il tratto più vicino appena sopra E_min è quasi
- * muto anche lui, e lì il picco è debole (Lord of War, −49,2 dBFS).
+ * muto anche lui, e lì il picco è debole (Mercante di Varno, −49,2 dBFS).
  */
 export const CONTENT_MARGIN_DB = 10;
 
@@ -491,7 +491,7 @@ export async function measurePair(
   const acceptedAt = chosen === null ? -1 : perPair[chosen]!.findIndex((a) => isConfident(a, cal));
   // Solo tra tracce dello stesso formato (dalla 0.21, decisione 2): tra formati
   // diversi le tracce principali sono sfasate di qualche decina di ms anche
-  // quando la misura è giusta (Scott Pilgrim, The Next Karate Kid).
+  // quando la misura è giusta (Gina contro tutti, L'allieva del dojo).
   const mainMeasure = mainIndex === -1 || mainIndex === chosen || acceptedAt === -1
     || !sameFormat(pairs[mainIndex]!.reference, pairs[mainIndex]!.donor) ? undefined : perPair[mainIndex]![acceptedAt];
   const mainPair = mainMeasure ? { ...pairIds(pairs[mainIndex]!), match: { offsetMs: mainMeasure.offsetMs, ncc: mainMeasure.ncc, ratio: mainMeasure.ratio } } : null;

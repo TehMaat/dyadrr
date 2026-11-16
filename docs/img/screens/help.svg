@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="524" viewBox="0 0 880 524" role="img" aria-label="dyadrr --help">
+  <title>dyadrr --help</title>
+  <style>
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace; font-size: 14px; white-space: pre; }
+    .p { fill: #7ee787; font-weight: bold; } .c { fill: #f0f6fc; } .o { fill: #c9d1d9; } .m { fill: #8b949e; } .t { fill: #8b949e; font-size: 13px; }
+  </style>
+  <rect width="880" height="524" rx="10" fill="#0d1117"/>
+  <rect width="880" height="32" rx="10" fill="#161b22"/>
+  <rect y="22" width="880" height="10" fill="#161b22"/>
+  <circle cx="20" cy="16" r="6" fill="#ff5f57"/><circle cx="40" cy="16" r="6" fill="#febc2e"/><circle cx="60" cy="16" r="6" fill="#28c840"/>
+  <text x="440" y="21" text-anchor="middle" class="t">dyadrr --help</text>
+  <text x="20" y="58"><tspan class="p">$</tspan><tspan class="c"> dyadrr --help</tspan></text>
+  <text x="20" y="78" class="o">Usage:</text>
+  <text x="20" y="98" class="o">  dyadrr analyze &lt;a.mkv&gt; &lt;b.mkv&gt; [options]</text>
+  <text x="20" y="118" class="o">  dyadrr merge   &lt;a.mkv&gt; &lt;b.mkv&gt; --output &lt;file&gt; [options]</text>
+  <text x="20" y="138" class="o"></text>
+  <text x="20" y="158" class="o">Options:</text>
+  <text x="20" y="178" class="o">  --output &lt;file&gt;                  final file (merge)</text>
+  <text x="20" y="198" class="o">  --report &lt;file&gt;                  JSON report (default: dyadrr-&lt;mode&gt;-&lt;time&gt;.json here)</text>
+  <text x="20" y="218" class="o">  --original-language &lt;code&gt;       original language of the film (eng, jpn, fr…)</text>
+  <text x="20" y="238" class="o">  --temp-dir &lt;dir&gt;                 temporary files (merge; default .dyadrr/ next to the output)</text>
+  <text x="20" y="258" class="o">  --expect &lt;report&gt;                confirmed analysis that the merge must match (merge)</text>
+  <text x="20" y="278" class="o">  --progress json                  progress on stderr, one JSON line per event</text>
+  <text x="20" y="298" class="o">  --tail trim|keep                 Italian audio beyond the end of the reference video</text>
+  <text x="20" y="318" class="o">  --italian all|main               Italian audio tracks to take</text>
+  <text x="20" y="338" class="o">  --reference-italian-subs keep|drop</text>
+  <text x="20" y="358" class="o">                                   Italian PGS already in the reference</text>
+  <text x="20" y="378" class="o">  --edge-mismatch drop|keep        Italian audio over a different intro or ending</text>
+  <text x="20" y="398" class="o">  --inputs keep|delete             the two inputs after a verified merge (merge; default: ask, else </text>
+  <text x="20" y="418" class="o">keep)</text>
+  <text x="20" y="438" class="o">  --help, --version</text>
+  <text x="20" y="458" class="o"></text>
+  <text x="20" y="478" class="o">stdout: the path of the report. Exit codes: 0 eligible or merged, 20 refused,</text>
+  <text x="20" y="498" class="o">30 input or argument error, 40 internal, merge or verification error, 50 cancelled.</text>
+</svg>

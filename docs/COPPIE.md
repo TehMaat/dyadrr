@@ -15,7 +15,7 @@ legge il riassunto, nella PR che chiude la decisione 12.
 
 **Solo rip di MakeMKV** (dalla 0.21.0, decisione 6): per la taratura si usano
 rip fatti dal disco con MakeMKV, non remux già fatti da altri. Le soglie devono
-descrivere i dischi, non gli errori di chi ha fatto il remux: WALL-E, con
+descrivere i dischi, non gli errori di chi ha fatto il remux: Robottino R-7, con
 l'italiano da un remux, ha salti che un rip non dovrebbe avere (studio §18).
 In fase 2 i file arrivano dai rip di Wayfinderr, e il caso non si pone.
 
@@ -27,7 +27,7 @@ mkvtoolnix, quelle con cui Dyadrr gira in Wayfinderr
 
 ```bash
 docker run --rm --user "$(id -u):$(id -g)" \
-  -v /film:/data/film:ro -v ~/taratura:/data/taratura \
+  -v /media/film:/data/film:ro -v ~/taratura:/data/taratura \
   ghcr.io/tehmaat/dyadrr:0.15.0 dyadrr-pairs taratura/coppie.txt
 ```
 
@@ -39,6 +39,8 @@ che con root. Fuori dall'immagine funziona lo stesso
 ```
 dyadrr-pairs <elenco> [--results <cartella>] [--only <id>]... [--again]
 ```
+
+![Terminale: dyadrr-pairs su un elenco di due coppie, una idonea e una di film diversi rifiutata con NO_MATCH, entrambe con il verdetto ok](img/screens/pairs.svg)
 
 | Opzione | Significato |
 |---|---|
@@ -65,9 +67,9 @@ Un file di testo UTF-8, una sezione per coppia:
 
 ```
 # Coppie per la taratura
-[blade-runner]
-input=film/Blade Runner (UHD).mkv
-input=film/Blade Runner (BD).mkv
+[faro-di-velmora]
+input=film/Faro di Velmora (UHD).mkv
+input=film/Faro di Velmora (BD).mkv
 expected=eligible
 original-language=eng
 category=uhd-bd
@@ -75,9 +77,9 @@ category=dubbing-card
 offset-ms=-1234
 note=S controllato a mano sul labiale a 1:02:00
 
-[blade-runner-final-cut]
-input=film/Blade Runner (UHD).mkv
-input=film/Blade Runner Final Cut (BD).mkv
+[faro-di-velmora-montaggio-finale]
+input=film/Faro di Velmora (UHD).mkv
+input=film/Faro di Velmora Montaggio finale (BD).mkv
 expected=refused
 category=different-cut
 ```
@@ -123,10 +125,10 @@ report e l'elenco, e i file si possono cancellare. Gli `input` restano
 obbligatori, perché dicono di quali file è il report.
 
 ```
-[scott-pilgrim]
-input=c/Watcher/Scott Pilgrim vs. the World.mkv
-input=c/Watcher/Scott Pilgrim vs the World.mkv
-report=c/Watcher/scott-pilgrim.analyze.json
+[gina-contro-tutti]
+input=c/Arrivi/Gina contro tutti.mkv
+input=c/Arrivi/Gina contro tutti!.mkv
+report=c/Arrivi/gina-contro-tutti.analyze.json
 expected=eligible
 original-language=eng
 category=uhd-bd

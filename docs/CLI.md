@@ -24,6 +24,15 @@ con audio italiano) e quale il **riferimento** (studio §3.2).
 | `merge` | Analisi, scelte, scrittura del file finale, verifiche, consegna. Il file finale compare solo se tutte le verifiche bloccanti passano | implementato |
 | `--help`, `--version` | Uso e versione su stdout, uscita 0, nessun report | implementato |
 
+![Terminale: dyadrr --help con i comandi analyze e merge, le opzioni, le scelte e i codici di uscita](img/screens/help.svg)
+
+Il merge, dall'inizio alla consegna (le sezioni sotto spiegano ogni passo):
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/diagrams/merge-dark.svg">
+  <img alt="Il merge: file finale già presente, --expect, scelte necessarie, intermedio con le tracce italiane, unione, verifiche, consegna e ingressi tenuti o cancellati" src="img/diagrams/merge.svg">
+</picture>
+
 ## Opzioni
 
 | Opzione | Comandi | Significato | Stato |

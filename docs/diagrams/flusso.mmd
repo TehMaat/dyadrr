@@ -1,0 +1,16 @@
+%% Il flusso di Dyadrr in breve (README, studio §2-6).
+flowchart LR
+  A["Rip A<br/><i>video migliore</i>"]:::file
+  B["Rip B<br/><i>audio italiano</i>"]:::file
+  A & B --> R{{"1 · Ruoli<br/>riferimento e donatore"}}
+  R --> M["2 · Misura<br/>stessa lingua nei due file<br/>→ uno spostamento S"]
+  M --> C{"3 · Controlli<br/>S costante?<br/>stesse velocità?"}
+  C -- "no" --> X["Rifiuto con un codice<br/><code>NO_MATCH</code>, <code>DRIFT</code>…<br/>uscita 20"]:::bad
+  C -- "sì" --> P["Piano<br/>tagli solo all'inizio e alla fine"]
+  P --> G["4 · Merge con mkvmerge<br/>nessuna ricodifica"]
+  G --> V{"Verifiche<br/>sul file finale"}
+  V -- "ok" --> F["MKV finale<br/>video di A + italiano di B"]:::good
+  V -- "no" --> E["<code>VERIFY_FAILED</code><br/>nessun file, uscita 40"]:::bad
+  classDef file fill:#e8f0fe,stroke:#4a6fa5,color:#1b2a41
+  classDef good fill:#e6f4ea,stroke:#2e7d32,color:#1b3a1f
+  classDef bad fill:#fdecea,stroke:#c62828,color:#4a1212

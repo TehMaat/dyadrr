@@ -4,6 +4,16 @@ Ogni rifiuto, errore e avviso ha un **codice fisso** e un messaggio leggibile
 in inglese (studio §12). I codici sono definiti in `src/codes.ts`; il test
 `test/docs.test.ts` controlla che questa pagina li elenchi tutti, e solo quelli.
 
+## Dove nasce un rifiuto
+
+L'analisi va per fasi (quelle di `--progress json`, [REPORT.md](REPORT.md#avanzamento))
+e si ferma al primo controllo che fallisce: ogni rifiuto nasce in una fase.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/diagrams/analisi-dark.svg">
+  <img alt="Le fasi dell'analisi: read e controlli strutturali, anchors, edges, checkpoints, edge-probes, transfer e plan; i rifiuti dei controlli strutturali, delle ancore e dei punti di conferma portano a refused con uscita 20, il resto a eligible con uscita 0" src="img/diagrams/analisi.svg">
+</picture>
+
 ## Rifiuti
 
 Questa coppia non va unita. Codice di uscita **20**. Ogni rifiuto elenca le

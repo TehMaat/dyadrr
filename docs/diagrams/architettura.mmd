@@ -1,0 +1,43 @@
+%% I moduli di src/ a livelli (ARCHITETTURA.md). Le frecce sono le chiamate principali.
+flowchart TD
+  subgraph P["Processi"]
+    bin["bin.ts<br/><code>dyadrr</code>"]
+    rbin["runner-bin.ts<br/><code>dyadrr-runner</code>"]
+    pbin["pairs-bin.ts<br/><code>dyadrr-pairs</code>"]
+  end
+  subgraph O["Orchestrazione"]
+    cli["cli.ts<br/>riga di comando"]
+    runner["runner.ts<br/>file job"]
+    pairs["pairs.ts<br/>coppie della fase 1"]
+  end
+  subgraph F["Fasi, in ordine"]
+    direction LR
+    inputs["inputs.ts<br/>ingressi"]
+    measure["measure.ts<br/>misura"]
+    decision["decision.ts<br/>decisione"]
+    plan["plan.ts<br/>piano"]
+    build["build.ts<br/>costruzione"]
+    verify["verify.ts<br/>verifiche"]
+    report["report.ts<br/>report"]
+  end
+  subgraph B["Basi, usate dalle fasi"]
+    direction LR
+    audio["audio.ts"]
+    correlation["correlation.ts"]
+    matroska["matroska.ts"]
+    tools["tools.ts<br/>ffmpeg · mkvmerge"]
+    languages["languages.ts"]
+    choices["choices.ts"]
+    calibration["calibration.ts<br/>+ calibration.json"]
+    codes["codes.ts"]
+  end
+  bin --> cli
+  rbin --> runner
+  pbin --> pairs
+  runner -- "lancia dyadrr" --> cli
+  pairs -- "lancia dyadrr analyze" --> cli
+  cli --> F
+  inputs --> measure --> decision --> plan --> build --> verify --> report
+  F --> B
+  audio ~~~ correlation ~~~ matroska ~~~ tools
+  languages ~~~ choices ~~~ calibration ~~~ codes

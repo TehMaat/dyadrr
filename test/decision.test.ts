@@ -247,7 +247,7 @@ test('MEASURE_MIX_DIFFERS: somiglianza nella fascia bassa ma sufficiente', () =>
 });
 
 test('MAIN_TRACKS_DISAGREE: le tracce principali danno un altro S', () => {
-  // Come Scott Pilgrim: misura su due commenti identici (S), il film a S + 27 ms.
+  // Come Gina contro tutti: misura su due commenti identici (S), il film a S + 27 ms.
   const main = (offsetMs: number, ncc = 0.78, ratio = 4) => ({ referenceTrackId: 1, donorTrackId: 1, match: match(offsetMs, ncc, ratio) });
   const r = decide(base({ mainPair: main(S + 27) }), cal);
   assert.equal(r.decision, 'eligible');
@@ -306,7 +306,7 @@ test('CHECKPOINT_CONTRADICTION: più salti, oppure rumore', () => {
   assert.deepEqual(reasons(outlier), ['CHECKPOINT_CONTRADICTION']);
   assert.equal(outlier.contradiction?.kind, 'noise');
 
-  // Come Thor: Ragnarok (UHD e BD), un punto solo a ciascun bordo, -27 ms
+  // Come Martello di Vetro (UHD e BD), un punto solo a ciascun bordo, -27 ms
   // all'inizio e un fotogramma nei titoli di coda: due salti, non rumore. Il
   // salto di -27 ms da solo sarebbe un avviso; quello di un fotogramma no.
   const frame = 1000 / FPS;
@@ -320,7 +320,7 @@ test('CHECKPOINT_CONTRADICTION: più salti, oppure rumore', () => {
 });
 
 test('SUBFRAME_JUMPS: salti sotto il fotogramma a metà film, solo un avviso', () => {
-  // Come Zero Dark Thirty (UHD e BD): +11 ms tra 3 e 13 min, -18 ms tra 97 e
+  // Come Ora Zero e Trenta (UHD e BD): +11 ms tra 3 e 13 min, -18 ms tra 97 e
   // 117 min. Il video non salta di meno di un fotogramma: sono le tracce audio.
   const min = 60_000;
   const zdt = (p: number) => (p >= 3 * min && p <= 13 * min ? S + 11 : p >= 97 * min && p <= 117 * min ? S - 18 : S);
@@ -339,7 +339,7 @@ test('SUBFRAME_JUMPS: salti sotto il fotogramma a metà film, solo un avviso', (
   assert.equal(result(r, 'checkpoint-distribution'), 'pass');
   assert.ok(r.commonMaterial && r.commonMaterial.verifiedEndMs! > 110 * min);
 
-  // Come Up: un frame DTS (10,67 ms), appena oltre la tolleranza, a tratti.
+  // Come Casa Volante: un frame DTS (10,67 ms), appena oltre la tolleranza, a tratti.
   const up = decide(base({ checkpoints: series((p) => S + (Math.floor(p / (10 * min)) % 2) * 10.67) }), cal);
   assert.equal(up.decision, 'eligible', JSON.stringify(up.reasons));
 
@@ -394,7 +394,7 @@ test('CHECKPOINT_CONTRADICTION: il film continua a un altro spostamento oltre il
 });
 
 test('EDGE_CONTINUES_ELSEWHERE: un altro spostamento oltre il confine vicino al bordo, solo un avviso', () => {
-  // Come Up: gli outro Disney e Pixar 30 s più avanti nel BD italiano, che ha
+  // Come Casa Volante: gli outro Disney e Pixar 30 s più avanti nel BD italiano, che ha
   // i crediti italiani prima degli outro, a 10 s dalla fine del film.
   const probe = { side: 'end' as const, positionMs: DURATION - 10_000, match: match(S - 30_020) };
   const r = decide(base({ commonMaterial: { startMs: START, endMs: END, probes: [probe] } }), cal);
@@ -428,7 +428,7 @@ test('CHECKPOINT_UNMATCHED: un tratto con contenuto non trova corrispondenza da 
 });
 
 test('punti: un picco a S somigliante ma non unico è non conclusivo, non senza corrispondenza', () => {
-  // Come A Quiet Place: picchi proprio a S con NCC 1 ma poco netti (rapporto
+  // Come Paese Muto: picchi proprio a S con NCC 1 ma poco netti (rapporto
   // 1,05–1,42) su sottofondi continui. Ora non conclusivi: la coppia passa.
   const pts = series(() => S).map((p, i) => (i % 7 === 3 ? { ...p, local: match(S + 0.5, 1, 1.2) } : p));
   const r = decide(base({ checkpoints: pts }), cal);
@@ -437,12 +437,12 @@ test('punti: un picco a S somigliante ma non unico è non conclusivo, non senza 
   assert.equal(result(r, 'unmatched'), 'pass');
   assert.deepEqual(warnings(r), ['MANY_INCONCLUSIVE']);
 
-  // Somigliante a meno di un fotogramma da S (Up: 657 o 667 con S 656,5): non conclusivo.
+  // Somigliante a meno di un fotogramma da S (Casa Volante: 657 o 667 con S 656,5): non conclusivo.
   const at = (i: number, local: Match, wide: Match | null = null) =>
     series(() => S).map((p, j) => (j === i ? { ...p, local, wide } : p));
   const up = decide(base({ checkpoints: at(10, match(S + 11, 1, 1.3)) }), cal);
   assert.equal(up.checkpoints[10]!.outcome, 'inconclusive');
-  // Lontano da S, o poco somigliante (Ghostbusters, NCC 0,42), resta senza corrispondenza.
+  // Lontano da S, o poco somigliante (Acchiappaspettri, NCC 0,42), resta senza corrispondenza.
   assert.deepEqual(reasons(decide(base({ checkpoints: at(10, match(S + 50, 1, 1.3)) }), cal)), ['CHECKPOINT_UNMATCHED']);
   assert.deepEqual(reasons(decide(base({ checkpoints: at(10, match(S, 0.42, 3)) }), cal)), ['CHECKPOINT_UNMATCHED']);
   // Un picco sicuro altrove nella ricerca ampia resta una contraddizione.
@@ -453,7 +453,7 @@ test('punti: un picco a S somigliante ma non unico è non conclusivo, non senza 
 });
 
 test('punti: la seconda prova su un\'altra coppia di tracce conferma, contraddice o lascia senza corrispondenza', () => {
-  // Come Ghostbusters: la coppia di misura non ha picchi al punto 10 (un altro
+  // Come Acchiappaspettri: la coppia di misura non ha picchi al punto 10 (un altro
   // mix), le AC-3 stereo identiche hanno sull'ancora 0 ms invece di S.
   const stereo = { referenceTrackId: 3, donorTrackId: 4, mix: 'leftRight' as const, anchorOffsetMs: S + 29 };
   const center = { referenceTrackId: 1, donorTrackId: 3, mix: 'center' as const, anchorOffsetMs: S + 8 };
@@ -475,7 +475,7 @@ test('punti: la seconda prova su un\'altra coppia di tracce conferma, contraddic
   assert.equal(shifted.checkpoints[10]!.outcome, 'shifted');
   const beyond = decide(base({ checkpoints: at([{ ...stereo, match: match(S + 29 + 60, 1, 30) }]) }), cal);
   assert.deepEqual(reasons(beyond), ['CHECKPOINT_CONTRADICTION']);
-  // Nessun picco sicuro neanche lì (AvP): senza corrispondenza.
+  // Nessun picco sicuro neanche lì (MvC): senza corrispondenza.
   for (const alternates of [[], [{ ...stereo, match: match(S + 29, 0.2, 1.1) }, { ...center, match: null }]]) {
     assert.deepEqual(reasons(decide(base({ checkpoints: at(alternates) }), cal)), ['CHECKPOINT_UNMATCHED']);
   }
@@ -551,7 +551,7 @@ test('ITALIAN_TRANSFER_OFFSET: nel donatore l\'italiano è sfasato rispetto alla
 });
 
 test('ITALIAN_TRANSFER_OFFSET: tra formati diversi la tolleranza è più larga (decisione 3)', () => {
-  // Come Kung Fu Panda 2: italiano AC-3 contro inglese TrueHD a 27,2 ms.
+  // Come Tasso Volante 2: italiano AC-3 contro inglese TrueHD a 27,2 ms.
   const at = (ms: number, sameFormat: boolean) => decide(base({
     transfer: [0.2, 0.5, 0.8].map((f) => ({ positionMs: DURATION * f, match: match(ms, 0.7, 2) })),
     transferSameFormat: sameFormat,

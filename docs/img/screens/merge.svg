@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="864" height="324" viewBox="0 0 864 324" role="img" aria-label="dyadrr merge">
+  <title>dyadrr merge</title>
+  <style>
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace; font-size: 14px; white-space: pre; }
+    .p { fill: #7ee787; font-weight: bold; } .c { fill: #f0f6fc; } .o { fill: #c9d1d9; } .m { fill: #8b949e; } .t { fill: #8b949e; font-size: 13px; }
+  </style>
+  <rect width="864" height="324" rx="10" fill="#0d1117"/>
+  <rect width="864" height="32" rx="10" fill="#161b22"/>
+  <rect y="22" width="864" height="10" fill="#161b22"/>
+  <circle cx="20" cy="16" r="6" fill="#ff5f57"/><circle cx="40" cy="16" r="6" fill="#febc2e"/><circle cx="60" cy="16" r="6" fill="#28c840"/>
+  <text x="432" y="21" text-anchor="middle" class="t">dyadrr merge</text>
+  <text x="20" y="58"><tspan class="p">$</tspan><tspan class="c"> export DYADRR_TAIL=trim</tspan></text>
+  <text x="20" y="78"><tspan class="p">$</tspan><tspan class="c"> dyadrr merge &quot;Faro di Velmora (2011) [BD ITA].mkv&quot; &quot;Faro di Velmora (2011) [UHD].mkv&quot; --output \</tspan></text>
+  <text x="20" y="98" class="c">    &quot;Faro di Velmora (2011).mkv&quot; --expect analisi.json --report merge.json --inputs keep</text>
+  <text x="20" y="118" class="o">/media/film/merge.json</text>
+  <text x="20" y="138"><tspan class="p">$</tspan><tspan class="c"> echo $?</tspan></text>
+  <text x="20" y="158" class="o">0</text>
+  <text x="20" y="178"><tspan class="p">$</tspan><tspan class="c"> jq -c '.decision, .output.delivered, \</tspan></text>
+  <text x="20" y="198" class="c">    (.output.build.tracks[] | {source, type, language, name, default})' merge.json</text>
+  <text x="20" y="218" class="o">&quot;eligible&quot;</text>
+  <text x="20" y="238" class="o">true</text>
+  <text x="20" y="258" class="o">{&quot;source&quot;:&quot;reference&quot;,&quot;type&quot;:&quot;video&quot;,&quot;language&quot;:&quot;und&quot;,&quot;name&quot;:null,&quot;default&quot;:true}</text>
+  <text x="20" y="278" class="o">{&quot;source&quot;:&quot;donor&quot;,&quot;type&quot;:&quot;audio&quot;,&quot;language&quot;:&quot;ita&quot;,&quot;name&quot;:&quot;Italiano&quot;,&quot;default&quot;:true}</text>
+  <text x="20" y="298" class="o">{&quot;source&quot;:&quot;reference&quot;,&quot;type&quot;:&quot;audio&quot;,&quot;language&quot;:&quot;eng&quot;,&quot;name&quot;:&quot;English&quot;,&quot;default&quot;:false}</text>
+</svg>

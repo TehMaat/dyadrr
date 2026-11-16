@@ -1,0 +1,9 @@
+%% I workflow di GitHub Actions (WORKFLOW.md).
+flowchart LR
+  PR(["Pull request"]) --> CI["<b>CI</b><br/>npm test · build<br/>versione e CHANGELOG<br/>schermate aggiornate"]
+  PR --> IM["<b>Image</b><br/>suite nell'immagine<br/>amd64 e arm64"]
+  PR -- "chiusa" --> BC["<b>Branch cleanup</b><br/>cancella il branch<br/>della PR mergiata"]
+  MAIN(["Push su main"]) --> CI
+  MAIN --> IM2["<b>Image</b><br/>pubblica su GHCR<br/>latest · sha-… · versione"]
+  MAIN --> RL["<b>Release</b><br/>tag vX.Y.Z e note<br/>dal CHANGELOG"]
+  WEEK(["Ogni settimana<br/>o a mano"]) --> BC2["<b>Branch cleanup</b><br/>regole su tutti i branch<br/>(a mano: prova a vuoto)"]
