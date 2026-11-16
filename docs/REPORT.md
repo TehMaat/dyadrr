@@ -85,3 +85,7 @@ nell'ordine in cui arrivano.
 
 Una fase può mancare: l'analisi si ferma al primo controllo che fallisce, e
 `intermediate`, `merge` e `verify` ci sono solo nel merge.
+
+Un'analisi idonea, con le sole righe di inizio fase, i totali e la fine:
+
+![Terminale: dyadrr analyze --progress json, con le righe phase da read a plan, i totali di anchors, checkpoints e transfer, e la riga end con eligible e uscita 0](img/screens/progress.svg)

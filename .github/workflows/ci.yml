@@ -24,6 +24,17 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      # Le schermate della documentazione si rigenerano con i veri comandi e
+      # devono essere quelle committate (docs/WORKFLOW.md, "Schermate").
+      - name: Screens up to date
+        run: |
+          npm run docs:screens
+          if [ -n "$(git status --porcelain -- docs/img/screens)" ]; then
+            git status --short -- docs/img/screens
+            git diff --stat -- docs/img/screens
+            echo "::error::docs/img/screens is out of date: run npm run build && npm run docs:screens and commit"
+            exit 1
+          fi
 
   # Ogni PR alza la versione e la descrive nel CHANGELOG (CONTRIBUTING.md).
   version:

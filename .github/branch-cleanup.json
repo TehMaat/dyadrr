@@ -1,0 +1,6 @@
+{
+  "closedUnmergedDays": 14,
+  "staleDays": 30,
+  "keep": ["main"],
+  "keepPrefixes": ["keep/", "release/"]
+}

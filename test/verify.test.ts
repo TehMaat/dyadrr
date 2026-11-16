@@ -152,7 +152,7 @@ test('verifiche dopo il merge: tracce, video HDR10, pacchetti, inizio e fine del
 });
 
 test('italiano che parte dopo 10 s: mkvmerge -J non ne dà l\'inizio, lo si legge dal primo pacchetto', async () => {
-  // Kung Fu Panda 2: l'UHD ha 24,7 s di logo che il BD italiano non ha, e il
+  // Tasso Volante 2: l'UHD ha 24,7 s di logo che il BD italiano non ha, e il
   // merge finiva in VERIFY_FAILED (track 1 starts at none ms). Qui l'italiano
   // parte a 10 s del file finale; la coda in più si toglie.
   const offsetMs = 10_000;

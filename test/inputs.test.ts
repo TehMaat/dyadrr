@@ -314,7 +314,7 @@ test('integrity: only a tail that ends before the declared duration is a truncat
   // mkvmerge: declared = highest end − first timestamp; others count from zero
   assert.equal(shortfallMs(7_303_296, 7_303_296, 0), 0);
   assert.equal(shortfallMs(7_303_296 + 500, 7_303_296, 500), 0);
-  // A subtitle block that closes a second after the last frame (Lord of War): not truncated
+  // A subtitle block that closes a second after the last frame (Mercante di Varno): not truncated
   assert.equal(shortfallMs(7_304_334, 7_303_296, 0), 0);
   // A file cut 30 s before its end
   assert.equal(shortfallMs(7_273_296, 7_303_296, 0), 30_000);

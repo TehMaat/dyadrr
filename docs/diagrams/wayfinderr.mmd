@@ -1,0 +1,26 @@
+%% Un lavoro tra Wayfinderr e il runner (CONTAINER.md, studio §14.1).
+sequenceDiagram
+  autonumber
+  participant W as Wayfinderr
+  participant J as Cartella dei job<br/>/data/watch/.wayfinderr/dyadrr/jobs
+  participant R as dyadrr-runner
+  participant D as dyadrr
+  R->>J: dyadrr.alive ogni 5 s
+  W->>J: scrive .id.job e lo rinomina in id.job
+  R->>J: prende il più vecchio: id.job → id.run
+  R->>J: crea id.log
+  R->>D: dyadrr analyze|merge … --report id.json --progress json
+  loop durante il lavoro
+    D-->>R: righe di --progress json su stderr
+    R->>J: le aggiunge a id.log
+    W->>J: legge id.log (avanzamento)
+  end
+  opt annullamento
+    W->>J: scrive id.cancel
+    R->>J: lo vede (controllo ogni secondo)
+    R->>D: SIGTERM, una volta sola
+  end
+  D->>J: id.json (report)
+  D-->>R: codice di uscita
+  R->>J: id.exit, per ultimo
+  W->>J: legge id.exit e id.json, poi cancella i file del lavoro

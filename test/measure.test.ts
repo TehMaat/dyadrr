@@ -176,7 +176,7 @@ before(async () => {
       { seeds: ITALIAN, variant: stereo, language: 'ita' },
       { seeds: ENGLISH, variant: stereo, language: 'eng' },
     ]),
-    // Come Ghostbusters: il 5.1 inglese del donatore è diverso da 60 a 80 s (un
+    // Come Acchiappaspettri: il 5.1 inglese del donatore è diverso da 60 a 80 s (un
     // altro mix), lo stereo è identico a quello del riferimento.
     film('ref-two', 'ref-video.mkv', [
       { seeds: ENGLISH, language: 'eng' },
@@ -187,7 +187,7 @@ before(async () => {
       { seeds: ENGLISH, variant: replaced, language: 'eng' },
       { seeds: ENGLISH, variant: stereo, language: 'eng' },
     ]),
-    // Come AvP: lo stesso tratto è diverso su tutte le tracce.
+    // Come MvC: lo stesso tratto è diverso su tutte le tracce.
     film('donor-scene', 'donor-video.mkv', [
       { seeds: ITALIAN, variant: replaced, language: 'ita' },
       { seeds: ENGLISH, variant: replaced, language: 'eng' },
@@ -241,7 +241,7 @@ test('coppie di tracce: esclusi i commenti, centrale solo se lo hanno entrambe; 
 
 test('coppia di misura alla pari: le tracce principali prima dell\'ordine del file (decisione 7)', () => {
   const t = (id: number, codec: string, codecId: string, channels: number) => ({ id, codec, codecId, channels });
-  // Come Zero Dark Thirty: nell'UHD due AC-3 5.1 alla pari e la TrueHD, la
+  // Come Ora Zero e Trenta: nell'UHD due AC-3 5.1 alla pari e la TrueHD, la
   // principale, alla pari ma di un formato diverso dall'AC-3 del BD. Lo
   // stesso formato viene prima della traccia principale; tra le due AC-3,
   // nessuna principale, decide l'ordine del file.
@@ -259,9 +259,9 @@ test('coppia di misura alla pari: le tracce principali prima dell\'ordine del fi
   assert.equal(sameFormat(t(1, 'TrueHD', 'A_TRUEHD', 8), t(2, 'DTS-HD Master Audio', 'A_DTS', 6)), false);
 });
 
-test('traccia principale e tracce del trasferimento: come Scott Pilgrim e Cattivissimo me 4', () => {
+test('traccia principale e tracce del trasferimento: come Gina contro tutti e Piccoli Malvagi 4', () => {
   const t = (id: number, codec: string, codecId: string, channels: number) => ({ id, codec, codecId, channels });
-  // Scott Pilgrim, UHD: TrueHD 7.1, AC-3 5.1 e quattro commenti stereo senza flag.
+  // Gina contro tutti, UHD: TrueHD 7.1, AC-3 5.1 e quattro commenti stereo senza flag.
   const uhd = [t(1, 'TrueHD Atmos', 'A_TRUEHD', 8), t(2, 'AC-3', 'A_AC3', 6), t(3, 'AC-3', 'A_AC3', 2), t(4, 'AC-3', 'A_AC3', 2)];
   assert.equal(mainTrack(uhd)?.id, 1);
   // BD: DTS-HD MA 5.1 e il suo core DTS 5.1, alla pari di canali: vince il lossless.
@@ -273,15 +273,15 @@ test('traccia principale e tracce del trasferimento: come Scott Pilgrim e Cattiv
   // poi lo stesso codec (DTS-HD), poi la traccia della misura, poi l'ordine.
   const ita = { codec: 'DTS', codecId: 'A_DTS' };
   assert.deepEqual(transferCandidates(bd, ita, 3).map((x) => x.id), [2, 1, 3]);
-  // Cattivissimo me 4: italiano E-AC-3, inglese TrueHD (la misura) e AC-3: prima l'AC-3, lossy come l'italiano.
+  // Piccoli Malvagi 4: italiano E-AC-3, inglese TrueHD (la misura) e AC-3: prima l'AC-3, lossy come l'italiano.
   const dm4 = [t(1, 'TrueHD Atmos', 'A_TRUEHD', 8), t(2, 'AC-3', 'A_AC3', 6)];
   assert.deepEqual(transferCandidates(dm4, { codec: 'E-AC-3', codecId: 'A_EAC3' }, 1).map((x) => x.id), [2, 1]);
 });
 
-test('finestra muta spostata sul contenuto: il più vicino con il margine sopra E_min, se c\'è (Lord of War)', () => {
+test('finestra muta spostata sul contenuto: il più vicino con il margine sopra E_min, se c\'è (Mercante di Varno)', () => {
   const silence = cal.values.silenceDbfs;
   const strong = silence + CONTENT_MARGIN_DB;
-  // Come il punto di Lord of War chiesto a 3745,9 s: muto, un tratto quasi muto
+  // Come il punto di Mercante di Varno chiesto a 3745,9 s: muto, un tratto quasi muto
   // 15,5 s dopo (−49,2 dBFS), contenuto vero più in là, prima e dopo.
   const energy = (ms: number) =>
     ms < -50_000 ? null
@@ -418,7 +418,7 @@ test('CHECKPOINT_UNMATCHED: un tratto sostituito a metà film non trova corrispo
   assert.ok(measured.every((c) => c.wide !== null && c.wide.ncc < 0.3));
 });
 
-test('seconda prova: un tratto con un altro mix si conferma sulle tracce stereo identiche (Ghostbusters); un tratto diverso no (AvP)', async () => {
+test('seconda prova: un tratto con un altro mix si conferma sulle tracce stereo identiche (Acchiappaspettri); un tratto diverso no (MvC)', async () => {
   const a = await analyze('ref-two', 'donor-remixed');
   assert.equal(a.report.decision, 'eligible', JSON.stringify(a.report.reasons));
   // La coppia di misura è quella delle tracce principali, il 5.1 con il centrale.

@@ -1,5 +1,10 @@
 # Contribuire a Dyadrr
 
+Dyadrr è **Full Vibe Coded** ([README](README.md#full-vibe-coded)): codice,
+test e documentazione si scrivono con un assistente AI, e i contributi sono
+benvenuti nello stesso modo, con le stesse regole di questa pagina (versione,
+CHANGELOG, documentazione, test).
+
 ## Sviluppo
 
 Requisiti: Node 22, ffmpeg (almeno 6.1) con ffprobe e mkvtoolnix (almeno
@@ -16,6 +21,8 @@ sudo apt-get install ffmpeg mkvtoolnix   # Debian e Ubuntu
 npm ci          # dipendenze
 npm test        # compila e lancia tutti i test, compresi quelli sulla documentazione
 npm run build   # compila la libreria in dist/
+npm run docs:screens    # rigenera le schermate della documentazione (dopo build)
+npm run docs:diagrams   # rigenera i diagrammi cambiati in docs/diagrams/
 ```
 
 Con Docker si può lanciare la suite anche sull'immagine, con le sue versioni
@@ -110,6 +117,15 @@ documenti che tocca**, nella stessa PR.
 | Cosa scrive `dyadrr analyze` sugli stessi file: misure, decisione, avvisi | una voce in `ANALYSIS_CHANGES` (`src/pairs.ts`) con la nuova versione, e la tabella dei report superati in [docs/COPPIE.md](docs/COPPIE.md#report-importati): così `dyadrr-pairs` riconosce i report importati superati |
 | Una voce passa da "previsto" a implementata | la colonna o la riga **Stato** in [docs/CLI.md](docs/CLI.md) |
 | Una decisione di progetto o una regola del metodo | [docs/STUDIO-DI-FATTIBILITA.md](docs/STUDIO-DI-FATTIBILITA.md), con una voce nella cronologia (§20) |
+| Uscita di `dyadrr`, del report o di `dyadrr-pairs` | le schermate: `npm run build && npm run docs:screens`, e si committano (la CI le rigenera e fallisce se sono diverse) |
+| Un flusso, una fase, un modulo, un workflow o una regola dei branch | il diagramma in [docs/diagrams/](docs/diagrams/) e `npm run docs:diagrams` ([docs/WORKFLOW.md](docs/WORKFLOW.md#diagrammi)) |
+| Installazione, requisiti, versioni dell'immagine, variabili del Compose | [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md) |
+| Una variabile `DYADRR_*` nuova o tolta | la tabella delle variabili del [README](README.md#variabili-dambiente), [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md) e [docs/CLI.md](docs/CLI.md) |
+| Un rifiuto o un errore che gli utenti incontrano spesso | [docs/FAQ.md](docs/FAQ.md) |
+| Una parola nuova del metodo | [docs/GLOSSARIO.md](docs/GLOSSARIO.md) |
+| Workflow, regole o configurazione della pulizia dei branch | [docs/WORKFLOW.md](docs/WORKFLOW.md) e `.github/branch-cleanup.json` |
+| Un nuovo documento in `docs/` | l'indice [docs/README.md](docs/README.md) |
+| Esempi, prove, film o percorsi citati | **nomi inventati** ([docs/README.md](docs/README.md#nomi)): mai titoli veri, utenti, host o percorsi personali |
 
 Lo studio di fattibilità è la fonte delle decisioni: se il codice deve
 scostarsene, si aggiorna prima lo studio.
@@ -131,11 +147,34 @@ scostarsene, si aggiorna prima lo studio.
 - [docs/COPPIE.md](docs/COPPIE.md) non riporta le chiavi dell'elenco, le
   categorie, i verdetti e i campi del riassunto di `src/pairs.ts`;
 - [docs/CHANGELOG.md](docs/CHANGELOG.md) non ha la sezione della versione di
-  `package.json`.
+  `package.json`;
+- la tabella delle variabili del [README](README.md#variabili-dambiente) non
+  elenca esattamente le variabili `DYADRR_*` del codice, o un documento cita
+  una variabile che non esiste (né nel codice né nel Compose);
+- un link relativo, un'`#ancora` o un'immagine dei documenti non esiste, o
+  un'immagine in `docs/img/` non è usata;
+- un diagramma in `docs/img/diagrams/` non è stato rigenerato dal suo sorgente
+  in `docs/diagrams/`, o un `.md` contiene un diagramma ASCII;
+- il README o `docs/README.md` non dicono "Full Vibe Coded";
+- tornano i titoli veri dei film delle prove o un percorso personale.
+
+Le regole complete, e cosa controlla la CI, sono in
+[docs/WORKFLOW.md](docs/WORKFLOW.md#documentazione-sempre-aggiornata).
+
+## Branch
+
+Un branch per modifica, cancellato dopo il merge. Lo fa il workflow **Branch
+cleanup**, con regole fisse: si cancellano i branch con la PR mergiata, quelli
+già in `main`, quelli con una PR chiusa da più di 14 giorni e quelli senza PR
+né commit da più di 30; mai il branch di default, quelli protetti, quelli con
+una PR aperta e le eccezioni (`keep/…`, `release/…`). I dettagli sono in
+[docs/WORKFLOW.md](docs/WORKFLOW.md#pulizia-dei-branch), i numeri in
+`.github/branch-cleanup.json`.
 
 ## Pull request
 
 1. Un branch per modifica, PR verso `main`.
 2. Versione alzata e CHANGELOG aggiornato.
-3. Documentazione aggiornata (tabella sopra).
+3. Documentazione aggiornata (tabella sopra), con schermate e diagrammi
+   rigenerati se sono cambiati.
 4. Test per il codice nuovo; `npm test` verde.

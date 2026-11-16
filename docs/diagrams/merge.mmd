@@ -1,0 +1,19 @@
+%% Il merge (CLI.md, studio §6, §9.5, §10).
+flowchart TD
+  S0(["dyadrr merge a.mkv b.mkv --output finale.mkv"]) --> O{"Il file finale<br/>c'è già?"}
+  O -- "sì, senza terminale" --> O1["<code>OUTPUT_EXISTS</code> · uscita 30"]:::bad
+  O -- "no, o confermato" --> A["Analisi completa<br/>come <code>analyze</code>"]
+  A --> X{"<code>--expect</code><br/>report confermato?"}
+  X -- "diverso" --> X1["<code>INPUT_CHANGED</code> · uscita 30"]:::bad
+  X -- "uguale, o senza" --> C{"Scelte necessarie<br/><code>--tail</code> <code>--italian</code><br/><code>--reference-italian-subs</code> <code>--edge-mismatch</code>"}
+  C -- "mancano, senza terminale" --> C1["<code>CHOICE_REQUIRED</code> · uscita 30"]:::bad
+  C -- "decise: opzione, variabile<br/>o domanda nel terminale" --> I["<b>intermediate</b><br/>tracce italiane spostate di S<br/>e tagliate (mkvmerge --sync / --split)"]
+  I --> M["<b>merge</b><br/>riferimento + tracce italiane<br/>in <code>.dyadrr/</code>"]
+  M --> V{"<b>verify</b><br/>tracce, video, pacchetti,<br/>inizio e fine dell'italiano"}
+  V -- "no" --> V1["<code>VERIFY_FAILED</code> · uscita 40<br/>temporanei eliminati"]:::bad
+  V -- "sì" --> D["Rinomina: il file finale compare"]:::good
+  D --> IN{"<code>--inputs</code>"}
+  IN -- "keep (default)" --> K["Rip tenuti"]
+  IN -- "delete" --> DL["Rip cancellati<br/>se non sono cambiati"]
+  classDef good fill:#e6f4ea,stroke:#2e7d32,color:#1b3a1f
+  classDef bad fill:#fdecea,stroke:#c62828,color:#4a1212

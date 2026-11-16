@@ -1,0 +1,17 @@
+%% Le fasi dell'analisi (--progress json) e i rifiuti di ciascuna (CODICI.md, studio §4).
+flowchart TD
+  S0(["dyadrr analyze a.mkv b.mkv"]) --> R["<b>read</b><br/>tracce, lingue, video, integrità"]
+  R --> K{"Controlli strutturali"}
+  K -- "falliti" --> K1["<code>NO_ITALIAN_AUDIO</code> · <code>BOTH_ITALIAN_AUDIO</code><br/><code>NO_COMMON_LANGUAGE</code> · <code>DONOR_BETTER_VIDEO</code><br/><code>FPS_MISMATCH</code>"]:::bad
+  K -- "ok" --> AN["<b>anchors</b><br/>ancore: primo S e diagnosi di velocità"]
+  AN -- "falliti" --> A1["<code>NO_MATCH</code> · <code>AMBIGUOUS_MATCH</code><br/><code>OFFSET_TOO_LARGE</code> · <code>PAL_SPEEDUP</code> · <code>FPS_MISMATCH</code>"]:::bad
+  AN -- "ok" --> ED["<b>edges</b><br/>confini del materiale in comune"]
+  ED --> CP["<b>checkpoints</b><br/>30+ punti di conferma lungo il film"]
+  CP -- "falliti" --> C1["<code>CHECKPOINT_CONTRADICTION</code> · <code>CHECKPOINT_UNMATCHED</code><br/><code>DRIFT</code> · <code>TOO_FEW_CHECKPOINTS</code> · <code>LOW_COVERAGE</code>"]:::bad
+  CP -- "ok" --> EP["<b>edge-probes</b><br/>ricerche oltre i confini"]
+  EP --> TR["<b>transfer</b><br/>l'italiano segue la lingua di misura?"]
+  TR --> PL["<b>plan</b><br/>tagli, tracce prese, scelte in sospeso"]
+  PL --> OK(["<code>eligible</code> · uscita 0<br/>report JSON con S, piano e avvisi"]):::good
+  K1 & A1 & C1 --> NO(["<code>refused</code> · uscita 20<br/>report JSON con il motivo"]):::bad
+  classDef good fill:#e6f4ea,stroke:#2e7d32,color:#1b3a1f
+  classDef bad fill:#fdecea,stroke:#c62828,color:#4a1212

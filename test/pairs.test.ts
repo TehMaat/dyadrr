@@ -209,9 +209,9 @@ function list(name: string, text: string): { path: string; results: string } {
 test('elenco delle coppie: sezioni, chiavi e commenti; BAD_ARGUMENTS per un elenco sbagliato', () => {
   const pairs = parsePairList([
     '# Coppie per la taratura',
-    '[blade-runner]',
-    'input=film/Blade Runner (UHD).mkv\r',
-    'input=film/Blade Runner = BD.mkv',
+    '[faro-di-velmora]',
+    'input=film/Faro di Velmora (UHD).mkv\r',
+    'input=film/Faro di Velmora = BD.mkv',
     'expected=eligible',
     'original-language=eng',
     'category=uhd-bd',
@@ -230,8 +230,8 @@ test('elenco delle coppie: sezioni, chiavi e commenti; BAD_ARGUMENTS per un elen
   ].join('\n'));
   assert.deepEqual(pairs, [
     {
-      id: 'blade-runner',
-      inputs: ['film/Blade Runner (UHD).mkv', 'film/Blade Runner = BD.mkv'],
+      id: 'faro-di-velmora',
+      inputs: ['film/Faro di Velmora (UHD).mkv', 'film/Faro di Velmora = BD.mkv'],
       expected: 'eligible',
       originalLanguage: 'eng',
       categories: ['uhd-bd', 'dubbing-card'],
@@ -499,7 +499,7 @@ test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassu
 
   // Gli ingressi si confrontano per nome, in qualsiasi ordine: il rip può essere stato spostato o cancellato.
   const current = { dyadrr: dyadrrVersion(), calibration: cal.version };
-  const moved = spec({ inputs: ['c/Watcher/donor.mkv', 'c/Watcher/reference.mkv'], report: 'r.json' });
+  const moved = spec({ inputs: ['c/Arrivi/donor.mkv', 'c/Arrivi/reference.mkv'], report: 'r.json' });
   assert.deepEqual(checkImport(eligible, moved, current), { from: eligible.dyadrr, differences: [], stale: null });
   const old = variant((r) => (r.dyadrr = '0.13.1'));
   assert.deepEqual(checkImport(old, moved, current), {
@@ -540,7 +540,7 @@ test('report importati: controlli, versioni superate da ANALYSIS_CHANGES, riassu
   assert.match(checkImport(recentUnmatched, moved, current).stale!, /^Dyadrr 0\.23\.0, changed in 0\.24\.0: a checkpoint without a match is tried again/);
   // Dalla 0.22.0 un punto muto si sposta sul contenuto con il margine sopra
   // E_min: un report con un punto spostato su un tratto quasi muto va
-  // rimisurato (Lord of War); uno spostato su un tratto forte no.
+  // rimisurato (Mercante di Varno); uno spostato su un tratto forte no.
   const faint = (energyDbfs: number) => variant((r) => {
     r.dyadrr = '0.21.2';
     const c = r.measurement!.checkpoints![0]!;

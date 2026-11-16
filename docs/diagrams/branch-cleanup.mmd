@@ -1,0 +1,17 @@
+%% Le regole della pulizia dei branch (.github/branch-cleanup.json, WORKFLOW.md).
+flowchart TD
+  B(["Un branch"]) --> P{"È main, il branch<br/>di default, protetto<br/>o un'eccezione?"}
+  P -- "sì" --> K["Si tiene"]:::keep
+  P -- "no" --> O{"Ha una PR aperta?<br/>anche draft"}
+  O -- "sì" --> K
+  O -- "no" --> M{"La sua ultima PR è mergiata<br/>e il branch non ha<br/>commit dopo?"}
+  M -- "sì" --> D["Si cancella"]:::del
+  M -- "no" --> A{"Il suo ultimo commit<br/>è già in main?"}
+  A -- "sì" --> D
+  A -- "no" --> C{"Ultima PR chiusa senza merge<br/>da più di 14 giorni,<br/>senza commit dopo?"}
+  C -- "sì" --> D
+  C -- "no" --> S{"Nessuna PR e ultimo commit<br/>di più di 30 giorni fa?"}
+  S -- "sì" --> D
+  S -- "no" --> K
+  classDef keep fill:#e6f4ea,stroke:#2e7d32,color:#1b3a1f
+  classDef del fill:#fdecea,stroke:#c62828,color:#4a1212

@@ -131,6 +131,11 @@ controlla la riga di comando.
 
 ## Un lavoro
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/diagrams/wayfinderr-dark.svg">
+  <img alt="Sequenza di un lavoro: Wayfinderr scrive il job, il runner lo prende, lancia dyadrr, riporta l'avanzamento in id.log, scrive id.json e infine id.exit" src="img/diagrams/wayfinderr.svg">
+</picture>
+
 1. Il runner guarda la cartella ogni secondo e prende un `.job` alla volta,
    dal più vecchio (data di modifica, poi nome), rinominandolo in `.run`.
 2. Crea `<id>.log`. Se c'è già `<id>.cancel`, chiude il lavoro come

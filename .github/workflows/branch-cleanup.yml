@@ -1,0 +1,50 @@
+name: Branch cleanup
+
+# Cancella i branch secondo le regole di scripts/branch-cleanup.mjs, con i
+# numeri e le eccezioni di .github/branch-cleanup.json (docs/WORKFLOW.md):
+# - alla chiusura di una PR, il suo branch, se la PR è mergiata;
+# - ogni lunedì, tutti i branch;
+# - a mano (Run workflow), tutti i branch, per default solo come prova a vuoto.
+# Non tocca mai il branch di default, i branch protetti, le eccezioni e i
+# branch con una PR aperta.
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Solo elencare, senza cancellare'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: branch-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    # Le PR da un fork non hanno un branch in questo repository.
+    if: github.event_name != 'pull_request' || (github.event.pull_request.merged && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Clean up
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+        run: |
+          args=()
+          if [ "$DRY_RUN" = true ]; then args+=(--dry-run); fi
+          if [ -n "$HEAD_REF" ]; then args+=(--branch "$HEAD_REF"); fi
+          node scripts/branch-cleanup.mjs "${args[@]}"
