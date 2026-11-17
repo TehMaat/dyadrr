@@ -171,9 +171,18 @@ una PR aperta e le eccezioni (`keep/…`, `release/…`). I dettagli sono in
 [docs/WORKFLOW.md](docs/WORKFLOW.md#pulizia-dei-branch), i numeri in
 `.github/branch-cleanup.json`.
 
+## Proposte
+
+Ogni proposta diventa prima una issue: chi la riceve (anche l'assistente AI)
+la analizza sul codice e sui documenti e apre una issue con contesto,
+proposta, cosa cambia, criteri di accettazione e domande aperte. Il lavoro
+comincia solo quando il maintainer dà il via, e la PR chiude la issue con
+`Closes #N`.
+
 ## Pull request
 
-1. Un branch per modifica, PR verso `main`.
+1. Un branch per modifica, PR verso `main`, collegata alla sua issue
+   (`Closes #N`).
 2. Versione alzata e CHANGELOG aggiornato.
 3. Documentazione aggiornata (tabella sopra), con schermate e diagrammi
    rigenerati se sono cambiati.

@@ -5,6 +5,21 @@ ricodificare. Il progetto è descritto in `docs/STUDIO-DI-FATTIBILITA.md`, che �
 la fonte delle decisioni: se il codice deve scostarsene, si aggiorna prima lo
 studio (con una voce nella cronologia, §20).
 
+## Proposte → issue
+
+Quando il maintainer propone qualcosa ("c'è questa cosa…": una funzione, una
+modifica, un problema, un'idea), non si scrive codice:
+
+1. si analizza la proposta sul codice e sui documenti (studio compreso):
+   cosa tocca, come si potrebbe fare, rischi, domande aperte;
+2. si apre una issue su GitHub con l'analisi: titolo chiaro, contesto,
+   proposta, cosa cambia (codice, documenti, studio), criteri di
+   accettazione, domande aperte;
+3. si dà al maintainer il link della issue e **ci si ferma**: si procede solo
+   quando il maintainer lo dice.
+
+La PR che realizza la issue la chiude con `Closes #N`.
+
 ## Regole per ogni pull request
 
 - **Versione:** ogni PR verso `main` alza la versione in `package.json` con
