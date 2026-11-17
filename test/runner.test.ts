@@ -261,7 +261,8 @@ process.exit(30);
   const lines: RunnerLogEntry[] = [];
   const stop = new AbortController();
   const running = runRunner({ dataDir: data, signal: stop.signal, dyadrr: [process.execPath, fake], log: (l) => lines.push(l), pollMs: 20, aliveMs: 100 });
-  await until('c-cancel.exit', () => existsSync(file('c-cancel', 'exit')));
+  // La riga `exit code` viene dopo `.exit`: si aspetta lei prima di fermare il runner.
+  await until('the c-cancel exit line', () => lines.some((l) => l.job === 'c-cancel' && l.code !== undefined));
   stop.abort();
   await running;
 
