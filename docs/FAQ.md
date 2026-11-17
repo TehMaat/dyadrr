@@ -78,6 +78,24 @@ in copia o in scrittura. Si riprova quando ha finito.
 **`INPUT_TRUNCATED` o `INPUT_UNREADABLE`.** Il file è incompleto, non è un MKV
 o non si legge. Si rifà il rip o la copia.
 
+**`INPUT_UNREADABLE` con `… is not mounted in this container`.** Nel
+container il file è in una cartella che Dyadrr non vede, per esempio
+`/data/seeding` per i film in seeding: il backend di Wayfinderr la monta, il
+servizio `dyadrr` no. Si aggiunge il mount nel Compose, con lo stesso nome,
+e si riavvia il container ([CONTAINER.md](CONTAINER.md#nel-compose-di-wayfinderr)):
+
+```yaml
+      - ${SEEDING_DIR:-./seeding}:/data/seeding:ro
+```
+
+All'avvio il runner scrive le cartelle che vede (`mounted: watch (rw),
+downloads (ro), seeding (ro)`), nella pagina **Logs** di Wayfinderr (sorgente
+*dyadrr*) e in `docker compose logs dyadrr`.
+
+**Il runner non parte: `/data/watch is not writable`.** La cartella
+sorvegliata è montata in sola lettura (`:ro`): il runner ci scrive i job, i
+temporanei e il file finale. Si toglie `:ro` dal mount di `/data/watch`.
+
 **`TOOL_MISSING` o `TOOL_TOO_OLD`.** Mancano mkvmerge, ffprobe o ffmpeg, o
 sono troppo vecchi ([INSTALLAZIONE.md](INSTALLAZIONE.md#requisiti)). Con
 l'immagine Docker non succede.

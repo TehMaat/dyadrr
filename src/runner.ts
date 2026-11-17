@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
-import { createWriteStream } from 'node:fs';
-import { appendFile, mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { constants, createWriteStream } from 'node:fs';
+import { access, appendFile, mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { CHOICES, CHOICE_NAMES } from './choices.js';
@@ -120,6 +120,68 @@ export function dataPath(dataDir: string, path: string): string {
     throw badJob(`"${path}" is not a path relative to the mounted folders (${RUNNER.watch}/…)`);
   }
   return join(dataDir, ...parts);
+}
+
+/** Una cartella in `dataDir`: il nome e se si scrive. */
+export interface MountedFolder {
+  name: string;
+  writable: boolean;
+}
+
+/**
+ * Le cartelle in `dataDir` (§14.1), quella sorvegliata per prima e poi per
+ * nome: scrivibile se il runner ci può scrivere (`access` con `W_OK`, che su
+ * un mount `:ro` dà `EROFS`). Nessuna se `dataDir` non si legge.
+ */
+export async function mountedFolders(dataDir: string): Promise<MountedFolder[]> {
+  const names = await readdir(dataDir).catch(() => [] as string[]);
+  const folders: MountedFolder[] = [];
+  for (const name of names) {
+    const path = join(dataDir, name);
+    if (!(await stat(path).catch(() => null))?.isDirectory()) continue;
+    folders.push({ name, writable: await access(path, constants.W_OK).then(() => true, () => false) });
+  }
+  const rank = (f: MountedFolder) => (f.name === RUNNER.watch ? 0 : 1);
+  return folders.sort((a, b) => rank(a) - rank(b) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+
+/** La riga `mounted:` del log del runner. */
+export function mountedLine(folders: readonly MountedFolder[]): string {
+  return `mounted: ${folders.length === 0 ? 'none' : folders.map((f) => `${f.name} (${f.writable ? 'rw' : 'ro'})`).join(', ')}`;
+}
+
+/** La riga di un lavoro preso: il comando e gli ingressi come nel job, tra virgolette. */
+export function jobLine(job: Pick<Job, 'command' | 'inputs'>): string {
+  return [job.command, ...job.inputs.map((p) => JSON.stringify(p))].join(' ');
+}
+
+/**
+ * Gli ingressi in una cartella che non c'è in `dataDir`: il container non la
+ * monta, e Dyadrr non la troverebbe. `INPUT_UNREADABLE` con il percorso e il
+ * motivo (§14.1); `null` se le cartelle ci sono. Un ingresso direttamente in
+ * `dataDir` non ha una cartella: se manca lo dice Dyadrr.
+ */
+export async function unmountedInput(job: Pick<Job, 'inputs'>, dataDir: string): Promise<DyadrrError | null> {
+  for (const input of job.inputs) {
+    const parts = input.split('/');
+    if (parts.length < 2) continue;
+    const folder = join(dataDir, parts[0]!);
+    if ((await stat(folder).catch(() => null))?.isDirectory()) continue;
+    return new DyadrrError(
+      'INPUT_UNREADABLE',
+      `${dataPath(dataDir, input)}: ${parts[0]} is not mounted in this container (${folder})`,
+    );
+  }
+  return null;
+}
+
+/**
+ * Il testo della riga `exit code`: per un errore, anche la prima riga del
+ * messaggio del report, che comincia con il percorso quando è un ingresso.
+ */
+export function exitLine(code: number, report: Pick<Report, 'decision' | 'reasons'> | null): string {
+  const message = report?.decision === 'error' ? report.reasons[0]?.message.split('\n')[0]?.trim() : undefined;
+  return message ? `exit code ${code}: ${message}` : `exit code ${code}`;
 }
 
 /** Gli argomenti della riga di comando per un job, con il report e `--progress json` del runner. */
@@ -246,8 +308,9 @@ class RunnerLogFile {
 
 /**
  * Il runner: scrive `dyadrr.alive`, chiude i lavori interrotti e poi prende
- * i job uno alla volta, finché il segnale di stop non arriva. Si ferma con un
- * errore se manca la cartella sorvegliata. Le sue righe vanno a `o.log` e in
+ * i job uno alla volta, finché il segnale di stop non arriva. All'avvio dice
+ * le cartelle in `dataDir` (`mounted: …`); si ferma con un errore se la
+ * cartella sorvegliata manca o non si scrive. Le sue righe vanno a `o.log` e in
  * `dyadrr.runner.jsonl`, avvio e stop compresi; il motivo dello stop è quello
  * del segnale (`abort('SIGTERM')`).
  */
@@ -265,6 +328,7 @@ export async function runRunner(o: RunnerOptions): Promise<void> {
   const jobs = join(o.dataDir, RUNNER.jobs);
   log({ level: 'info', msg: `dyadrr ${dyadrrVersion()}, jobs in ${jobs}` });
   try {
+    log({ level: 'info', msg: mountedLine(await mountedFolders(o.dataDir)) });
     await work(o, jobs, log, file);
     log({ level: 'info', msg: 'stopped' });
   } catch (e) {
@@ -281,6 +345,9 @@ async function work(o: RunnerOptions, jobs: string, log: Log, file: RunnerLogFil
   const watch = join(o.dataDir, RUNNER.watch);
   if (!(await stat(watch).catch(() => null))?.isDirectory()) {
     throw new Error(`${watch} is missing: mount the watched folder there`);
+  }
+  if (!(await access(watch, constants.W_OK).then(() => true, () => false))) {
+    throw new Error(`${watch} is not writable: mount the watched folder read-write`);
   }
   await mkdir(jobs, { recursive: true });
   await file.open(jobs);
@@ -397,27 +464,31 @@ async function runJob(id: string, jobs: string, o: RunnerOptions, log: Log): Pro
   const outcome = (x: Outcome) => writeOutcomeReport(report, { ...salvaged, startedAt }, x);
 
   let code: number;
+  let job: Job | null = null;
   let argv: string[] | null = null;
   try {
-    const job = parseJob(text);
+    job = parseJob(text);
     argv = jobArguments(job, o.dataDir, report);
-    log({ level: 'info', job: id, msg: job.command });
+    log({ level: 'info', job: id, msg: jobLine(job) });
   } catch (e) {
     if (!(e instanceof DyadrrError)) throw e;
     code = await outcome({ decision: 'error', code: e.code, message: e.message });
   }
-  if (argv !== null) {
+  if (job !== null && argv !== null) {
+    const unmounted = await unmountedInput(job, o.dataDir);
     if (await exists(file('cancel'))) {
       code = await outcome({ decision: 'cancelled', message: 'cancelled: cancelled before it started' });
     } else if (o.signal.aborted) {
       code = await outcome({ decision: 'cancelled', message: 'cancelled: the runner was stopped' });
+    } else if (unmounted !== null) {
+      code = await outcome({ decision: 'error', code: unmounted.code, message: unmounted.message });
     } else {
       code = await launch(argv, file, o);
     }
   }
   await writeAtomic(file('exit'), `${code!}\n`);
-  const reason = code! === 0 ? undefined : (await readReport(report))?.reasons[0]?.code;
-  log({ level: code! === 0 ? 'info' : 'warn', job: id, msg: `exit code ${code!}`, code: reason });
+  const written = code! === 0 ? null : await readReport(report);
+  log({ level: code! === 0 ? 'info' : 'warn', job: id, msg: exitLine(code!, written), code: written?.reasons[0]?.code });
 }
 
 /** Lancia Dyadrr e aspetta la fine; un solo SIGTERM per `.cancel` o per lo stop del runner. */
