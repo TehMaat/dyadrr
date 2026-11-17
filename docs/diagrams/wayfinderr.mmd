@@ -9,6 +9,9 @@ sequenceDiagram
   W->>J: scrive .id.job e lo rinomina in id.job
   R->>J: prende il più vecchio: id.job → id.run
   R->>J: crea id.log
+  opt job sbagliato, id.cancel già presente o ingresso in una cartella non montata
+    R->>J: id.json (BAD_ARGUMENTS, cancelled o INPUT_UNREADABLE) e id.exit, senza lanciare dyadrr
+  end
   R->>D: dyadrr analyze|merge … --report id.json --progress json
   loop durante il lavoro
     D-->>R: righe di --progress json su stderr

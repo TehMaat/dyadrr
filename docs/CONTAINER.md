@@ -57,14 +57,27 @@ docker build --target test -t dyadrr:test . && docker run --rm dyadrr:test   # l
 | Nel container | Cosa è | Montata |
 |---|---|---|
 | `/data` | Cartella di lavoro: ogni cartella condivisa con Wayfinderr è una sua sottocartella, con un nome | — |
-| `/data/watch` | La cartella sorvegliata di Wayfinderr (`MAKEMKV_OUTPUT_DIR`): ingressi trattenuti, file finale, temporanei `.dyadrr/`, job. Obbligatoria: senza, il runner non parte | in scrittura |
-| `/data/<nome>` | Altre cartelle con ingressi possibili, per esempio i download | di norma in sola lettura |
+| `/data/watch` | La cartella sorvegliata di Wayfinderr (`MAKEMKV_OUTPUT_DIR`): ingressi trattenuti, file finale, temporanei `.dyadrr/`, job. Obbligatoria e in scrittura: senza, o in sola lettura, il runner non parte | in scrittura |
+| `/data/<nome>` | Altre cartelle con ingressi possibili, per esempio i download (`downloads`) o i film in seeding (`seeding`) | di norma in sola lettura |
 | `/data/watch/.wayfinderr/dyadrr/jobs/` | La cartella dei job; il runner la crea se manca | — |
 
 I percorsi nel job sono **relativi a `/data`**, con `/`, e cominciano con il
 nome della cartella montata: `watch/Film (2).mkv`, `downloads/Film/Film.mkv`.
 Assoluti, vuoti o con un elemento vuoto, `.` o `..` sono `BAD_ARGUMENTS`.
 Il report riporta i percorsi del container (`/data/watch/…`).
+
+**Cartella non montata.** Se il primo elemento di un ingresso non è una
+cartella sotto `/data` (per esempio `seeding/…` senza il mount di
+`/data/seeding`), il runner non lancia Dyadrr e scrive lui il report:
+`INPUT_UNREADABLE`, uscita 30, con il messaggio
+
+```
+/data/seeding/Film/Film.mkv: seeding is not mounted in this container (/data/seeding)
+```
+
+Lo stesso testo va nella riga `exit code` del [log del runner](#log-del-runner).
+Con la cartella montata e il file mancante decide Dyadrr (`cannot be read
+(ENOENT)`). La [FAQ](FAQ.md) dice come aggiungere il mount.
 
 ## File della cartella dei job
 
@@ -139,7 +152,8 @@ controlla la riga di comando.
 1. Il runner guarda la cartella ogni secondo e prende un `.job` alla volta,
    dal più vecchio (data di modifica, poi nome), rinominandolo in `.run`.
 2. Crea `<id>.log`. Se c'è già `<id>.cancel`, chiude il lavoro come
-   annullato senza lanciare Dyadrr.
+   annullato senza lanciare Dyadrr; se un ingresso è in una cartella non
+   montata, come `INPUT_UNREADABLE` (sopra).
 3. Lancia Dyadrr; lo stderr va in `<id>.log`. Un `<id>.cancel`, controllato
    ogni secondo, gli manda SIGTERM: report `cancelled`, uscita 50.
 4. Alla fine, se Dyadrr non ha scritto il report, lo scrive il runner con il
@@ -170,6 +184,15 @@ Una riga JSON per evento, con l'a capo:
 {"time":"2026-11-06T14:03:12.481Z","level":"warn","msg":"exit code 20","job":"3f2a…","code":"NO_MATCH","version":"0.23.0"}
 ```
 
+Un avvio e un lavoro con un ingresso in una cartella non montata, su stderr:
+
+```
+dyadrr-runner: dyadrr 0.26.0, jobs in /data/watch/.wayfinderr/dyadrr/jobs
+dyadrr-runner: mounted: watch (rw), downloads (ro)
+dyadrr-runner: 3f2a…: merge "watch/Film (2).mkv" "seeding/Film/Film.mkv"
+dyadrr-runner: 3f2a…: exit code 30: /data/seeding/Film/Film.mkv: seeding is not mounted in this container (/data/seeding)
+```
+
 | Campo | Cosa contiene |
 |---|---|
 | `time` | Ora in UTC, ISO 8601 con i millisecondi |
@@ -182,9 +205,10 @@ Una riga JSON per evento, con l'a capo:
 | Riga (`msg`) | `level` |
 |---|---|
 | `dyadrr <versione>, jobs in <cartella>` (avvio) | `info` |
-| `<command>` (lavoro preso, `analyze` o `merge`) | `info` |
+| `mounted: <cartella> (rw\|ro), …` (avvio): le cartelle sotto `/data`, la sorvegliata per prima e poi per nome; `mounted: none` se non ce n'è | `info` |
+| `<command> "<ingresso>" "<ingresso>"` (lavoro preso): `analyze` o `merge` e gli ingressi come nel job, tra virgolette (JSON) | `info` |
 | `exit code 0` | `info` |
-| `exit code <n>` con `n` diverso da 0, con `code` | `warn` |
+| `exit code <n>` con `n` diverso da 0, con `code`; per un errore (`decision` `error`) `exit code <n>: <messaggio>`, con la prima riga del messaggio del report | `warn` |
 | `not taken: the id was already used` | `warn` |
 | `interrupted, closed with exit code <n>` (all'avvio), con `code` | `warn` |
 | `<segnale>: stopping`, `stopped` | `info` |
@@ -201,8 +225,10 @@ Una riga JSON per evento, con l'a capo:
   runner né un lavoro. Le righe di quel momento vanno solo su stderr, con
   `dyadrr-runner: dyadrr.runner.jsonl cannot be written: <errore>` una volta
   sola, finché il file non torna scrivibile.
-- **Senza cartella sorvegliata** il runner non parte e le righe vanno solo su
-  stderr: la cartella dei job non c'è.
+- **Senza cartella sorvegliata**, o con la cartella in sola lettura, il
+  runner non parte (`error: /data/watch is missing: …` o `… is not writable:
+  mount the watched folder read-write`) e le righe vanno solo su stderr: la
+  cartella dei job non si scrive.
 
 ## Nel Compose di Wayfinderr
 
@@ -216,7 +242,12 @@ Una riga JSON per evento, con l'a capo:
     volumes:
       - ${MAKEMKV_OUTPUT_DIR:-./makemkv-output}:/data/watch
       - ${DOWNLOADS_DIR:-./downloads}:/data/downloads:ro
+      - ${SEEDING_DIR:-./seeding}:/data/seeding:ro
 ```
+
+Ogni cartella da cui Wayfinderr può passare un ingresso va montata con lo
+stesso nome che usa nel job (`seeding` per i film in seeding,
+TehMaat/wayfinderr#86); la riga `mounted:` all'avvio dice quali ci sono.
 
 - **`hostname` fisso:** Dyadrr riconosce i propri temporanei dal nome host
   ([CLI.md](CLI.md#annullamento)); con il nome casuale che Docker dà a ogni

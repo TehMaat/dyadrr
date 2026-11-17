@@ -90,6 +90,7 @@ Wayfinderr), nel profilo `merge`:
     volumes:
       - ${MAKEMKV_OUTPUT_DIR:-./makemkv-output}:/data/watch
       - ${DOWNLOADS_DIR:-./downloads}:/data/downloads:ro
+      - ${SEEDING_DIR:-./seeding}:/data/seeding:ro
 ```
 
 ```bash
@@ -98,7 +99,9 @@ docker compose --profile merge up -d dyadrr
 
 Per controllare che giri: il runner riscrive `dyadrr.alive` ogni 5 secondi
 nella cartella dei job, e le sue righe sono in `docker compose logs dyadrr` e
-in `dyadrr.runner.jsonl`.
+in `dyadrr.runner.jsonl`. La seconda riga dice le cartelle montate, per
+esempio `mounted: watch (rw), downloads (ro), seeding (ro)`: ogni cartella da
+cui Wayfinderr passa i file deve esserci ([FAQ](FAQ.md)).
 
 ### Variabili del Compose
 
@@ -109,6 +112,7 @@ Si mettono nel file `.env` accanto al Compose.
 | `DYADRR_TAG` | `latest` | Il tag dell'immagine: una versione per restare fermi |
 | `MAKEMKV_OUTPUT_DIR` | `./makemkv-output` | La cartella sorvegliata di Wayfinderr, montata in scrittura su `/data/watch`: rip trattenuti, file finali, job |
 | `DOWNLOADS_DIR` | `./downloads` | I download, montati in sola lettura su `/data/downloads` |
+| `SEEDING_DIR` | `./seeding` | I film pubblicati in locale, dove sono in seeding, montati in sola lettura su `/data/seeding` (TehMaat/wayfinderr#86) |
 
 Le scelte del merge e i rip dopo il merge li passa Wayfinderr in ogni file
 job, dalle sue impostazioni: le variabili `DYADRR_*` della riga di comando non

@@ -1,12 +1,12 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { USAGE } from '../src/cli.js';
 import { DyadrrError } from '../src/codes.js';
 import type { Report } from '../src/report.js';
-import { JOB_KEYS, RUNNER, jobArguments, logLine, parseJob, runRunner, type RunnerLogEntry } from '../src/runner.js';
+import { JOB_KEYS, RUNNER, exitLine, jobArguments, jobLine, logLine, mountedFolders, mountedLine, parseJob, runRunner, type RunnerLogEntry } from '../src/runner.js';
 import { dyadrrVersion } from '../src/report.js';
 import { ffmpegSource, mkvmerge, settle, tempDir } from './helpers/mkv.js';
 
@@ -218,15 +218,18 @@ test('runner: un job alla volta dal più vecchio, .log, .json e .exit; .cancel; 
   // Il log del runner: le stesse righe di stderr, con livello, lavoro e codice.
   const entries = logEntries(join(jobs, RUNNER.logFile)).map(withoutTime);
   assert.deepEqual(entries, lines.map((l) => JSON.parse(JSON.stringify(l)) as Record<string, unknown>));
+  const analyze = 'analyze "watch/reference.mkv" "watch/donor.mkv"';
+  const unknown = 'exit code 30: job: unknown command "analyse": analyze or merge';
   assert.deepEqual(entries, [
     { level: 'info', msg: `dyadrr ${dyadrrVersion()}, jobs in ${jobs}` },
-    { level: 'warn', msg: 'exit code 30', job: 'dyadrr', code: 'BAD_ARGUMENTS' },
-    { level: 'warn', msg: 'exit code 30', job: 'a-parse', code: 'BAD_ARGUMENTS' },
-    { level: 'info', msg: 'analyze', job: 'b-value' },
-    { level: 'warn', msg: 'exit code 30', job: 'b-value', code: 'BAD_ARGUMENTS' },
-    { level: 'info', msg: 'analyze', job: 'c-cancel' },
+    { level: 'info', msg: 'mounted: watch (rw)' },
+    { level: 'warn', msg: unknown, job: 'dyadrr', code: 'BAD_ARGUMENTS' },
+    { level: 'warn', msg: unknown, job: 'a-parse', code: 'BAD_ARGUMENTS' },
+    { level: 'info', msg: analyze, job: 'b-value' },
+    { level: 'warn', msg: `exit code 30: ${b.reasons[0]!.message}`, job: 'b-value', code: 'BAD_ARGUMENTS' },
+    { level: 'info', msg: analyze, job: 'c-cancel' },
     { level: 'warn', msg: 'exit code 50', job: 'c-cancel', code: 'CANCELLED' },
-    { level: 'info', msg: 'analyze', job: 'd-early' },
+    { level: 'info', msg: analyze, job: 'd-early' },
     { level: 'warn', msg: 'exit code 50', job: 'd-early', code: 'CANCELLED' },
     { level: 'warn', msg: 'not taken: the id was already used', job: 'a-parse' },
     { level: 'info', msg: 'SIGTERM: stopping' },
@@ -234,6 +237,90 @@ test('runner: un job alla volta dal più vecchio, .log, .json e .exit; .cancel; 
   ]);
   assert.equal(logLine(lines.find((l) => l.job === 'c-cancel' && l.code)!), 'c-cancel: exit code 50');
   assert.ok(!existsSync(join(jobs, RUNNER.logPrevious)), 'no rotation under the limit');
+});
+
+test('cartelle montate: riga mounted all\'avvio, ingressi nella riga del lavoro, INPUT_UNREADABLE per una cartella non montata', async () => {
+  const { data, jobs, file } = dataDir('data-mounts');
+  mkdirSync(join(data, 'downloads'));
+  writeFileSync(join(data, 'notes.txt'), '');
+  const launched = join(data, 'launched');
+  const fake = join(data, 'fake-dyadrr.cjs');
+  writeFileSync(fake, `
+const fs = require('fs');
+const report = process.argv.find((a) => a.startsWith('--report=')).slice('--report='.length);
+fs.appendFileSync(${JSON.stringify(launched)}, process.argv.slice(3, 5).join(' ') + '\\n');
+fs.writeFileSync(report, JSON.stringify({ decision: 'error', reasons: [{ code: 'INPUT_UNREADABLE', message: process.argv[4] + ': cannot be read (ENOENT)\\nmore' }] }));
+process.exit(30);
+`);
+  const seeding = ['command=merge', 'input=watch/Film (2).mkv', 'input=seeding/Film/Film.mkv', 'output=watch/out.mkv'];
+  writeJob(file('a-seeding', 'job'), seeding, 30);
+  writeJob(file('b-missing', 'job'), ['command=analyze', 'input=watch/Film (2).mkv', 'input=downloads/Film/Film.mkv'], 20);
+  writeFileSync(file('c-cancel', 'cancel'), '');
+  writeJob(file('c-cancel', 'job'), seeding, 10);
+
+  const lines: RunnerLogEntry[] = [];
+  const stop = new AbortController();
+  const running = runRunner({ dataDir: data, signal: stop.signal, dyadrr: [process.execPath, fake], log: (l) => lines.push(l), pollMs: 20, aliveMs: 100 });
+  await until('c-cancel.exit', () => existsSync(file('c-cancel', 'exit')));
+  stop.abort();
+  await running;
+
+  // La cartella non montata la trova il runner: Dyadrr non parte.
+  const why = `${join(data, 'seeding/Film/Film.mkv')}: seeding is not mounted in this container (${join(data, 'seeding')})`;
+  assert.equal(read(file('a-seeding', 'exit')), '30\n');
+  const a = report(file('a-seeding', 'json'));
+  assert.equal(a.decision, 'error');
+  assert.deepEqual(a.reasons, [{ code: 'INPUT_UNREADABLE', message: why }]);
+  assert.equal(a.mode, 'merge');
+  assert.deepEqual(a.arguments.files, [join(data, 'watch/Film (2).mkv'), join(data, 'seeding/Film/Film.mkv')]);
+  assert.equal(read(file('a-seeding', 'log')), '');
+  // Con la cartella montata decide Dyadrr; nel log la prima riga del suo messaggio.
+  assert.equal(read(launched), `${join(data, 'watch/Film (2).mkv')} ${join(data, 'downloads/Film/Film.mkv')}\n`);
+  // Annullato prima di cominciare: l'annullamento vince.
+  assert.equal(read(file('c-cancel', 'exit')), '50\n');
+
+  assert.deepEqual(logEntries(join(jobs, RUNNER.logFile)).map(withoutTime), [
+    { level: 'info', msg: `dyadrr ${dyadrrVersion()}, jobs in ${jobs}` },
+    { level: 'info', msg: 'mounted: watch (rw), downloads (rw)' },
+    { level: 'info', msg: 'merge "watch/Film (2).mkv" "seeding/Film/Film.mkv"', job: 'a-seeding' },
+    { level: 'warn', msg: `exit code 30: ${why}`, job: 'a-seeding', code: 'INPUT_UNREADABLE' },
+    { level: 'info', msg: 'analyze "watch/Film (2).mkv" "downloads/Film/Film.mkv"', job: 'b-missing' },
+    { level: 'warn', msg: `exit code 30: ${join(data, 'downloads/Film/Film.mkv')}: cannot be read (ENOENT)`, job: 'b-missing', code: 'INPUT_UNREADABLE' },
+    { level: 'info', msg: 'merge "watch/Film (2).mkv" "seeding/Film/Film.mkv"', job: 'c-cancel' },
+    { level: 'warn', msg: 'exit code 50', job: 'c-cancel', code: 'CANCELLED' },
+    { level: 'info', msg: 'stopping' },
+    { level: 'info', msg: 'stopped' },
+  ]);
+  assert.equal(logLine(lines[3]!), `a-seeding: exit code 30: ${why}`);
+
+  // Le righe da sole: sola lettura, nessuna cartella, i rifiuti senza messaggio.
+  assert.equal(mountedLine([{ name: 'watch', writable: true }, { name: 'downloads', writable: false }, { name: 'seeding', writable: false }]),
+    'mounted: watch (rw), downloads (ro), seeding (ro)');
+  assert.equal(mountedLine(await mountedFolders(join(dir, 'nowhere'))), 'mounted: none');
+  assert.equal(jobLine({ command: 'analyze', inputs: [] }), 'analyze');
+  assert.equal(exitLine(20, { decision: 'refused', reasons: [{ code: 'NO_MATCH', message: 'no match' }] }), 'exit code 20');
+  assert.equal(exitLine(40, null), 'exit code 40');
+});
+
+test('cartelle montate: una in sola lettura si dice ro; la cartella sorvegliata non scrivibile ferma il runner', { skip: process.getuid?.() === 0 && 'root writes everywhere' }, async () => {
+  const { data } = dataDir('data-ro');
+  const downloads = join(data, 'downloads');
+  const watch = join(data, 'watch');
+  mkdirSync(downloads);
+  chmodSync(downloads, 0o555);
+  try {
+    assert.deepEqual(await mountedFolders(data), [{ name: 'watch', writable: true }, { name: 'downloads', writable: false }]);
+    chmodSync(watch, 0o555);
+    const lines: RunnerLogEntry[] = [];
+    await assert.rejects(
+      runRunner({ dataDir: data, signal: new AbortController().signal, log: (l) => lines.push(l) }),
+      { message: `${watch} is not writable: mount the watched folder read-write` },
+    );
+    assert.deepEqual(lines.map((l) => l.msg).slice(1), ['mounted: watch (ro), downloads (ro)', `error: ${watch} is not writable: mount the watched folder read-write`]);
+  } finally {
+    chmodSync(downloads, 0o755);
+    chmodSync(watch, 0o755);
+  }
 });
 
 test('INTERRUPTED: .run rimasti all\'avvio e Dyadrr ucciso; INTERNAL senza report; lo stop del runner annulla con un solo SIGTERM', async () => {
@@ -287,7 +374,7 @@ setInterval(() => {}, 1000);
   assert.deepEqual(old.arguments.files, [join(data, 'watch/old.mkv'), join(data, 'watch/old.mkv')]);
   assert.equal(read(file('old', 'log')), '');
   assert.equal(read(file('done', 'exit')), '20\n', 'the exit code comes from the report');
-  const recovered = logEntries(join(data, RUNNER.jobs, RUNNER.logFile)).map(withoutTime).filter((l) => /interrupted/.test(String(l.msg)));
+  const recovered = logEntries(join(data, RUNNER.jobs, RUNNER.logFile)).map(withoutTime).filter((l) => /^interrupted/.test(String(l.msg)));
   assert.deepEqual(recovered, [
     { level: 'warn', msg: 'interrupted, closed with exit code 20', job: 'done', code: 'NO_MATCH' },
     { level: 'warn', msg: 'interrupted, closed with exit code 40', job: 'old', code: 'INTERRUPTED' },
@@ -334,11 +421,12 @@ test('processo: dyadrr-runner senza la cartella sorvegliata non parte; con SIGTE
   await until('dyadrr.alive', () => existsSync(join(jobs, RUNNER.alive)), 10_000);
   runner.child.kill('SIGTERM');
   assert.equal(await runner.code, 0, runner.out());
-  assert.match(runner.out(), /^dyadrr-runner: dyadrr \d+\.\d+\.\d+, jobs in .*\ndyadrr-runner: SIGTERM: stopping\ndyadrr-runner: stopped\n$/s);
+  assert.match(runner.out(), /^dyadrr-runner: dyadrr \d+\.\d+\.\d+, jobs in .*\ndyadrr-runner: mounted: watch \(rw\)\ndyadrr-runner: SIGTERM: stopping\ndyadrr-runner: stopped\n$/s);
   assert.deepEqual(logEntries(join(jobs, RUNNER.logFile)).map(withoutTime).map((l) => l.msg).slice(-2), ['SIGTERM: stopping', 'stopped']);
 });
 
 test('dyadrr.runner.jsonl: rotazione oltre il limite; un file che non si scrive non ferma il runner e si dice una volta', async () => {
+  const unknownCommand = 'exit code 30: job: unknown command "analyse": analyze or merge';
   const bad = (file: (id: string, ext: string) => string, ids: string[]) =>
     ids.forEach((id, i) => writeJob(file(id, 'job'), ['command=analyse'], 60 - i));
 
@@ -356,7 +444,7 @@ test('dyadrr.runner.jsonl: rotazione oltre il limite; un file che non si scrive 
   assert.ok(statSync(join(small.jobs, RUNNER.logPrevious)).size <= 400);
   assert.equal(current.at(-1)!.msg, 'stopped');
   const msgs = [...previous, ...current].map((l) => `${String(l.job ?? '')} ${String(l.msg)}`);
-  assert.deepEqual(msgs.slice(-3), ['j6 exit code 30', ' stopping', ' stopped'], 'in order, nothing repeated');
+  assert.deepEqual(msgs.slice(-3), [`j6 ${unknownCommand}`, ' stopping', ' stopped'], 'in order, nothing repeated');
 
   // Un file che non si scrive (qui è una cartella): i lavori vanno avanti, e
   // l'errore arriva una volta sola, solo a stderr.
@@ -372,6 +460,6 @@ test('dyadrr.runner.jsonl: rotazione oltre il limite; un file che non si scrive 
   const errors = lines.filter((l) => l.msg.startsWith(`${RUNNER.logFile} cannot be written`));
   assert.equal(errors.length, 1, JSON.stringify(lines));
   assert.deepEqual(errors[0], { level: 'error', msg: `${RUNNER.logFile} cannot be written: EISDIR` });
-  assert.ok(lines.some((l) => l.job === 'k3' && l.msg === 'exit code 30'));
+  assert.ok(lines.some((l) => l.job === 'k3' && l.msg === unknownCommand));
   assert.equal(lines.at(-1)!.msg, 'stopped');
 });

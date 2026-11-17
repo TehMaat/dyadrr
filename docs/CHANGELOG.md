@@ -4,6 +4,28 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.26.0] - 2026-11-17
+
+### Aggiunto
+- Il log del runner dice di più (TehMaat/dyadrr#43), per i film letti dove
+  sono in seeding (TehMaat/wayfinderr#86): all'avvio le cartelle montate sotto
+  `/data` con `rw` o `ro` (`mounted: watch (rw), downloads (ro), seeding
+  (ro)`); per ogni lavoro preso, oltre al comando, gli ingressi come nel job;
+  per un errore, dopo il codice di uscita, il messaggio del report
+- Un ingresso in una cartella non montata nel container (per esempio
+  `seeding/…` senza `/data/seeding`) lo riconosce il runner, senza lanciare
+  Dyadrr: `INPUT_UNREADABLE` (uscita 30) con `seeding is not mounted in this
+  container (/data/seeding)`, lo stesso testo nel report e nel log. Nessun
+  codice nuovo
+
+### Modificato
+- Il runner non parte se `/data/watch` è in sola lettura (`… is not writable:
+  mount the watched folder read-write`): prima partiva senza poter prendere
+  nessun lavoro
+- `docs/CONTAINER.md`, `docs/INSTALLAZIONE.md`, `docs/FAQ.md`, `docs/CODICI.md`
+  e lo studio (0.34, §14.1): le righe nuove del log, il mount di
+  `/data/seeding` (`SEEDING_DIR`) e cosa fare se manca
+
 ## [0.25.1] - 2026-11-17
 
 ### Modificato
