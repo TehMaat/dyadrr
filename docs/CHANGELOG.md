@@ -4,6 +4,14 @@ Tutte le modifiche rilevanti, una sezione per versione. Le versioni seguono il
 [semantic versioning](https://semver.org); le regole sono in
 [CONTRIBUTING.md](../CONTRIBUTING.md#versioning).
 
+## [0.25.1] - 2026-11-17
+
+### Modificato
+- Ogni proposta del maintainer diventa prima una issue con l'analisi
+  (contesto, proposta, cosa cambia, criteri di accettazione, domande aperte),
+  e il lavoro comincia solo al suo via; la PR chiude la issue con `Closes #N`
+  (`CLAUDE.md`, `CONTRIBUTING.md`)
+
 ## [0.25.0] - 2026-11-16
 
 ### Aggiunto
