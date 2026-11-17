@@ -435,8 +435,10 @@ test('dyadrr.runner.jsonl: rotazione oltre il limite; un file che non si scrive 
   const small = dataDir('data-log-1');
   bad(small.file, ['j1', 'j2', 'j3', 'j4', 'j5', 'j6']);
   let stop = new AbortController();
-  let running = runRunner({ dataDir: small.data, signal: stop.signal, pollMs: 20, aliveMs: 100, logMaxBytes: 400 });
-  await until('j6.exit', () => existsSync(small.file('j6', 'exit')));
+  const smallLines: RunnerLogEntry[] = [];
+  let running = runRunner({ dataDir: small.data, signal: stop.signal, log: (l) => smallLines.push(l), pollMs: 20, aliveMs: 100, logMaxBytes: 400 });
+  // La riga `exit code` viene dopo `.exit`: si aspetta lei prima di fermare il runner.
+  await until('the j6 exit line', () => smallLines.some((l) => l.job === 'j6' && l.code !== undefined));
   stop.abort();
   await running;
   const previous = logEntries(join(small.jobs, RUNNER.logPrevious));
